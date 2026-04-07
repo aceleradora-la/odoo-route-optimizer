@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_route_optimizer" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.route_optimizer</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="stock.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='stock']" position="inside">
+                <block title="Route optimization" name="route_optimizer_block">
+                    <setting id="route_optimizer_osrm_setting" string="OSRM server" help="Base URL for the OSRM routing engine (Table service). Example: https://router.project-osrm.org">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_osrm_url"/>
+                                <field name="route_optimizer_osrm_url" class="oe_inline" placeholder="https://router.project-osrm.org"/>
+                            </div>
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_osrm_profile"/>
+                                <field name="route_optimizer_osrm_profile" class="oe_inline"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="route_optimizer_ortools_setting" string="OR-Tools service" help="HTTP endpoint that receives the VRP JSON payload and returns ordered routes.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_url"/>
+                                <field name="route_optimizer_ortools_url" class="oe_inline" placeholder="https://ortools.example.com/vrp/solve"/>
+                            </div>
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_timeout"/>
+                                <field name="route_optimizer_timeout" class="oe_inline"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

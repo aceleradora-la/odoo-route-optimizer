@@ -1,0 +1,21 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Odoo
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
