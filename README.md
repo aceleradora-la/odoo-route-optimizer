@@ -36,6 +36,38 @@ Instalá el código desde la rama que coincida con tu versión de Odoo.
 
 Documentado en el docstring de `route_optimizer/services/route_service.py`.
 
+## Publicar en tu GitHub (rama `18.0` y `19.0`)
+
+Desde esta carpeta ya hay un repositorio Git con las ramas **`18.0`** y **`19.0`**. No puedo crear el repositorio remoto sin que inicies sesión en GitHub en tu máquina.
+
+1. Creá en GitHub un repositorio vacío: **https://github.com/new** → nombre `odoo-route-optimizer` (sin README ni `.gitignore` si ya existen aquí).
+
+2. Autenticación (una vez):
+
+   ```bash
+   "C:\Program Files\GitHub CLI\gh.exe" auth login
+   ```
+
+3. Enlazar y subir ambas ramas (reemplazá `TU_USUARIO`):
+
+   ```powershell
+   cd C:\Users\ignac\route-optimizer
+   git remote add origin https://github.com/TU_USUARIO/odoo-route-optimizer.git
+   git push -u origin 18.0
+   git push -u origin 19.0
+   ```
+
+4. En GitHub: **Settings → General → Default branch** → elegí `18.0` (recomendado para la rama estable actual).
+
+Alternativa con `gh` (tras `auth login`):
+
+```bash
+cd C:\Users\ignac\route-optimizer
+gh repo create TU_USUARIO/odoo-route-optimizer --public --source=. --remote=origin --push
+```
+
+Eso sube solo la rama actual; luego ejecutá `git push -u origin 18.0` y `git push -u origin 19.0` si hace falta.
+
 ## Licencia
 
 LGPL-3 (ver `LICENSE`).
