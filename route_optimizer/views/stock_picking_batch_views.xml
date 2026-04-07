@@ -3,7 +3,7 @@
     <record id="view_picking_batch_form_route_optimizer" model="ir.ui.view">
         <field name="name">stock.picking.batch.form.route_optimizer</field>
         <field name="model">stock.picking.batch</field>
-        <field name="inherit_id" ref="stock_picking_batch.view_picking_batch_form"/>
+        <field name="inherit_id" ref="stock_picking_batch.stock_picking_batch_form"/>
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
                 <button
