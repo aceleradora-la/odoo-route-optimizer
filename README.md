@@ -35,6 +35,13 @@ Instalá el código desde la rama que coincida con tu versión de Odoo.
    - **OR-Tools service URL**: p. ej. `http://195.179.231.4:8080/optimize`.
    - **Simple OR-Tools API** viene activado por defecto (formato `locations` + `distance_matrix` y respuesta `optimized_route`). Desmarcá solo si usás el contrato extendido. Solo un vehículo en este modo.
 
+## Orden de visitas
+
+Tras optimizar, el orden queda en:
+
+1. **Visit order (last run)** en el formulario del lote (lista numerada: transferencia + contacto).
+2. Pestaña **Traslados**: columna **Visit order** (icono de arrastre / `batch_sequence`), ordenada de arriba a abajo como la ruta sugerida.
+
 ## Contrato del servicio OR-Tools
 
 Documentado en el docstring de `route_optimizer/services/route_service.py`.

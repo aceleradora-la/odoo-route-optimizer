@@ -10,6 +10,13 @@ class StockPickingBatch(models.Model):
         copy=False,
         readonly=True,
     )
+    route_optimizer_visit_summary = fields.Text(
+        string="Visit order (last run)",
+        copy=False,
+        readonly=True,
+        help="Numbered list of transfers after the last optimization. Same order as column "
+        "“Visit order” / batch sequence on the Transfers tab.",
+    )
 
     def action_route_optimizer_wizard(self):
         self.ensure_one()
