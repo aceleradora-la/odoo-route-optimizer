@@ -92,6 +92,7 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
     profile = icp.get_param("route_optimizer.osrm_profile") or "driving"
     ortools_url = icp.get_param("route_optimizer.ortools_url") or ""
     timeout = int(icp.get_param("route_optimizer.timeout") or 60)
+    simple_ortools = icp.get_param("route_optimizer.ortools_simple_api") == "True"
 
     depot = _get_depot_partner(batch, depot_partner=depot_partner)
     depot_coords = _partner_coords(depot)
@@ -127,9 +128,6 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
     except osrm_client.OsrmError as e:
         raise UserError(_("OSRM error: %s") % str(e)) from e
 
-    matrix = table["durations"] if use_duration else table["distances"]
-    metric = "duration" if use_duration else "distance"
-
     picking_ids_order = [s["picking"].id for s in stops]
     demands = [0]
     for s in stops:
@@ -137,15 +135,48 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
         demands.append(float(w))
 
     n = len(demands)
-    if len(matrix) != n or any(len(row) != n for row in matrix):
-        raise UserError(_("OSRM matrix size does not match the number of nodes."))
-
     nv = max(1, int(num_vehicles or 1))
     if nv > len(stops):
         raise UserError(
             _("Number of vehicles (%(v)s) cannot exceed the number of delivery stops (%(s)s).")
             % {"v": nv, "s": len(stops)}
         )
+
+    # Minimal HTTP API: {locations, distance_matrix} -> {optimized_route: [...]}
+    if simple_ortools:
+        if nv > 1:
+            raise UserError(
+                _(
+                    "Simple OR-Tools API only supports one vehicle. "
+                    "Set Vehicles to 1 or disable Simple OR-Tools API in settings."
+                )
+            )
+        dist_m = table["distances"]
+        if len(dist_m) != n or any(len(row) != n for row in dist_m):
+            raise UserError(_("OSRM distance matrix size does not match the number of nodes."))
+        matrix_int = _matrix_to_int_meters(dist_m)
+        depot_label = "__ODOO_DEPOT__"
+        locations = [depot_label] + [f"P{pid}" for pid in picking_ids_order]
+        try:
+            result = ortools_client.solve_simple_distance_api(
+                ortools_url, locations, matrix_int, timeout=timeout
+            )
+        except ortools_client.OrtoolsServiceError as e:
+            raise UserError(_("OR-Tools service error: %s") % str(e)) from e
+        ordered_ids = _ordered_pickings_from_simple_route(
+            result, depot_label, picking_ids_order
+        )
+        _apply_order_single_batch(batch, ordered_ids)
+        msg = _("Route optimized (%(n)s stops, distance).") % {"n": len(ordered_ids)}
+        batch.write({"route_optimizer_last_message": msg})
+        return {"message": msg}
+
+    matrix = table["durations"] if use_duration else table["distances"]
+    metric = "duration" if use_duration else "distance"
+
+    if len(matrix) != n or any(len(row) != n for row in matrix):
+        raise UserError(_("OSRM matrix size does not match the number of nodes."))
+
     capacities = []
     if vehicle_capacity and vehicle_capacity > 0:
         capacities = [float(vehicle_capacity)] * nv
@@ -203,6 +234,49 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
     raise UserError(
         _("Could not interpret OR-Tools response. Expected ordered_picking_ids or routes.")
     )
+
+
+def _matrix_to_int_meters(matrix):
+    """OSRM returns floats and nulls for unreachable pairs; OR-Tools demo expects int meters."""
+    big = 999_999_999
+    out = []
+    for row in matrix:
+        r = []
+        for x in row:
+            if x is None:
+                r.append(big)
+            else:
+                try:
+                    r.append(int(round(float(x))))
+                except (TypeError, ValueError):
+                    r.append(big)
+        out.append(r)
+    return out
+
+
+def _ordered_pickings_from_simple_route(result, depot_label, picking_ids_order):
+    """Parse optimized_route using labels P{picking.id} and depot_label."""
+    route = result.get("optimized_route")
+    if not route:
+        route = result.get("route")
+    if not route:
+        raise UserError(
+            _("Could not interpret OR-Tools response: missing optimized_route (or route).")
+        )
+    label_to_id = {f"P{pid}": pid for pid in picking_ids_order}
+    ordered_ids = []
+    seen = set()
+    for label in route:
+        if label == depot_label:
+            continue
+        pid = label_to_id.get(label)
+        if pid is not None and pid not in seen:
+            ordered_ids.append(pid)
+            seen.add(pid)
+    for pid in picking_ids_order:
+        if pid not in seen:
+            ordered_ids.append(pid)
+    return ordered_ids
 
 
 def _apply_order_single_batch(batch, ordered_picking_ids):

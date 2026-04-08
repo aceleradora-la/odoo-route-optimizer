@@ -9,16 +9,38 @@ class OsrmError(Exception):
     """Raised when OSRM returns an error or invalid payload."""
 
 
+def normalize_osrm_base_url(base_url):
+    """
+    OSRM Table URLs must be built as {base}/table/v1/{profile}/{coords}.
+
+    Users often paste ``http://host:5000/table/v1/`` — that duplicates the path
+    and OSRM returns HTTP 400. Strip any trailing ``/table/v1`` (and ``/table``).
+    """
+    u = (base_url or "").strip().rstrip("/")
+    if not u:
+        return u
+    lower = u.lower()
+    while True:
+        if lower.endswith("/table/v1"):
+            u = u[: -len("/table/v1")].rstrip("/")
+        elif lower.endswith("/table"):
+            u = u[: -len("/table")].rstrip("/")
+        else:
+            break
+        lower = u.lower()
+    return u
+
+
 def fetch_table(base_url, profile, coordinates_lonlat, timeout=60):
     """
     Call OSRM Table API.
 
-    :param base_url: e.g. https://router.project-osrm.org (no trailing slash)
+    :param base_url: Server root only, e.g. http://195.179.231.4:5000 (NOT .../table/v1/)
     :param profile: e.g. driving
     :param coordinates_lonlat: list of (longitude, latitude) floats, depot first
     :return: dict with keys durations, distances (lists of lists), raw response
     """
-    base = (base_url or "").rstrip("/")
+    base = normalize_osrm_base_url(base_url)
     if not base:
         raise OsrmError("OSRM base URL is not configured.")
     if len(coordinates_lonlat) < 2:
@@ -33,7 +55,20 @@ def fetch_table(base_url, profile, coordinates_lonlat, timeout=60):
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8")
     except urllib.error.HTTPError as e:
-        raise OsrmError(f"OSRM HTTP error: {e.code} {e.reason}") from e
+        err_body = ""
+        try:
+            err_body = e.read().decode("utf-8")
+        except Exception:
+            pass
+        hint = ""
+        if e.code == 400:
+            hint = (
+                " If you set the base URL with /table/v1/, remove it: use only the server root "
+                "(e.g. http://HOST:5000). Odoo appends /table/v1/{profile}/coordinates automatically."
+            )
+        raise OsrmError(
+            f"OSRM HTTP error: {e.code} {e.reason}. {err_body[:400]}{hint}"
+        ) from e
     except urllib.error.URLError as e:
         raise OsrmError(f"OSRM connection error: {e.reason}") from e
 
@@ -47,8 +82,14 @@ def fetch_table(base_url, profile, coordinates_lonlat, timeout=60):
 
     durations = data.get("durations")
     distances = data.get("distances")
-    if not durations or not distances:
-        raise OsrmError("OSRM response missing durations or distances.")
+
+    # Some OSRM deployments are called with annotations=distance only; fill missing matrix.
+    if not distances and not durations:
+        raise OsrmError("OSRM response missing durations and distances.")
+    if not durations:
+        durations = distances
+    if not distances:
+        distances = durations
 
     return {
         "durations": durations,

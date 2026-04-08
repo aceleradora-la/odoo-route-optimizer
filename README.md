@@ -30,7 +30,10 @@ Instalá el código desde la rama que coincida con tu versión de Odoo.
 
 3. Actualizar lista de aplicaciones e instalar **Route Optimizer (OSRM + OR-Tools)**.
 
-4. En **Ajustes → Inventario → Route optimization**, configurar la URL base de OSRM y la URL del servicio OR-Tools.
+4. En **Ajustes → Inventario → Route optimization**, configurar:
+   - **OSRM base URL**: solo la raíz del servidor, p. ej. `http://195.179.231.4:5000`. **No** incluyas `/table/v1/` (Odoo arma `.../table/v1/driving/{coords}` solo).
+   - **OR-Tools service URL**: p. ej. `http://195.179.231.4:8080/optimize`.
+   - Si tu microservicio usa el formato de prueba `{"locations", "distance_matrix"}` y responde con `optimized_route`, activá **Simple OR-Tools API** (solo un vehículo).
 
 ## Contrato del servicio OR-Tools
 
