@@ -394,12 +394,15 @@ def _apply_multi_vehicle_routes(env, original_batch, routes, picking_ids_order):
                 pids.append(picking_ids_order[idx - 1])
         vehicle_routes.append(pids)
 
-    if not vehicle_routes or not vehicle_routes[0]:
+    # Some solvers may return empty routes for unused vehicles (e.g., [0, 0]).
+    # Keep only routes that actually carry at least one stop.
+    vehicle_routes = [r for r in vehicle_routes if r]
+    if not vehicle_routes:
         raise UserError(_("Empty routes from OR-Tools."))
 
     batch_orders = []
 
-    # Move secondary vehicles to new batches first so original batch only keeps route 0.
+    # Move secondary vehicles to new batches first so original batch only keeps the first non-empty route.
     for extra_pick_ids in vehicle_routes[1:]:
         if not extra_pick_ids:
             continue
