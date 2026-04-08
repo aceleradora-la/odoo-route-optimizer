@@ -118,11 +118,49 @@ class RouteOptimizerWizard(models.TransientModel):
 
     @api.model
     def default_get(self, fields_list):
-        """Ensure defaults from context also prefill capacities."""
+        """Ensure defaults from context also prefill capacities.
+
+        IMPORTANT: Do not access wizard field getters here (may recurse into default_get).
+        Work only with the returned dict + browsed vehicle record.
+        """
         res = super().default_get(fields_list)
-        wiz = self.new(res)
-        wiz._prefill_capacities_from_vehicle()
-        res.update(wiz._convert_to_write(wiz._cache))
+
+        fleet_vehicle_id = res.get("fleet_vehicle_id") or self.env.context.get("default_fleet_vehicle_id")
+        if not fleet_vehicle_id:
+            return res
+
+        vehicle = self.env["fleet.vehicle"].browse(fleet_vehicle_id)
+        if not vehicle.exists():
+            return res
+
+        category = getattr(getattr(vehicle, "model_id", None), "category_id", None)
+
+        # Weight capacity (kg)
+        current_weight = res.get("vehicle_capacity") or 0.0
+        if (not current_weight) or float(current_weight) <= 0:
+            weight_cap = None
+            if category and "weight_capacity" in category._fields:
+                try:
+                    weight_cap = float(category.weight_capacity or 0.0)
+                except (TypeError, ValueError):
+                    weight_cap = None
+            cap = weight_cap or self._fleet_capacity_candidates(vehicle)
+            if cap:
+                res["vehicle_capacity"] = cap
+
+        # Volume capacity (m³)
+        if "vehicle_volume_capacity" in fields_list:
+            current_vol = res.get("vehicle_volume_capacity") or 0.0
+            if (not current_vol) or float(current_vol) <= 0:
+                vol_cap = None
+                if category and "volume_capacity" in category._fields:
+                    try:
+                        vol_cap = float(category.volume_capacity or 0.0)
+                    except (TypeError, ValueError):
+                        vol_cap = None
+                if vol_cap and vol_cap > 0:
+                    res["vehicle_volume_capacity"] = vol_cap
+
         return res
 
     @api.onchange("batch_id")
