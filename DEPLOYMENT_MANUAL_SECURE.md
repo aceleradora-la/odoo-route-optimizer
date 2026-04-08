@@ -327,9 +327,7 @@ En **Inventario → Ajustes → Route optimization**:
 
 - **OSRM base URL**: `http://TU_IP:5000`
 - **OSRM profile**: `driving`
-- **OR-Tools service URL**:
-  - **Simple**: `http://TU_IP:8080/optimize`
-  - **Extendido (VRP)**: `http://TU_IP:8080/vrp`
+- **OR-Tools service URL**: `http://TU_IP:8080`
 - **OR-Tools API key**: pegá la misma key que tenés en `.env`
 - **Simple OR-Tools API**:
   - Marcado: Odoo envía `locations + distance_matrix` (API simple).

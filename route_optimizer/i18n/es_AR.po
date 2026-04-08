@@ -237,8 +237,8 @@ msgid "OR-Tools service"
 msgstr "Servicio OR-Tools"
 
 #. module: route_optimizer
-msgid "HTTP endpoint. With Simple OR-Tools API (default), set e.g. …/optimize and Odoo sends locations + distance_matrix. If you disable Simple, set e.g. …/vrp and Odoo sends the extended payload (num_vehicles, matrix, demands, vehicle_capacities, picking_ids, …) and expects routes with node_indices."
-msgstr "Endpoint HTTP. Con API simple de OR-Tools (predeterminado), usá por ejemplo …/optimize y Odoo envía locations + distance_matrix. Si desactivás Simple, usá por ejemplo …/vrp y Odoo envía el payload extendido (num_vehicles, matrix, demands, vehicle_capacities, picking_ids, …) y espera routes con node_indices."
+msgid "Base URL (IP:port) or full endpoint. Odoo will automatically use /optimize when Simple OR-Tools API is enabled, or /vrp when disabled. If you paste a full URL with /optimize or /vrp it will be respected when it matches the selected mode."
+msgstr "URL base (IP:puerto) o endpoint completo. Odoo usará automáticamente /optimize cuando la API simple esté activa, o /vrp cuando esté desactivada. Si pegás una URL completa con /optimize o /vrp se respeta cuando coincide con el modo seleccionado."
 
 #. module: route_optimizer
 msgid "Address"
