@@ -149,7 +149,9 @@ class RouteOptimizerWizard(models.TransientModel):
                 res["vehicle_capacity"] = cap
 
         # Volume capacity (m³)
-        if "vehicle_volume_capacity" in fields_list:
+        # Do not rely on fields_list here; in some onchange/default_get flows Odoo may call
+        # default_get with a reduced set of fields and still render the full form later.
+        if "vehicle_volume_capacity" in self._fields:
             current_vol = res.get("vehicle_volume_capacity") or 0.0
             if (not current_vol) or float(current_vol) <= 0:
                 vol_cap = None
