@@ -81,6 +81,14 @@ msgid "Optional max capacity per vehicle (same unit as transfer weight). Leave e
 msgstr "Capacidad máxima opcional por vehículo (misma unidad que el peso del traslado). Dejar vacío para usar un valor por defecto no restrictivo en el solver."
 
 #. module: route_optimizer
+msgid "Vehicle volume capacity"
+msgstr "Capacidad de volumen del vehículo"
+
+#. module: route_optimizer
+msgid "Optional max volume capacity per vehicle (same unit as transfer volume, usually m³). Leave empty to use a non-binding default in the solver."
+msgstr "Capacidad máxima opcional de volumen por vehículo (misma unidad que el volumen del traslado, normalmente m³). Dejar vacío para usar un valor por defecto no restrictivo en el solver."
+
+#. module: route_optimizer
 msgid "Max stops per vehicle"
 msgstr "Máx. paradas por vehículo"
 
