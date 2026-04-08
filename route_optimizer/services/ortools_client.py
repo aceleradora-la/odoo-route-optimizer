@@ -9,17 +9,20 @@ class OrtoolsServiceError(Exception):
     """Raised when the OR-Tools service returns an error or invalid payload."""
 
 
-def _post_json(url, payload, timeout):
+def _post_json(url, payload, timeout, api_key=None):
     data = json.dumps(payload).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "Odoo-route-optimizer",
+        "Accept": "application/json",
+    }
+    if api_key:
+        headers["X-API-KEY"] = api_key
     req = urllib.request.Request(
         url,
         data=data,
         method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "User-Agent": "Odoo-route-optimizer",
-            "Accept": "application/json",
-        },
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -42,7 +45,7 @@ def _post_json(url, payload, timeout):
         raise OrtoolsServiceError("OR-Tools response is not valid JSON.") from e
 
 
-def solve_vrp(service_url, payload, timeout=60):
+def solve_vrp(service_url, payload, timeout=60, api_key=None):
     """
     POST JSON payload to the OR-Tools service (extended VRP contract).
 
@@ -54,7 +57,7 @@ def solve_vrp(service_url, payload, timeout=60):
     if not url:
         raise OrtoolsServiceError("OR-Tools service URL is not configured.")
 
-    result = _post_json(url, payload, timeout)
+    result = _post_json(url, payload, timeout, api_key=api_key)
 
     if result.get("success") is False:
         raise OrtoolsServiceError(result.get("error") or "OR-Tools service reported failure.")
@@ -62,7 +65,7 @@ def solve_vrp(service_url, payload, timeout=60):
     return result
 
 
-def solve_simple_distance_api(service_url, locations, distance_matrix_int, timeout=60):
+def solve_simple_distance_api(service_url, locations, distance_matrix_int, timeout=60, api_key=None):
     """
     POST to a minimal service like::
 
@@ -79,7 +82,7 @@ def solve_simple_distance_api(service_url, locations, distance_matrix_int, timeo
         "locations": locations,
         "distance_matrix": distance_matrix_int,
     }
-    result = _post_json(url, payload, timeout)
+    result = _post_json(url, payload, timeout, api_key=api_key)
 
     if result.get("success") is False:
         raise OrtoolsServiceError(result.get("error") or "OR-Tools service reported failure.")
