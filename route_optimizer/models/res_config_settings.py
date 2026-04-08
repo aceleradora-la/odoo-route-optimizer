@@ -20,6 +20,12 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer.ortools_url",
         help="HTTP endpoint that accepts the VRP JSON payload and returns ordered routes.",
     )
+    route_optimizer_ortools_simple_api = fields.Boolean(
+        string="Simple OR-Tools API",
+        config_parameter="route_optimizer.ortools_simple_api",
+        help="Enable if your service expects {\"locations\", \"distance_matrix\"} and returns "
+        "\"optimized_route\" (like the Aceleradora test script). Single-vehicle only.",
+    )
     route_optimizer_timeout = fields.Integer(
         string="HTTP timeout (seconds)",
         config_parameter="route_optimizer.timeout",

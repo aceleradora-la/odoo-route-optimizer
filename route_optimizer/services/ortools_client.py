@@ -9,28 +9,7 @@ class OrtoolsServiceError(Exception):
     """Raised when the OR-Tools service returns an error or invalid payload."""
 
 
-def solve_vrp(service_url, payload, timeout=60):
-    """
-    POST JSON payload to the OR-Tools service.
-
-    Expected response (minimum):
-        {
-            "success": true,
-            "ordered_picking_ids": [<int>, ...]   # optional if routes given
-        }
-    or:
-        {
-            "success": true,
-            "routes": [
-                {"vehicle_index": 0, "node_indices": [0, 2, 1, 0]},
-                ...
-            ]
-        }
-    """
-    url = (service_url or "").strip()
-    if not url:
-        raise OrtoolsServiceError("OR-Tools service URL is not configured.")
-
+def _post_json(url, payload, timeout):
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         url,
@@ -58,9 +37,49 @@ def solve_vrp(service_url, payload, timeout=60):
         raise OrtoolsServiceError(f"OR-Tools connection error: {e.reason}") from e
 
     try:
-        result = json.loads(body)
+        return json.loads(body)
     except json.JSONDecodeError as e:
         raise OrtoolsServiceError("OR-Tools response is not valid JSON.") from e
+
+
+def solve_vrp(service_url, payload, timeout=60):
+    """
+    POST JSON payload to the OR-Tools service (extended VRP contract).
+
+    Expected response (minimum):
+        {"success": true, "ordered_picking_ids": [<int>, ...]}
+    or routes with node_indices, etc.
+    """
+    url = (service_url or "").strip()
+    if not url:
+        raise OrtoolsServiceError("OR-Tools service URL is not configured.")
+
+    result = _post_json(url, payload, timeout)
+
+    if result.get("success") is False:
+        raise OrtoolsServiceError(result.get("error") or "OR-Tools service reported failure.")
+
+    return result
+
+
+def solve_simple_distance_api(service_url, locations, distance_matrix_int, timeout=60):
+    """
+    POST to a minimal service like::
+
+        {"locations": [...], "distance_matrix": [[int, ...], ...]}
+
+    Expects a response with ``optimized_route``: list of location labels in visit order
+    (same strings as in ``locations``, depot may appear at start/end).
+    """
+    url = (service_url or "").strip()
+    if not url:
+        raise OrtoolsServiceError("OR-Tools service URL is not configured.")
+
+    payload = {
+        "locations": locations,
+        "distance_matrix": distance_matrix_int,
+    }
+    result = _post_json(url, payload, timeout)
 
     if result.get("success") is False:
         raise OrtoolsServiceError(result.get("error") or "OR-Tools service reported failure.")

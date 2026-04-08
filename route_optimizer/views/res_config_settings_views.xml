@@ -7,11 +7,11 @@
         <field name="arch" type="xml">
             <xpath expr="//app[@name='stock']" position="inside">
                 <block title="Route optimization" name="route_optimizer_block">
-                    <setting id="route_optimizer_osrm_setting" string="OSRM server" help="Base URL for the OSRM routing engine (Table service). Example: https://router.project-osrm.org">
+                    <setting id="route_optimizer_osrm_setting" string="OSRM server" help="Root URL of the OSRM server only (e.g. http://IP:5000). Do not add /table/v1/ — Odoo builds that path automatically.">
                         <div class="content-group">
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_osrm_url"/>
-                                <field name="route_optimizer_osrm_url" class="oe_inline" placeholder="https://router.project-osrm.org"/>
+                                <field name="route_optimizer_osrm_url" class="oe_inline" placeholder="http://HOST:5000"/>
                             </div>
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_osrm_profile"/>
@@ -23,7 +23,11 @@
                         <div class="content-group">
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_url"/>
-                                <field name="route_optimizer_ortools_url" class="oe_inline" placeholder="https://ortools.example.com/vrp/solve"/>
+                                <field name="route_optimizer_ortools_url" class="oe_inline" placeholder="http://HOST:8080/optimize"/>
+                            </div>
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_simple_api"/>
+                                <field name="route_optimizer_ortools_simple_api"/>
                             </div>
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_timeout"/>
