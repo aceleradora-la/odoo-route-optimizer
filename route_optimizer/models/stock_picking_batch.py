@@ -30,3 +30,14 @@ class StockPickingBatch(models.Model):
                 "default_batch_id": self.id,
             },
         }
+
+    def _route_optimizer_pickings_visit_order(self):
+        """Pickings sorted for UI/report: first unload = lowest batch_sequence."""
+        self.ensure_one()
+        return self.picking_ids.sorted(lambda p: (p.batch_sequence or 0, p.id))
+
+    def action_print_delivery_route(self):
+        self.ensure_one()
+        return self.env.ref(
+            "route_optimizer.action_report_batch_delivery_route"
+        ).report_action(self)

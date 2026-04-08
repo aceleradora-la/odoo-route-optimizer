@@ -7,12 +7,23 @@
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
                 <button
+                    name="action_print_delivery_route"
+                    type="object"
+                    string="Print route"
+                    class="btn-secondary"
+                    invisible="not picking_ids"
+                />
+                <button
                     name="action_route_optimizer_wizard"
                     type="object"
                     string="Optimize route"
                     class="btn-secondary"
                     invisible="state in ('done', 'cancel')"
                 />
+            </xpath>
+            <!-- many2many widget ignores list default_order; use one2many list so batch_sequence = visit order -->
+            <xpath expr="//page[@name='page_transfers']//field[@name='picking_ids']" position="attributes">
+                <attribute name="widget" remove="1"/>
             </xpath>
             <xpath expr="//sheet" position="inside">
                 <group

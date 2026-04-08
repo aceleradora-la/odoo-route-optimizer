@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_batch_delivery_route">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2>Delivery route — <span t-field="o.name"/></h2>
+                        <p t-if="o.user_id">
+                            <strong>Responsible:</strong>
+                            <span t-field="o.user_id"/>
+                        </p>
+                        <p t-if="o.scheduled_date">
+                            <strong>Scheduled:</strong>
+                            <span t-field="o.scheduled_date"/>
+                        </p>
+                        <table class="table table-sm o_main_table mt-3">
+                            <thead>
+                                <tr>
+                                    <th name="th_seq">Seq.</th>
+                                    <th name="th_customer">Customer</th>
+                                    <th name="th_address">Address</th>
+                                    <th name="th_transfer">Transfer</th>
+                                    <th name="th_state">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-set="visit_pickings" t-value="o._route_optimizer_pickings_visit_order()"/>
+                                <t t-foreach="visit_pickings" t-as="pick">
+                                    <tr>
+                                        <td><span t-field="pick.batch_sequence"/></td>
+                                        <td><span t-field="pick.partner_id"/></td>
+                                        <td><span t-esc="pick.route_optimizer_delivery_address"/></td>
+                                        <td><span t-field="pick.name"/></td>
+                                        <td><span t-field="pick.state"/></td>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

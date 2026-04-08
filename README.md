@@ -40,7 +40,8 @@ Instalá el código desde la rama que coincida con tu versión de Odoo.
 Tras optimizar, el orden queda en:
 
 1. **Visit order (last run)** en el formulario del lote (lista numerada: transferencia + contacto).
-2. Pestaña **Traslados**: columna **Visit order** (icono de arrastre / `batch_sequence`), ordenada de arriba a abajo como la ruta sugerida.
+2. Pestaña **Traslados**: filas ordenadas por **Visit order** (`batch_sequence`): arriba = primera descarga. Columna opcional **Address**.
+3. **Imprimir ruta** en la cabecera del lote: PDF **Delivery route (visit order)** con secuencia, cliente, dirección y referencia de cada transferencia (mismo orden que la ruta).
 
 ## Contrato del servicio OR-Tools
 
