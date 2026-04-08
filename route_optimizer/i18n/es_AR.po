@@ -81,6 +81,22 @@ msgid "Optional max capacity per vehicle (same unit as transfer weight). Leave e
 msgstr "Capacidad máxima opcional por vehículo (misma unidad que el peso del traslado). Dejar vacío para usar un valor por defecto no restrictivo en el solver."
 
 #. module: route_optimizer
+msgid "Max stops per vehicle"
+msgstr "Máx. paradas por vehículo"
+
+#. module: route_optimizer
+msgid "Optional hard limit to force splitting stops across vehicles."
+msgstr "Límite duro opcional para forzar repartir paradas entre vehículos."
+
+#. module: route_optimizer
+msgid "Max route duration (minutes)"
+msgstr "Máx. duración de ruta (minutos)"
+
+#. module: route_optimizer
+msgid "Optional hard limit per vehicle route duration (requires duration optimization)."
+msgstr "Límite duro opcional por vehículo (requiere optimizar por duración)."
+
+#. module: route_optimizer
 msgid "Number of vehicles must be at least 1."
 msgstr "La cantidad de vehículos debe ser al menos 1."
 
@@ -237,8 +253,8 @@ msgid "OR-Tools service"
 msgstr "Servicio OR-Tools"
 
 #. module: route_optimizer
-msgid "Base URL (IP:port) or full endpoint. Odoo will automatically use /optimize when Simple OR-Tools API is enabled, or /vrp when disabled. If you paste a full URL with /optimize or /vrp it will be respected when it matches the selected mode."
-msgstr "URL base (IP:puerto) o endpoint completo. Odoo usará automáticamente /optimize cuando la API simple esté activa, o /vrp cuando esté desactivada. Si pegás una URL completa con /optimize o /vrp se respeta cuando coincide con el modo seleccionado."
+msgid "Base URL (IP:port) or full endpoint. Odoo will automatically use /optimize when Simple OR-Tools API is enabled, or /vrp when disabled. If you paste a full URL with /optimize or /vrp it will be respected when it matches the selected mode. For delivery time windows (OCA stock_partner_delivery_window), Odoo uses the batch Scheduled date to pick the weekday and sends a single [start,end] window per stop (union of multiple windows)."
+msgstr "URL base (IP:puerto) o endpoint completo. Odoo usará automáticamente /optimize cuando la API simple esté activa, o /vrp cuando esté desactivada. Si pegás una URL completa con /optimize o /vrp se respeta cuando coincide con el modo seleccionado. Para ventanas horarias de entrega (OCA stock_partner_delivery_window), Odoo usa la Fecha programada del lote para elegir el día de la semana y envía una sola ventana [inicio,fin] por parada (unión de múltiples ventanas)."
 
 #. module: route_optimizer
 msgid "Address"
