@@ -35,6 +35,14 @@ class RouteOptimizerWizard(models.TransientModel):
         help="Optional max capacity per vehicle (same unit as transfer weight). "
         "Leave empty to use a non-binding default in the solver.",
     )
+    max_stops_per_vehicle = fields.Integer(
+        string="Max stops per vehicle",
+        help="Optional hard limit to force splitting stops across vehicles.",
+    )
+    max_route_duration_minutes = fields.Integer(
+        string="Max route duration (minutes)",
+        help="Optional hard limit per vehicle route duration (requires duration optimization).",
+    )
 
     @api.onchange("batch_id")
     def _onchange_batch_depot(self):
@@ -56,6 +64,8 @@ class RouteOptimizerWizard(models.TransientModel):
             use_duration=self.use_duration,
             depot_partner=self.depot_partner_id,
             vehicle_capacity=self.vehicle_capacity or None,
+            max_stops_per_vehicle=self.max_stops_per_vehicle or None,
+            max_route_duration_minutes=self.max_route_duration_minutes or None,
         )
         msg = res.get("message") or ""
         summary = (self.batch_id.route_optimizer_visit_summary or "").strip()

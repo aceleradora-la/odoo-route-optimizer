@@ -1,0 +1,35 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * route_optimizer_fleet
+#
+# NOTE: this file intentionally mirrors es_AR.po as a fallback for Spanish (es / es_ES).
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-04-08 00:00+0000\n"
+"PO-Revision-Date: 2026-04-08 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Spanish\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: route_optimizer_fleet
+msgid "Route Optimizer — Fleet bridge"
+msgstr "Optimizador de rutas — enlace Flota"
+
+#. module: route_optimizer_fleet
+msgid "Optional fleet.vehicle field on the route optimization wizard"
+msgstr "Campo opcional fleet.vehicle en el asistente de optimización de ruta"
+
+#. module: route_optimizer_fleet
+msgid "Fleet vehicle"
+msgstr "Vehículo de flota"
+
+#. module: route_optimizer_fleet
+msgid "Optional link for traceability; set capacity below for the solver."
+msgstr "Vínculo opcional para trazabilidad; defina la capacidad abajo para el solver."
+
