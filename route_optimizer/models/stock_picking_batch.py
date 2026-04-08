@@ -20,6 +20,12 @@ class StockPickingBatch(models.Model):
 
     def action_route_optimizer_wizard(self):
         self.ensure_one()
+        default_fleet_vehicle_id = None
+        # Optional integration: if stock_picking_batch has a fleet vehicle field (commonly `vehicle_id`),
+        # pass it as default for the optimizer wizard. The wizard field itself is provided by
+        # `route_optimizer_fleet`, so this stays safe when the bridge isn't installed.
+        if "vehicle_id" in self._fields and self.vehicle_id:
+            default_fleet_vehicle_id = self.vehicle_id.id
         return {
             "name": _("Optimize route"),
             "type": "ir.actions.act_window",
@@ -28,6 +34,7 @@ class StockPickingBatch(models.Model):
             "target": "new",
             "context": {
                 "default_batch_id": self.id,
+                "default_fleet_vehicle_id": default_fleet_vehicle_id,
             },
         }
 
