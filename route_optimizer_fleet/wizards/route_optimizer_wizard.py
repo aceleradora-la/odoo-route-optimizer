@@ -37,7 +37,10 @@ class RouteOptimizerWizard(models.TransientModel):
         We look in this order: vehicle → type → model → category.
         This keeps the bridge compatible with different localizations/custom modules.
         """
+        # Prefer weight-based capacity first (Odoo sends demands based on shipping_weight).
         candidates = [
+            # Standard fleet capacity fields on model category in newer Odoo versions
+            "weight_capacity",
             # very common custom names
             "capacity",
             "vehicle_capacity",
@@ -54,6 +57,11 @@ class RouteOptimizerWizard(models.TransientModel):
             "x_payload",
             "x_max_weight",
         ]
+        # Secondary: volume capacity (if the DB models capacity as volume).
+        volume_candidates = [
+            "volume_capacity",
+            "x_volume_capacity",
+        ]
         for rec in (
             vehicle,
             getattr(vehicle, "vehicle_type_id", None),
@@ -61,6 +69,9 @@ class RouteOptimizerWizard(models.TransientModel):
             getattr(getattr(vehicle, "model_id", None), "category_id", None),
         ):
             val = self._first_positive_number(rec, candidates)
+            if val:
+                return val
+            val = self._first_positive_number(rec, volume_candidates)
             if val:
                 return val
         return None
