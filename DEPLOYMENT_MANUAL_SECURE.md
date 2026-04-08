@@ -123,6 +123,16 @@ class RouteRequest(BaseModel):
     distance_matrix: List[List[int]]
     num_vehicles: int = Field(default=1, ge=1)
 
+class VrpRequest(BaseModel):
+    version: int = 1
+    num_vehicles: int = Field(default=1, ge=1)
+    depot_index: int = Field(default=0, ge=0)
+    matrix: List[List[float]]
+    matrix_metric: str = "distance"
+    demands: List[float] = []
+    vehicle_capacities: List[float] = []
+    picking_ids: List[int] = []
+
 @app.post("/optimize")
 async def optimize(request: RouteRequest, token: str = Depends(get_api_key)):
     n = len(request.distance_matrix)
@@ -172,6 +182,74 @@ async def optimize(request: RouteRequest, token: str = Depends(get_api_key)):
     route_labels.append(request.locations[manager.IndexToNode(index)])
 
     return {"success": True, "optimized_route": route_labels, "total_distance": int(solution.ObjectiveValue())}
+
+@app.post("/vrp")
+async def vrp(request: VrpRequest, token: str = Depends(get_api_key)):
+    n = len(request.matrix)
+    if n == 0 or any(len(row) != n for row in request.matrix):
+        raise HTTPException(status_code=422, detail="matrix debe ser NxN")
+    if request.depot_index != 0:
+        raise HTTPException(status_code=422, detail="Solo se soporta depot_index=0")
+
+    num_vehicles = int(request.num_vehicles or 1)
+    depot = 0
+
+    manager = pywrapcp.RoutingIndexManager(n, num_vehicles, depot)
+    routing = pywrapcp.RoutingModel(manager)
+
+    def cost_callback(from_index, to_index):
+        from_node = manager.IndexToNode(from_index)
+        to_node = manager.IndexToNode(to_index)
+        val = request.matrix[from_node][to_node]
+        try:
+            return int(round(float(val)))
+        except Exception:
+            return 999_999_999
+
+    transit_callback_index = routing.RegisterTransitCallback(cost_callback)
+    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+
+    # Capacidad (opcional): si vienen demands/capacities, aplicamos dimension.
+    if request.demands and request.vehicle_capacities:
+        if len(request.demands) != n:
+            raise HTTPException(status_code=422, detail="demands debe tener largo N")
+        if len(request.vehicle_capacities) != num_vehicles:
+            raise HTTPException(status_code=422, detail="vehicle_capacities debe tener largo num_vehicles")
+
+        def demand_callback(from_index):
+            node = manager.IndexToNode(from_index)
+            try:
+                return int(round(float(request.demands[node])))
+            except Exception:
+                return 0
+
+        demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
+        routing.AddDimensionWithVehicleCapacity(
+            demand_callback_index,
+            0,
+            [int(round(float(c))) for c in request.vehicle_capacities],
+            True,
+            "Capacity",
+        )
+
+    search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+    search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+
+    solution = routing.SolveWithParameters(search_parameters)
+    if not solution:
+        return {"success": False, "error": "No solution found"}
+
+    routes: List[dict] = []
+    for v in range(num_vehicles):
+        index = routing.Start(v)
+        nodes = []
+        while not routing.IsEnd(index):
+            nodes.append(manager.IndexToNode(index))
+            index = solution.Value(routing.NextVar(index))
+        nodes.append(manager.IndexToNode(index))
+        routes.append({"node_indices": nodes})
+
+    return {"success": True, "routes": routes, "total_cost": int(solution.ObjectiveValue())}
 ```
 
 ### C) `Dockerfile`
@@ -249,7 +327,9 @@ En **Inventario → Ajustes → Route optimization**:
 
 - **OSRM base URL**: `http://TU_IP:5000`
 - **OSRM profile**: `driving`
-- **OR-Tools service URL**: `http://TU_IP:8080/optimize`
+- **OR-Tools service URL**:
+  - **Simple**: `http://TU_IP:8080/optimize`
+  - **Extendido (VRP)**: `http://TU_IP:8080/vrp`
 - **OR-Tools API key**: pegá la misma key que tenés en `.env`
 - **Simple OR-Tools API**:
   - Marcado: Odoo envía `locations + distance_matrix` (API simple).
@@ -299,5 +379,14 @@ curl -i -X POST "http://TU_IP:8080/optimize" \
   -H "Content-Type: application/json" \
   -H "X-API-KEY: TU_API_KEY" \
   -d '{"locations":["DEPOT","A"],"distance_matrix":[[0,1],[1,0]],"num_vehicles":1}'
+```
+
+Si estás en modo **extendido**, probá `/vrp`:
+
+```bash
+curl -i -X POST "http://TU_IP:8080/vrp" \
+  -H "Content-Type: application/json" \
+  -H "X-API-KEY: TU_API_KEY" \
+  -d '{"version":1,"num_vehicles":1,"depot_index":0,"matrix":[[0,1],[1,0]],"matrix_metric":"distance","demands":[0,0],"vehicle_capacities":[999],"picking_ids":[1]}'
 ```
 
