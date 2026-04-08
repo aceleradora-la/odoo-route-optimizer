@@ -9,6 +9,9 @@
             <field name="batch_sequence" position="attributes">
                 <attribute name="string">Visit order</attribute>
             </field>
+            <field name="batch_sequence" position="after">
+                <field name="route_optimizer_delivery_address" string="Address" optional="show"/>
+            </field>
         </field>
     </record>
 </odoo>

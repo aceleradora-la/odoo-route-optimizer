@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_batch_delivery_route" model="ir.actions.report">
+        <field name="name">Delivery route (visit order)</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">route_optimizer.report_batch_delivery_route</field>
+        <field name="report_file">route_optimizer.report_batch_delivery_route</field>
+        <field name="print_report_name">'Route-%s' % (object.name)</field>
+        <field name="binding_model_id" ref="stock_picking_batch.model_stock_picking_batch"/>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>
