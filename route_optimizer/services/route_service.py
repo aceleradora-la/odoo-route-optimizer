@@ -40,6 +40,7 @@ from odoo.exceptions import UserError
 
 from . import osrm_client
 from . import ortools_client
+from urllib.parse import urlsplit, urlunsplit
 
 
 def _param_bool(value, default=False):
@@ -54,6 +55,41 @@ def _param_bool(value, default=False):
     if s in ("0", "false", "f", "no", "n", "off", ""):
         return False
     return bool(default)
+
+
+def _normalize_ortools_service_url(raw_url, simple_ortools):
+    """
+    Accept either:
+    - Base URL (scheme://host:port)
+    - Full endpoint URL ending with /optimize or /vrp
+
+    And return a full endpoint URL matching the selected mode:
+    - Simple: /optimize
+    - Extended: /vrp
+    """
+    expected_path = "/optimize" if simple_ortools else "/vrp"
+    url = (raw_url or "").strip()
+    if not url:
+        return ""
+
+    parts = urlsplit(url)
+    # If user pasted a bare host:port without scheme, urlsplit puts it in path. Try to recover.
+    if not parts.scheme and not parts.netloc and parts.path and "://" not in url:
+        url = "http://" + url
+        parts = urlsplit(url)
+
+    base = urlunsplit((parts.scheme, parts.netloc, "", "", ""))
+    if not base:
+        # fallback to raw; better error downstream
+        return url
+
+    path = (parts.path or "").rstrip("/")
+    # If user already set the correct endpoint, respect it.
+    if path in ("/optimize", "/vrp") and path == expected_path:
+        return urlunsplit((parts.scheme, parts.netloc, expected_path, parts.query, parts.fragment))
+
+    # If user provided only base (no path) or unknown path, enforce expected.
+    return base + expected_path
 
 
 def _get_depot_partner(batch, depot_partner=None):
@@ -110,6 +146,7 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
     # Default True: self-hosted /optimize services (FastAPI) expect locations + distance_matrix.
     # Set ir.config_parameter to "False" for the extended VRP JSON contract.
     simple_ortools = _param_bool(icp.get_param("route_optimizer.ortools_simple_api", "True"), default=True)
+    ortools_url = _normalize_ortools_service_url(ortools_url, simple_ortools)
 
     depot = _get_depot_partner(batch, depot_partner=depot_partner)
     depot_coords = _partner_coords(depot)

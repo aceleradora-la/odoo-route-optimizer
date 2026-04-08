@@ -19,11 +19,11 @@
                             </div>
                         </div>
                     </setting>
-                    <setting id="route_optimizer_ortools_setting" string="OR-Tools service" help="HTTP endpoint. With Simple OR-Tools API (default), set e.g. …/optimize and Odoo sends locations + distance_matrix. If you disable Simple, set e.g. …/vrp and Odoo sends the extended payload (num_vehicles, matrix, demands, vehicle_capacities, picking_ids, …) and expects routes with node_indices.">
+                    <setting id="route_optimizer_ortools_setting" string="OR-Tools service" help="Base URL (IP:port) or full endpoint. Odoo will automatically use /optimize when Simple OR-Tools API is enabled, or /vrp when disabled. If you paste a full URL with /optimize or /vrp it will be respected when it matches the selected mode.">
                         <div class="content-group">
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_url"/>
-                                <field name="route_optimizer_ortools_url" class="oe_inline" placeholder="http://HOST:8080/optimize  (Simple)  |  http://HOST:8080/vrp  (Extended)"/>
+                                <field name="route_optimizer_ortools_url" class="oe_inline" placeholder="http://HOST:8080  (Odoo agrega /optimize o /vrp automáticamente)"/>
                             </div>
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_api_key"/>
