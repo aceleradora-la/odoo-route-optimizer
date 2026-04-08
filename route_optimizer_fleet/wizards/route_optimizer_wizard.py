@@ -76,18 +76,14 @@ class RouteOptimizerWizard(models.TransientModel):
                 return val
         return None
 
-    @api.onchange("fleet_vehicle_id")
-    def _onchange_fleet_vehicle_capacity(self):
-        """
-        Prefill wizard capacity from the selected fleet vehicle (if available).
-        Only overrides when capacity is empty/zero.
-        """
+    def _prefill_capacities_from_vehicle(self):
+        """Fill weight/volume capacities from fleet vehicle/category when empty."""
         for wiz in self:
             if not wiz.fleet_vehicle_id:
                 continue
             category = getattr(getattr(wiz.fleet_vehicle_id, "model_id", None), "category_id", None)
 
-            # Weight capacity (kg) → wizard vehicle_capacity
+            # Weight capacity (kg)
             if not wiz.vehicle_capacity or wiz.vehicle_capacity <= 0:
                 weight_cap = None
                 if category and "weight_capacity" in category._fields:
@@ -99,7 +95,7 @@ class RouteOptimizerWizard(models.TransientModel):
                 if cap:
                     wiz.vehicle_capacity = cap
 
-            # Volume capacity (m³) → wizard vehicle_volume_capacity (if field exists)
+            # Volume capacity (m³)
             if "vehicle_volume_capacity" in wiz._fields and (
                 not wiz.vehicle_volume_capacity or wiz.vehicle_volume_capacity <= 0
             ):
@@ -111,3 +107,29 @@ class RouteOptimizerWizard(models.TransientModel):
                         vol_cap = None
                 if vol_cap and vol_cap > 0:
                     wiz.vehicle_volume_capacity = vol_cap
+
+    @api.onchange("fleet_vehicle_id")
+    def _onchange_fleet_vehicle_capacity(self):
+        """
+        Prefill wizard capacity from the selected fleet vehicle (if available).
+        Only overrides when capacity is empty/zero.
+        """
+        self._prefill_capacities_from_vehicle()
+
+    @api.model
+    def default_get(self, fields_list):
+        """Ensure defaults from context also prefill capacities."""
+        res = super().default_get(fields_list)
+        wiz = self.new(res)
+        wiz._prefill_capacities_from_vehicle()
+        res.update(wiz._convert_to_write(wiz._cache))
+        return res
+
+    @api.onchange("batch_id")
+    def _onchange_batch_vehicle(self):
+        """If the batch has a fleet vehicle field (vehicle_id), use it by default."""
+        for wiz in self:
+            batch = wiz.batch_id
+            if batch and "vehicle_id" in batch._fields and batch.vehicle_id:
+                wiz.fleet_vehicle_id = batch.vehicle_id
+                wiz._prefill_capacities_from_vehicle()
