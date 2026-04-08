@@ -181,6 +181,14 @@ msgid "HTTP endpoint that accepts the VRP JSON payload and returns ordered route
 msgstr "Endpoint HTTP que recibe el JSON del VRP y devuelve rutas ordenadas."
 
 #. module: route_optimizer
+msgid "OR-Tools API key"
+msgstr "API key de OR-Tools"
+
+#. module: route_optimizer
+msgid "Optional API key sent as X-API-KEY header to the OR-Tools service."
+msgstr "API key opcional enviada como header X-API-KEY al servicio OR-Tools."
+
+#. module: route_optimizer
 msgid "Simple OR-Tools API"
 msgstr "API simple de OR-Tools"
 

@@ -34,6 +34,11 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer.ortools_url",
         help="HTTP endpoint that accepts the VRP JSON payload and returns ordered routes.",
     )
+    route_optimizer_ortools_api_key = fields.Char(
+        string="OR-Tools API key",
+        config_parameter="route_optimizer.ortools_api_key",
+        help="Optional API key sent as X-API-KEY header to the OR-Tools service.",
+    )
     route_optimizer_ortools_simple_api = fields.Boolean(
         string="Simple OR-Tools API",
         config_parameter="route_optimizer.ortools_simple_api",
@@ -56,6 +61,8 @@ class ResConfigSettings(models.TransientModel):
             icp.get_param("route_optimizer.ortools_simple_api", "True"),
             default=True,
         )
+        # Ensure value shows even if config_parameter isn't picked up by the UI cache yet.
+        res["route_optimizer_ortools_api_key"] = icp.get_param("route_optimizer.ortools_api_key", "") or ""
         return res
 
     def set_values(self):
@@ -64,4 +71,8 @@ class ResConfigSettings(models.TransientModel):
         icp.set_param(
             "route_optimizer.ortools_simple_api",
             "True" if self.route_optimizer_ortools_simple_api else "False",
+        )
+        icp.set_param(
+            "route_optimizer.ortools_api_key",
+            (self.route_optimizer_ortools_api_key or "").strip(),
         )
