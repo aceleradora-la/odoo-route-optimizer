@@ -11,6 +11,8 @@
                     <field name="use_duration"/>
                     <field name="depot_partner_id"/>
                     <field name="vehicle_capacity"/>
+                    <field name="max_stops_per_vehicle"/>
+                    <field name="max_route_duration_minutes"/>
                 </group>
                 <footer>
                     <button name="action_optimize" string="Optimize" type="object" class="btn-primary" data-hotkey="q"/>

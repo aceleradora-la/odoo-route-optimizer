@@ -52,6 +52,16 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer.timeout",
         default=60,
     )
+    route_optimizer_max_stops_per_vehicle = fields.Integer(
+        string="Max stops per vehicle",
+        config_parameter="route_optimizer.max_stops_per_vehicle",
+        help="Optional hard limit to force splitting stops across vehicles.",
+    )
+    route_optimizer_max_route_duration_minutes = fields.Integer(
+        string="Max route duration (minutes)",
+        config_parameter="route_optimizer.max_route_duration_minutes",
+        help="Optional hard limit per vehicle route duration (requires duration optimization).",
+    )
 
     @api.model
     def get_values(self):
