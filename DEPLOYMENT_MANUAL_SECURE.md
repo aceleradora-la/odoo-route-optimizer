@@ -129,8 +129,14 @@ class VrpRequest(BaseModel):
     depot_index: int = Field(default=0, ge=0)
     matrix: List[List[float]]
     matrix_metric: str = "distance"
+    # Backward-compatible (weight)
     demands: List[float] = []
     vehicle_capacities: List[float] = []
+    # Recommended explicit dimensions
+    demands_weight: List[float] = []
+    vehicle_capacities_weight: List[float] = []
+    demands_volume: List[float] = []
+    vehicle_capacities_volume: List[float] = []
     picking_ids: List[int] = []
     # Optional constraints:
     max_stops_per_vehicle: int = 0
@@ -214,17 +220,19 @@ async def vrp(request: VrpRequest, token: str = Depends(get_api_key)):
     transit_callback_index = routing.RegisterTransitCallback(cost_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
-    # Capacidad (opcional): si vienen demands/capacities, aplicamos dimension.
-    if request.demands and request.vehicle_capacities:
-        if len(request.demands) != n:
-            raise HTTPException(status_code=422, detail="demands debe tener largo N")
-        if len(request.vehicle_capacities) != num_vehicles:
-            raise HTTPException(status_code=422, detail="vehicle_capacities debe tener largo num_vehicles")
+    # Capacidad (peso) (opcional)
+    demands_weight = request.demands_weight or request.demands
+    caps_weight = request.vehicle_capacities_weight or request.vehicle_capacities
+    if demands_weight and caps_weight:
+        if len(demands_weight) != n:
+            raise HTTPException(status_code=422, detail="demands_weight debe tener largo N")
+        if len(caps_weight) != num_vehicles:
+            raise HTTPException(status_code=422, detail="vehicle_capacities_weight debe tener largo num_vehicles")
 
         def demand_callback(from_index):
             node = manager.IndexToNode(from_index)
             try:
-                return int(round(float(request.demands[node])))
+                return int(round(float(demands_weight[node])))
             except Exception:
                 return 0
 
@@ -232,9 +240,32 @@ async def vrp(request: VrpRequest, token: str = Depends(get_api_key)):
         routing.AddDimensionWithVehicleCapacity(
             demand_callback_index,
             0,
-            [int(round(float(c))) for c in request.vehicle_capacities],
+            [int(round(float(c))) for c in caps_weight],
             True,
             "Capacity",
+        )
+
+    # Capacidad (volumen) (opcional)
+    if request.demands_volume and request.vehicle_capacities_volume:
+        if len(request.demands_volume) != n:
+            raise HTTPException(status_code=422, detail="demands_volume debe tener largo N")
+        if len(request.vehicle_capacities_volume) != num_vehicles:
+            raise HTTPException(status_code=422, detail="vehicle_capacities_volume debe tener largo num_vehicles")
+
+        def volume_callback(from_index):
+            node = manager.IndexToNode(from_index)
+            try:
+                return int(round(float(request.demands_volume[node])))
+            except Exception:
+                return 0
+
+        vol_cb = routing.RegisterUnaryTransitCallback(volume_callback)
+        routing.AddDimensionWithVehicleCapacity(
+            vol_cb,
+            0,
+            [int(round(float(c))) for c in request.vehicle_capacities_volume],
+            True,
+            "CapacityVolume",
         )
 
     # Max stops per vehicle (opcional)
@@ -381,15 +412,15 @@ En **Inventario → Ajustes → Route optimization**:
 
 ## 6) Rotación de API Key
 
-1) Generar una nueva key.
-2) Actualizar `.env` (en el servidor).
-3) Reiniciar:
+1. Generar una nueva key.
+2. Actualizar `.env` (en el servidor).
+3. Reiniciar:
 
 ```bash
 docker compose up -d
 ```
 
-4) Actualizar **OR-Tools API key** en Odoo.
+1. Actualizar **OR-Tools API key** en Odoo.
 
 ---
 

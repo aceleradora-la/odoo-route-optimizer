@@ -129,6 +129,7 @@ def optimize_batch(
     use_duration=True,
     depot_partner=None,
     vehicle_capacity=None,
+    vehicle_volume_capacity=None,
     max_stops_per_vehicle=None,
     max_route_duration_minutes=None,
 ):
@@ -141,6 +142,7 @@ def optimize_batch(
     :param use_duration: if True, optimize on duration matrix; else distance
     :param depot_partner: optional res.partner for depot coordinates
     :param vehicle_capacity: optional float capacity per vehicle (same for all if set)
+    :param vehicle_volume_capacity: optional float volume capacity per vehicle (same for all if set)
     :param max_stops_per_vehicle: optional int hard limit
     :param max_route_duration_minutes: optional int hard limit
     """
@@ -198,12 +200,20 @@ def optimize_batch(
         raise UserError(_("OSRM error: %s") % str(e)) from e
 
     picking_ids_order = [s["picking"].id for s in stops]
-    demands = [0]
+    demands_weight = [0]
+    demands_volume = [0]
     for s in stops:
         w = s["picking"].shipping_weight or 0.0
-        demands.append(float(w))
+        demands_weight.append(float(w))
+        v = 0.0
+        if "shipping_volume" in s["picking"]._fields:
+            try:
+                v = float(s["picking"].shipping_volume or 0.0)
+            except (TypeError, ValueError):
+                v = 0.0
+        demands_volume.append(v)
 
-    n = len(demands)
+    n = len(demands_weight)
     nv = max(1, int(num_vehicles or 1))
     if nv > len(stops):
         raise UserError(
@@ -246,13 +256,21 @@ def optimize_batch(
     if len(matrix) != n or any(len(row) != n for row in matrix):
         raise UserError(_("OSRM matrix size does not match the number of nodes."))
 
-    capacities = []
+    capacities_weight = []
     if vehicle_capacity and vehicle_capacity > 0:
-        capacities = [float(vehicle_capacity)] * nv
+        capacities_weight = [float(vehicle_capacity)] * nv
     else:
         # Large default so capacity does not bind unless service requires it
-        total_demand = sum(demands[1:])
-        capacities = [max(total_demand * 2, 1.0)] * nv
+        total_demand = sum(demands_weight[1:])
+        capacities_weight = [max(total_demand * 2, 1.0)] * nv
+
+    capacities_volume = []
+    if vehicle_volume_capacity and vehicle_volume_capacity > 0:
+        capacities_volume = [float(vehicle_volume_capacity)] * nv
+    else:
+        total_vol = sum(demands_volume[1:])
+        # Large default so volume does not bind unless service requires it
+        capacities_volume = [max(total_vol * 2, 0.000001)] * nv
 
     payload = {
         "version": 1,
@@ -260,8 +278,14 @@ def optimize_batch(
         "depot_index": 0,
         "matrix": matrix,
         "matrix_metric": metric,
-        "demands": demands,
-        "vehicle_capacities": capacities,
+        # Backward-compatible keys (weight)
+        "demands": demands_weight,
+        "vehicle_capacities": capacities_weight,
+        # New explicit keys (recommended)
+        "demands_weight": demands_weight,
+        "vehicle_capacities_weight": capacities_weight,
+        "demands_volume": demands_volume,
+        "vehicle_capacities_volume": capacities_volume,
         "picking_ids": picking_ids_order,
     }
 

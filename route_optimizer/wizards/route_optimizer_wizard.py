@@ -35,6 +35,11 @@ class RouteOptimizerWizard(models.TransientModel):
         help="Optional max capacity per vehicle (same unit as transfer weight). "
         "Leave empty to use a non-binding default in the solver.",
     )
+    vehicle_volume_capacity = fields.Float(
+        string="Vehicle volume capacity",
+        help="Optional max volume capacity per vehicle (same unit as transfer volume, usually m³). "
+        "Leave empty to use a non-binding default in the solver.",
+    )
     max_stops_per_vehicle = fields.Integer(
         string="Max stops per vehicle",
         help="Optional hard limit to force splitting stops across vehicles.",
@@ -64,6 +69,7 @@ class RouteOptimizerWizard(models.TransientModel):
             use_duration=self.use_duration,
             depot_partner=self.depot_partner_id,
             vehicle_capacity=self.vehicle_capacity or None,
+            vehicle_volume_capacity=self.vehicle_volume_capacity or None,
             max_stops_per_vehicle=self.max_stops_per_vehicle or None,
             max_route_duration_minutes=self.max_route_duration_minutes or None,
         )
