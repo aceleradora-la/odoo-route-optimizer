@@ -23,8 +23,10 @@ class ResConfigSettings(models.TransientModel):
     route_optimizer_ortools_simple_api = fields.Boolean(
         string="Simple OR-Tools API",
         config_parameter="route_optimizer.ortools_simple_api",
-        help="Enable if your service expects {\"locations\", \"distance_matrix\"} and returns "
-        "\"optimized_route\" (like the Aceleradora test script). Single-vehicle only.",
+        default=True,
+        help="Recommended for typical /optimize endpoints: JSON with locations + distance_matrix "
+        "and response optimized_route. Uncheck only if your service uses the extended contract "
+        "(version, matrix, picking_ids, …). Single-vehicle only.",
     )
     route_optimizer_timeout = fields.Integer(
         string="HTTP timeout (seconds)",

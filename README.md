@@ -33,7 +33,7 @@ Instalá el código desde la rama que coincida con tu versión de Odoo.
 4. En **Ajustes → Inventario → Route optimization**, configurar:
    - **OSRM base URL**: solo la raíz del servidor, p. ej. `http://195.179.231.4:5000`. **No** incluyas `/table/v1/` (Odoo arma `.../table/v1/driving/{coords}` solo).
    - **OR-Tools service URL**: p. ej. `http://195.179.231.4:8080/optimize`.
-   - Si tu microservicio usa el formato de prueba `{"locations", "distance_matrix"}` y responde con `optimized_route`, activá **Simple OR-Tools API** (solo un vehículo).
+   - **Simple OR-Tools API** viene activado por defecto (formato `locations` + `distance_matrix` y respuesta `optimized_route`). Desmarcá solo si usás el contrato extendido. Solo un vehículo en este modo.
 
 ## Contrato del servicio OR-Tools
 

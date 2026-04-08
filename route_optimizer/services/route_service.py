@@ -92,7 +92,9 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
     profile = icp.get_param("route_optimizer.osrm_profile") or "driving"
     ortools_url = icp.get_param("route_optimizer.ortools_url") or ""
     timeout = int(icp.get_param("route_optimizer.timeout") or 60)
-    simple_ortools = icp.get_param("route_optimizer.ortools_simple_api") == "True"
+    # Default True: self-hosted /optimize services (FastAPI) expect locations + distance_matrix.
+    # Set ir.config_parameter to "False" for the extended VRP JSON contract.
+    simple_ortools = icp.get_param("route_optimizer.ortools_simple_api", "True") == "True"
 
     depot = _get_depot_partner(batch, depot_partner=depot_partner)
     depot_coords = _partner_coords(depot)
