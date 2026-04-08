@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer (OSRM + OR-Tools)",
-    "version": "19.0.1.0.2",
+    "version": "19.0.1.0.3",
     "category": "Inventory",
     "summary": "Optimize delivery routes from batch transfers using OSRM and an external OR-Tools service",
     "license": "LGPL-3",
@@ -14,6 +14,7 @@
         "views/res_config_settings_views.xml",
         "views/route_optimizer_wizard_views.xml",
         "views/stock_picking_batch_views.xml",
+        "views/stock_picking_batch_transfer_list_views.xml",
         "views/stock_picking_views.xml",
     ],
     "installable": True,

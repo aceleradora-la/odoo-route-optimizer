@@ -170,7 +170,7 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
         )
         _apply_order_single_batch(batch, ordered_ids)
         msg = _("Route optimized (%(n)s stops, distance).") % {"n": len(ordered_ids)}
-        batch.write({"route_optimizer_last_message": msg})
+        _write_optimization_result(batch, msg, ordered_ids)
         return {"message": msg}
 
     matrix = table["durations"] if use_duration else table["distances"]
@@ -207,16 +207,24 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
 
     # Multi-vehicle: prefer structured routes when num_vehicles > 1
     if nv > 1 and routes:
-        _apply_multi_vehicle_routes(env, batch, routes, picking_ids_order)
+        batch_orders = _apply_multi_vehicle_routes(env, batch, routes, picking_ids_order)
         msg = _("VRP applied: %(v)s vehicles, metric %(metric)s.") % {"v": nv, "metric": metric}
-        batch.write({"route_optimizer_last_message": msg})
+        for i, (b, pids) in enumerate(batch_orders):
+            if i == 0:
+                _write_optimization_result(b, msg, pids)
+            else:
+                _write_optimization_result(
+                    b,
+                    _("Optimized route for this vehicle (VRP)."),
+                    pids,
+                )
         return {"message": msg}
 
     if result.get("ordered_picking_ids"):
         ordered_ids = [int(x) for x in result["ordered_picking_ids"]]
         _apply_order_single_batch(batch, ordered_ids)
         msg = _("Route optimized (%(n)s stops, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}
-        batch.write({"route_optimizer_last_message": msg})
+        _write_optimization_result(batch, msg, ordered_ids)
         return {"message": msg}
 
     if routes:
@@ -230,7 +238,7 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
         if ordered_ids:
             _apply_order_single_batch(batch, ordered_ids)
             msg = _("Route optimized (%(n)s stops, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}
-            batch.write({"route_optimizer_last_message": msg})
+            _write_optimization_result(batch, msg, ordered_ids)
             return {"message": msg}
 
     raise UserError(
@@ -281,6 +289,36 @@ def _ordered_pickings_from_simple_route(result, depot_label, picking_ids_order):
     return ordered_ids
 
 
+def _format_visit_order_display(env, ordered_picking_ids):
+    """Human-readable numbered lines for the batch form (visit order)."""
+    if not ordered_picking_ids:
+        return ""
+    lines = []
+    for idx, pid in enumerate(ordered_picking_ids, start=1):
+        picking = env["stock.picking"].browse(pid)
+        if not picking.exists():
+            continue
+        partner = picking.partner_id.display_name if picking.partner_id else ""
+        ref = picking.name or str(picking.id)
+        lines.append(
+            _("%(pos)s. %(picking)s — %(partner)s")
+            % {"pos": idx, "picking": ref, "partner": partner}
+        )
+    return "\n".join(lines)
+
+
+def _write_optimization_result(batch, message, ordered_picking_ids):
+    """Persist short status + numbered visit list for the user."""
+    batch.write(
+        {
+            "route_optimizer_last_message": message,
+            "route_optimizer_visit_summary": _format_visit_order_display(
+                batch.env, ordered_picking_ids
+            ),
+        }
+    )
+
+
 def _apply_order_single_batch(batch, ordered_picking_ids):
     """Set batch_sequence on pickings following optimized order."""
     seq = 10
@@ -292,7 +330,7 @@ def _apply_order_single_batch(batch, ordered_picking_ids):
 
 
 def _apply_multi_vehicle_routes(env, original_batch, routes, picking_ids_order):
-    """Assign pickings to batches: first route keeps original_batch; others get new batches."""
+    """Assign pickings to batches; return [(batch, ordered_picking_ids), ...] in stable order."""
     vehicle_routes = []
     for r in routes:
         nodes = r.get("node_indices") or r.get("nodes") or []
@@ -306,6 +344,8 @@ def _apply_multi_vehicle_routes(env, original_batch, routes, picking_ids_order):
 
     if not vehicle_routes or not vehicle_routes[0]:
         raise UserError(_("Empty routes from OR-Tools."))
+
+    batch_orders = []
 
     # Move secondary vehicles to new batches first so original batch only keeps route 0.
     for extra_pick_ids in vehicle_routes[1:]:
@@ -325,6 +365,8 @@ def _apply_multi_vehicle_routes(env, original_batch, routes, picking_ids_order):
             seq += 10
         if original_batch.state == "in_progress" and new_batch.state == "draft":
             new_batch.action_confirm()
+        batch_orders.append((new_batch, extra_pick_ids))
 
     first = vehicle_routes[0]
     _apply_order_single_batch(original_batch, first)
+    return [(original_batch, first)] + batch_orders

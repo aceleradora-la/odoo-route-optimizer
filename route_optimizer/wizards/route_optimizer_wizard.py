@@ -58,6 +58,8 @@ class RouteOptimizerWizard(models.TransientModel):
             vehicle_capacity=self.vehicle_capacity or None,
         )
         msg = res.get("message") or ""
+        summary = (self.batch_id.route_optimizer_visit_summary or "").strip()
         if msg:
-            self.batch_id.message_post(body=msg)
+            body = f"{msg}\n\n{summary}" if summary else msg
+            self.batch_id.message_post(body=body)
         return {"type": "ir.actions.act_window_close"}

@@ -15,8 +15,17 @@
                 />
             </xpath>
             <xpath expr="//sheet" position="inside">
-                <group string="Route optimization" invisible="not route_optimizer_last_message">
+                <group
+                    string="Route optimization"
+                    invisible="not route_optimizer_last_message and not route_optimizer_visit_summary"
+                >
                     <field name="route_optimizer_last_message" readonly="1"/>
+                    <field
+                        name="route_optimizer_visit_summary"
+                        readonly="1"
+                        widget="text"
+                        placeholder="Run Optimize route to fill the visit order."
+                    />
                 </group>
             </xpath>
         </field>
