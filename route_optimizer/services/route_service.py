@@ -105,6 +105,7 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
     base_url = icp.get_param("route_optimizer.osrm_url") or ""
     profile = icp.get_param("route_optimizer.osrm_profile") or "driving"
     ortools_url = icp.get_param("route_optimizer.ortools_url") or ""
+    ortools_api_key = (icp.get_param("route_optimizer.ortools_api_key") or "").strip() or None
     timeout = int(icp.get_param("route_optimizer.timeout") or 60)
     # Default True: self-hosted /optimize services (FastAPI) expect locations + distance_matrix.
     # Set ir.config_parameter to "False" for the extended VRP JSON contract.
@@ -175,7 +176,7 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
         locations = [depot_label] + [f"P{pid}" for pid in picking_ids_order]
         try:
             result = ortools_client.solve_simple_distance_api(
-                ortools_url, locations, matrix_int, timeout=timeout
+                ortools_url, locations, matrix_int, timeout=timeout, api_key=ortools_api_key
             )
         except ortools_client.OrtoolsServiceError as e:
             raise UserError(_("OR-Tools service error: %s") % str(e)) from e
@@ -213,7 +214,7 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
     }
 
     try:
-        result = ortools_client.solve_vrp(ortools_url, payload, timeout=timeout)
+        result = ortools_client.solve_vrp(ortools_url, payload, timeout=timeout, api_key=ortools_api_key)
     except ortools_client.OrtoolsServiceError as e:
         raise UserError(_("OR-Tools service error: %s") % str(e)) from e
 
