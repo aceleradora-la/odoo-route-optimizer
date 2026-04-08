@@ -1,0 +1,281 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * route_optimizer
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-04-08 00:00+0000\n"
+"PO-Revision-Date: 2026-04-08 00:00+0000\n"
+"Last-Translator: \n"
+"Language-Team: Spanish (Argentina)\n"
+"Language: es_AR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: route_optimizer
+msgid "Optimize delivery route (OSRM + OR-Tools)"
+msgstr "Optimización de ruta de entrega (OSRM + OR-Tools)"
+
+#. module: route_optimizer
+msgid "Delivery address"
+msgstr "Dirección de entrega"
+
+#. module: route_optimizer
+msgid "This transfer is not part of a batch."
+msgstr "Este traslado no pertenece a un lote."
+
+#. module: route_optimizer
+msgid "Last route optimization"
+msgstr "Última optimización de ruta"
+
+#. module: route_optimizer
+msgid "Numbered list of transfers after the last optimization. Same order as column “Visit order” / batch sequence on the Transfers tab."
+msgstr "Lista numerada de traslados tras la última optimización. Mismo orden que la columna «Orden de visita» / secuencia del lote en la pestaña Traslados."
+
+#. module: route_optimizer
+msgid "Visit order (last run)"
+msgstr "Orden de visita (última ejecución)"
+
+#. module: route_optimizer
+msgid "Optimize route"
+msgstr "Optimizar ruta"
+
+#. module: route_optimizer
+msgid "Batch transfer"
+msgstr "Lote de traslados"
+
+#. module: route_optimizer
+msgid "Vehicles"
+msgstr "Vehículos"
+
+#. module: route_optimizer
+msgid "Number of vehicles for the VRP. 1 = reorder stops within this batch only."
+msgstr "Cantidad de vehículos para el VRP. 1 = reordenar paradas solo dentro de este lote."
+
+#. module: route_optimizer
+msgid "Optimize by duration"
+msgstr "Optimizar por duración"
+
+#. module: route_optimizer
+msgid "If enabled, use travel time matrix; otherwise use distance."
+msgstr "Si está activo, usa matriz de tiempos de viaje; si no, de distancias."
+
+#. module: route_optimizer
+msgid "Depot address"
+msgstr "Dirección del depósito"
+
+#. module: route_optimizer
+msgid "Defaults to warehouse address. Used as start/end for routing."
+msgstr "Por defecto la dirección del almacén. Se usa como inicio/fin del ruteo."
+
+#. module: route_optimizer
+msgid "Vehicle capacity"
+msgstr "Capacidad del vehículo"
+
+#. module: route_optimizer
+msgid "Optional max capacity per vehicle (same unit as transfer weight). Leave empty to use a non-binding default in the solver."
+msgstr "Capacidad máxima opcional por vehículo (misma unidad que el peso del traslado). Dejar vacío para usar un valor por defecto no restrictivo en el solver."
+
+#. module: route_optimizer
+msgid "Number of vehicles must be at least 1."
+msgstr "La cantidad de vehículos debe ser al menos 1."
+
+#. module: route_optimizer
+msgid "Cannot optimize a batch that is done or cancelled."
+msgstr "No se puede optimizar un lote que esté hecho o cancelado."
+
+#. module: route_optimizer
+msgid "There are no transfers in this batch."
+msgstr "No hay traslados en este lote."
+
+#. module: route_optimizer
+msgid "Depot partner %(name)s is missing valid partner_latitude / partner_longitude."
+msgstr "Al contacto del depósito %(name)s le faltan partner_latitude / partner_longitude válidos."
+
+#. module: route_optimizer
+msgid "Missing coordinates for delivery partners on transfers: %s"
+msgstr "Faltan coordenadas en los contactos de entrega de los traslados: %s"
+
+#. module: route_optimizer
+msgid "No stops with coordinates could be built."
+msgstr "No se pudo armar ninguna parada con coordenadas."
+
+#. module: route_optimizer
+msgid "OSRM error: %s"
+msgstr "Error de OSRM: %s"
+
+#. module: route_optimizer
+msgid "Number of vehicles (%(v)s) cannot exceed the number of delivery stops (%(s)s)."
+msgstr "La cantidad de vehículos (%(v)s) no puede superar la cantidad de paradas de entrega (%(s)s)."
+
+#. module: route_optimizer
+msgid "Simple OR-Tools API only supports one vehicle. Set Vehicles to 1 or disable Simple OR-Tools API in settings."
+msgstr "La API simple de OR-Tools solo admite un vehículo. Defina Vehículos en 1 o desactive la API simple de OR-Tools en los ajustes."
+
+#. module: route_optimizer
+msgid "OSRM distance matrix size does not match the number of nodes."
+msgstr "El tamaño de la matriz de distancias de OSRM no coincide con la cantidad de nodos."
+
+#. module: route_optimizer
+msgid "OR-Tools service error: %s"
+msgstr "Error del servicio OR-Tools: %s"
+
+#. module: route_optimizer
+msgid "Route optimized (%(n)s stops, distance)."
+msgstr "Ruta optimizada (%(n)s paradas, distancia)."
+
+#. module: route_optimizer
+msgid "OSRM matrix size does not match the number of nodes."
+msgstr "El tamaño de la matriz de OSRM no coincide con la cantidad de nodos."
+
+#. module: route_optimizer
+msgid "VRP applied: %(v)s vehicles, metric %(metric)s."
+msgstr "VRP aplicado: %(v)s vehículos, métrica %(metric)s."
+
+#. module: route_optimizer
+msgid "Optimized route for this vehicle (VRP)."
+msgstr "Ruta optimizada para este vehículo (VRP)."
+
+#. module: route_optimizer
+msgid "Route optimized (%(n)s stops, %(metric)s)."
+msgstr "Ruta optimizada (%(n)s paradas, %(metric)s)."
+
+#. module: route_optimizer
+msgid "Could not interpret OR-Tools response. Expected ordered_picking_ids or routes."
+msgstr "No se pudo interpretar la respuesta de OR-Tools. Se esperaba ordered_picking_ids o routes."
+
+#. module: route_optimizer
+msgid "Could not interpret OR-Tools response: missing optimized_route (or route)."
+msgstr "No se pudo interpretar la respuesta de OR-Tools: falta optimized_route (o route)."
+
+#. module: route_optimizer
+msgid "%(pos)s. %(picking)s — %(partner)s"
+msgstr "%(pos)s. %(picking)s — %(partner)s"
+
+#. module: route_optimizer
+msgid "Empty routes from OR-Tools."
+msgstr "Rutas vacías desde OR-Tools."
+
+#. module: route_optimizer
+msgid "OSRM base URL"
+msgstr "URL base de OSRM"
+
+#. module: route_optimizer
+msgid "Base URL without trailing slash, e.g. https://router.project-osrm.org"
+msgstr "URL base sin barra final, p. ej. https://router.project-osrm.org"
+
+#. module: route_optimizer
+msgid "OSRM profile"
+msgstr "Perfil OSRM"
+
+#. module: route_optimizer
+msgid "OR-Tools service URL"
+msgstr "URL del servicio OR-Tools"
+
+#. module: route_optimizer
+msgid "HTTP endpoint that accepts the VRP JSON payload and returns ordered routes."
+msgstr "Endpoint HTTP que recibe el JSON del VRP y devuelve rutas ordenadas."
+
+#. module: route_optimizer
+msgid "Simple OR-Tools API"
+msgstr "API simple de OR-Tools"
+
+#. module: route_optimizer
+msgid "Recommended for typical /optimize endpoints: JSON with locations + distance_matrix and response optimized_route. Uncheck only if your service uses the extended contract (version, matrix, picking_ids, …). Single-vehicle only."
+msgstr "Recomendado para endpoints típicos /optimize: JSON con locations + distance_matrix y respuesta optimized_route. Desmarcar solo si el servicio usa el contrato extendido (version, matrix, picking_ids, …). Solo un vehículo."
+
+#. module: route_optimizer
+msgid "HTTP timeout (seconds)"
+msgstr "Tiempo de espera HTTP (segundos)"
+
+#. module: route_optimizer
+msgid "Print route"
+msgstr "Imprimir ruta"
+
+#. module: route_optimizer
+msgid "Route optimization"
+msgstr "Optimización de rutas"
+
+#. module: route_optimizer
+msgid "Run Optimize route to fill the visit order."
+msgstr "Ejecute Optimizar ruta para completar el orden de visita."
+
+#. module: route_optimizer
+msgid "Optimize batch route"
+msgstr "Optimizar ruta del lote"
+
+#. module: route_optimizer
+msgid "Optimize"
+msgstr "Optimizar"
+
+#. module: route_optimizer
+msgid "Cancel"
+msgstr "Cancelar"
+
+#. module: route_optimizer
+msgid "OSRM server"
+msgstr "Servidor OSRM"
+
+#. module: route_optimizer
+msgid "Root URL of the OSRM server only (e.g. http://IP:5000). Do not add /table/v1/ — Odoo builds that path automatically."
+msgstr "Solo la URL raíz del servidor OSRM (p. ej. http://IP:5000). No agregue /table/v1/ — Odoo arma esa ruta automáticamente."
+
+#. module: route_optimizer
+msgid "OR-Tools service"
+msgstr "Servicio OR-Tools"
+
+#. module: route_optimizer
+msgid "HTTP endpoint (e.g. …/optimize). With Simple OR-Tools API (default), Odoo sends locations + distance_matrix."
+msgstr "Endpoint HTTP (p. ej. …/optimize). Con API simple de OR-Tools (predeterminado), Odoo envía locations + distance_matrix."
+
+#. module: route_optimizer
+msgid "Address"
+msgstr "Dirección"
+
+#. module: route_optimizer
+msgid "Visit order"
+msgstr "Orden de visita"
+
+#. module: route_optimizer
+msgid "Delivery route (visit order)"
+msgstr "Ruta de entrega (orden de visita)"
+
+#. module: route_optimizer
+msgid "Delivery route"
+msgstr "Ruta de entrega"
+
+#. module: route_optimizer
+msgid "Responsible"
+msgstr "Responsable"
+
+#. module: route_optimizer
+msgid "Scheduled"
+msgstr "Programado"
+
+#. module: route_optimizer
+msgid "Seq."
+msgstr "Sec."
+
+#. module: route_optimizer
+msgid "Customer"
+msgstr "Cliente"
+
+#. module: route_optimizer
+msgid "Transfer"
+msgstr "Traslado"
+
+#. module: route_optimizer
+msgid "Status"
+msgstr "Estado"
+
+#. module: route_optimizer
+msgid "Route Optimizer (OSRM + OR-Tools)"
+msgstr "Optimizador de rutas (OSRM + OR-Tools)"
+
+#. module: route_optimizer
+msgid "Optimize delivery routes from batch transfers using OSRM and an external OR-Tools service"
+msgstr "Optimiza rutas de entrega desde lotes de traslados usando OSRM y un servicio externo OR-Tools"

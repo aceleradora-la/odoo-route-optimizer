@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer — Fleet bridge",
-    "version": "19.0.1.0.4",
+    "version": "19.0.1.0.5",
     "category": "Inventory",
     "summary": "Optional fleet.vehicle field on the route optimization wizard",
     "license": "LGPL-3",
