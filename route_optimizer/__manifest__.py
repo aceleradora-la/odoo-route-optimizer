@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer (OSRM + OR-Tools)",
-    "version": "19.0.1.0.3",
+    "version": "18.0.1.0.3",
     "category": "Inventory",
     "summary": "Optimize delivery routes from batch transfers using OSRM and an external OR-Tools service",
     "license": "LGPL-3",
