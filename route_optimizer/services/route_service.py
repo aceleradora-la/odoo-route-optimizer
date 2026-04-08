@@ -42,6 +42,20 @@ from . import osrm_client
 from . import ortools_client
 
 
+def _param_bool(value, default=False):
+    """Parse ir.config_parameter values as boolean (robust across 'False', 'false', '0', etc.)."""
+    if value is None:
+        return bool(default)
+    if isinstance(value, bool):
+        return value
+    s = str(value).strip().lower()
+    if s in ("1", "true", "t", "yes", "y", "on"):
+        return True
+    if s in ("0", "false", "f", "no", "n", "off", ""):
+        return False
+    return bool(default)
+
+
 def _get_depot_partner(batch, depot_partner=None):
     """Warehouse address partner, then company partner."""
     if depot_partner:
@@ -94,7 +108,7 @@ def optimize_batch(env, batch, num_vehicles=1, use_duration=True, depot_partner=
     timeout = int(icp.get_param("route_optimizer.timeout") or 60)
     # Default True: self-hosted /optimize services (FastAPI) expect locations + distance_matrix.
     # Set ir.config_parameter to "False" for the extended VRP JSON contract.
-    simple_ortools = icp.get_param("route_optimizer.ortools_simple_api", "True") == "True"
+    simple_ortools = _param_bool(icp.get_param("route_optimizer.ortools_simple_api", "True"), default=True)
 
     depot = _get_depot_partner(batch, depot_partner=depot_partner)
     depot_coords = _partner_coords(depot)
