@@ -5,6 +5,20 @@ from odoo import api, fields, models
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
+    @staticmethod
+    def _param_bool(value, default=False):
+        """Parse ir.config_parameter values as boolean (robust across 'False', 'false', '0', etc.)."""
+        if value is None:
+            return bool(default)
+        if isinstance(value, bool):
+            return value
+        s = str(value).strip().lower()
+        if s in ("1", "true", "t", "yes", "y", "on"):
+            return True
+        if s in ("0", "false", "f", "no", "n", "off", ""):
+            return False
+        return bool(default)
+
     route_optimizer_osrm_url = fields.Char(
         string="OSRM base URL",
         config_parameter="route_optimizer.osrm_url",
@@ -33,3 +47,21 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer.timeout",
         default=60,
     )
+
+    @api.model
+    def get_values(self):
+        res = super().get_values()
+        icp = self.env["ir.config_parameter"].sudo()
+        res["route_optimizer_ortools_simple_api"] = self._param_bool(
+            icp.get_param("route_optimizer.ortools_simple_api", "True"),
+            default=True,
+        )
+        return res
+
+    def set_values(self):
+        super().set_values()
+        icp = self.env["ir.config_parameter"].sudo()
+        icp.set_param(
+            "route_optimizer.ortools_simple_api",
+            "True" if self.route_optimizer_ortools_simple_api else "False",
+        )
