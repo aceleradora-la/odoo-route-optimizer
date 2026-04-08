@@ -83,7 +83,31 @@ class RouteOptimizerWizard(models.TransientModel):
         Only overrides when capacity is empty/zero.
         """
         for wiz in self:
-            if wiz.fleet_vehicle_id and (not wiz.vehicle_capacity or wiz.vehicle_capacity <= 0):
-                cap = wiz._fleet_capacity_candidates(wiz.fleet_vehicle_id)
+            if not wiz.fleet_vehicle_id:
+                continue
+            category = getattr(getattr(wiz.fleet_vehicle_id, "model_id", None), "category_id", None)
+
+            # Weight capacity (kg) → wizard vehicle_capacity
+            if not wiz.vehicle_capacity or wiz.vehicle_capacity <= 0:
+                weight_cap = None
+                if category and "weight_capacity" in category._fields:
+                    try:
+                        weight_cap = float(category.weight_capacity or 0.0)
+                    except (TypeError, ValueError):
+                        weight_cap = None
+                cap = weight_cap or wiz._fleet_capacity_candidates(wiz.fleet_vehicle_id)
                 if cap:
                     wiz.vehicle_capacity = cap
+
+            # Volume capacity (m³) → wizard vehicle_volume_capacity (if field exists)
+            if "vehicle_volume_capacity" in wiz._fields and (
+                not wiz.vehicle_volume_capacity or wiz.vehicle_volume_capacity <= 0
+            ):
+                vol_cap = None
+                if category and "volume_capacity" in category._fields:
+                    try:
+                        vol_cap = float(category.volume_capacity or 0.0)
+                    except (TypeError, ValueError):
+                        vol_cap = None
+                if vol_cap and vol_cap > 0:
+                    wiz.vehicle_volume_capacity = vol_cap
