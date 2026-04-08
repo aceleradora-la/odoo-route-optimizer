@@ -132,6 +132,11 @@ class VrpRequest(BaseModel):
     demands: List[float] = []
     vehicle_capacities: List[float] = []
     picking_ids: List[int] = []
+    # Optional constraints:
+    max_stops_per_vehicle: int = 0
+    max_route_duration_seconds: int = 0
+    # Optional time windows (one per node, includes depot at index 0): [[start,end], ...]
+    time_windows: List[List[int]] = []
 
 @app.post("/optimize")
 async def optimize(request: RouteRequest, token: str = Depends(get_api_key)):
@@ -231,6 +236,45 @@ async def vrp(request: VrpRequest, token: str = Depends(get_api_key)):
             True,
             "Capacity",
         )
+
+    # Max stops per vehicle (opcional)
+    if request.max_stops_per_vehicle and request.max_stops_per_vehicle > 0:
+        def stop_callback(from_index):
+            node = manager.IndexToNode(from_index)
+            return 0 if node == 0 else 1
+
+        stop_cb = routing.RegisterUnaryTransitCallback(stop_callback)
+        routing.AddDimensionWithVehicleCapacity(
+            stop_cb,
+            0,
+            [int(request.max_stops_per_vehicle)] * num_vehicles,
+            True,
+            "Stops",
+        )
+
+    # Time windows + max duration (opcional, requiere matriz de duración)
+    if request.time_windows:
+        if len(request.time_windows) != n:
+            raise HTTPException(status_code=422, detail="time_windows debe tener largo N")
+        time_dimension_name = "Time"
+        routing.AddDimension(
+            transit_callback_index,
+            0,
+            int(request.max_route_duration_seconds) if request.max_route_duration_seconds else 24 * 3600,
+            True,
+            time_dimension_name,
+        )
+        time_dimension = routing.GetDimensionOrDie(time_dimension_name)
+        for node_idx, tw in enumerate(request.time_windows):
+            if not tw or len(tw) != 2:
+                continue
+            start, end = int(tw[0]), int(tw[1])
+            index = manager.NodeToIndex(node_idx)
+            time_dimension.CumulVar(index).SetRange(start, end)
+        if request.max_route_duration_seconds and request.max_route_duration_seconds > 0:
+            for v in range(num_vehicles):
+                end_index = routing.End(v)
+                time_dimension.CumulVar(end_index).SetMax(int(request.max_route_duration_seconds))
 
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
