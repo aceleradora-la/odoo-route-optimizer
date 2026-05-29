@@ -19,7 +19,7 @@
                             </div>
                         </div>
                     </setting>
-                    <setting id="route_optimizer_ortools_setting" string="OR-Tools service" help="Base URL (IP:port) or full endpoint. Odoo will automatically use /optimize when Simple OR-Tools API is enabled, or /vrp when disabled. If you paste a full URL with /optimize or /vrp it will be respected when it matches the selected mode. For delivery time windows (OCA stock_partner_delivery_window), Odoo uses the batch Scheduled date to pick the weekday and sends a single [start,end] window per stop (union of multiple windows).">
+                    <setting id="route_optimizer_ortools_setting" string="OR-Tools service" help="Base URL (IP:port) or full endpoint. Odoo adds /optimize or /vrp automatically. With OCA delivery windows and duration optimization, each stop uses its transfer scheduled date (weekday and time) and partner windows are sent to /vrp.">
                         <div class="content-group">
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_url"/>
@@ -44,6 +44,22 @@
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_max_route_duration_minutes"/>
                                 <field name="route_optimizer_max_route_duration_minutes" class="oe_inline"/>
+                            </div>
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_use_delivery_windows"/>
+                                <field name="route_optimizer_use_delivery_windows"/>
+                            </div>
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_route_start_hour"/>
+                                <field name="route_optimizer_route_start_hour" class="oe_inline"/>
+                            </div>
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_service_time_seconds"/>
+                                <field name="route_optimizer_service_time_seconds" class="oe_inline"/>
+                            </div>
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_block_outside_windows"/>
+                                <field name="route_optimizer_block_outside_windows"/>
                             </div>
                         </div>
                     </setting>

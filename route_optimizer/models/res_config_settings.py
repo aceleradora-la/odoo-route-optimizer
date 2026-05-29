@@ -62,6 +62,32 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer.max_route_duration_minutes",
         help="Optional hard limit per vehicle route duration (requires duration optimization).",
     )
+    route_optimizer_use_delivery_windows = fields.Boolean(
+        string="Respect partner delivery windows",
+        config_parameter="route_optimizer.use_delivery_windows",
+        default=True,
+        help="When OCA «Stock Partner Delivery Window» is installed, send time windows to "
+        "the OR-Tools /vrp service (requires «Optimize by duration»).",
+    )
+    route_optimizer_route_start_hour = fields.Float(
+        string="Route departure hour",
+        config_parameter="route_optimizer.route_start_hour",
+        default=8.0,
+        help="Local time when vehicles leave the depot (0–24). Used with partner time windows.",
+    )
+    route_optimizer_service_time_seconds = fields.Integer(
+        string="Service time per stop (seconds)",
+        config_parameter="route_optimizer.service_time_seconds",
+        default=600,
+        help="Estimated time at each customer stop, added to the travel time dimension.",
+    )
+    route_optimizer_block_outside_windows = fields.Boolean(
+        string="Block optimization outside windows",
+        config_parameter="route_optimizer.block_outside_windows",
+        default=False,
+        help="If enabled, refuse to optimize when a transfer scheduled date/time is outside "
+        "the customer delivery window (OCA rules).",
+    )
 
     @api.model
     def get_values(self):
@@ -70,6 +96,14 @@ class ResConfigSettings(models.TransientModel):
         res["route_optimizer_ortools_simple_api"] = self._param_bool(
             icp.get_param("route_optimizer.ortools_simple_api", "True"),
             default=True,
+        )
+        res["route_optimizer_use_delivery_windows"] = self._param_bool(
+            icp.get_param("route_optimizer.use_delivery_windows", "True"),
+            default=True,
+        )
+        res["route_optimizer_block_outside_windows"] = self._param_bool(
+            icp.get_param("route_optimizer.block_outside_windows", "False"),
+            default=False,
         )
         # Ensure value shows even if config_parameter isn't picked up by the UI cache yet.
         res["route_optimizer_ortools_api_key"] = icp.get_param("route_optimizer.ortools_api_key", "") or ""
@@ -85,4 +119,12 @@ class ResConfigSettings(models.TransientModel):
         icp.set_param(
             "route_optimizer.ortools_api_key",
             (self.route_optimizer_ortools_api_key or "").strip(),
+        )
+        icp.set_param(
+            "route_optimizer.use_delivery_windows",
+            "True" if self.route_optimizer_use_delivery_windows else "False",
+        )
+        icp.set_param(
+            "route_optimizer.block_outside_windows",
+            "True" if self.route_optimizer_block_outside_windows else "False",
         )

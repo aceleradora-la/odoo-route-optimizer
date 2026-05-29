@@ -13,7 +13,7 @@ Instalá el código desde la rama que coincida con tu versión de Odoo.
 
 ## Módulos
 
-- **`route_optimizer`**: configuración (URLs OSRM / OR-Tools), asistente desde el batch, clientes HTTP, aplicación de orden (`batch_sequence`) y reparto multi-vehículo opcional.
+- **`route_optimizer`**: configuración (URLs OSRM / OR-Tools), asistente desde el batch, clientes HTTP, aplicación de orden (`batch_sequence`) y reparto multi-vehículo opcional. En la rama **19.0** integra ventanas horarias del contacto vía OCA **`stock_partner_delivery_window`**.
 - **`route_optimizer_fleet`** (opcional): campo `fleet.vehicle` en el asistente; requiere el módulo `fleet`.
 
 ## Instalación
@@ -28,12 +28,21 @@ Instalá el código desde la rama que coincida con tu versión de Odoo.
 
 2. Copiar (o enlazar) las carpetas `route_optimizer` y, si aplica, `route_optimizer_fleet` al `addons` de tu instancia.
 
-3. Actualizar lista de aplicaciones e instalar **Route Optimizer (OSRM + OR-Tools)**.
+3. Instalar desde OCA (rama `19.0`) **`stock_partner_delivery_window`** y sus dependencias (`base_time_window`, etc.).
 
-4. En **Ajustes → Inventario → Route optimization**, configurar:
+4. Actualizar lista de aplicaciones e instalar **Route Optimizer (OSRM + OR-Tools)**.
+
+5. En **Ajustes → Inventario → Route optimization**, configurar:
    - **OSRM base URL**: solo la raíz del servidor, p. ej. `http://195.179.231.4:5000`. **No** incluyas `/table/v1/` (Odoo arma `.../table/v1/driving/{coords}` solo).
    - **OR-Tools service URL**: p. ej. `http://195.179.231.4:8080/optimize`.
-   - **Simple OR-Tools API** viene activado por defecto (formato `locations` + `distance_matrix` y respuesta `optimized_route`). Desmarcá solo si usás el contrato extendido. Solo un vehículo en este modo.
+   - **Simple OR-Tools API** viene activado por defecto (formato `locations` + `distance_matrix` y respuesta `optimized_route`). Desmarcá solo si usás el contrato extendido (multi-vehículo, capacidades, **ventanas horarias**).
+   - **Respect partner delivery windows**, hora de salida y tiempo de atención por parada (requieren API extendida `/vrp` y **Optimizar por duración**).
+
+6. Reconstruir el contenedor OR-Tools desde [`ortools_service/`](ortools_service/) (ver [`DEPLOYMENT_MANUAL_SECURE.md`](DEPLOYMENT_MANUAL_SECURE.md)).
+
+## Ventanas horarias (OCA)
+
+Con **Optimizar por duración** y API extendida, Odoo envía al `/vrp` las ventanas del contacto para el **día de la semana** de la fecha programada de cada traslado. Varias franjas el mismo día (p. ej. mañana y tarde) se respetan en el solver. Configurá ventanas en el contacto (OCA) y la **fecha programada** en cada traslado del lote.
 
 ## Orden de visitas
 
