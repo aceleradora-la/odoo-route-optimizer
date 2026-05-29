@@ -12,7 +12,12 @@ Expected OR-Tools microservice contract (JSON POST body produced by Odoo)::
         "matrix_metric": "duration" | "distance",
         "demands": [0, w1, w2, ...],     # depot demand 0, then shipping_weight per stop
         "vehicle_capacities": [float, ...],
-        "picking_ids": [int, ...]        # same order as matrix columns after depot
+        "picking_ids": [int, ...],       # same order as matrix columns after depot
+        # Optional (OCA delivery windows, duration matrix only):
+        "route_start_seconds": int,
+        "service_times": [0, 600, ...],
+        "time_windows": [[start, end], ...],
+        "time_windows_list": [[[s,e], ...], ...],  # multiple intervals per node
     }
 
 Successful response (one of)::
@@ -35,13 +40,10 @@ Or multi-vehicle (num_vehicles > 1)::
 
 Node index 0 is always the depot; indices 1..n map to picking_ids[i-1].
 """
-import datetime
-
-import pytz
-
 from odoo import _, fields
 from odoo.exceptions import UserError
 
+from . import delivery_windows
 from . import osrm_client
 from . import ortools_client
 from urllib.parse import urlsplit, urlunsplit
@@ -304,82 +306,11 @@ def optimize_batch(
     if mmins > 0:
         payload["max_route_duration_seconds"] = mmins * 60
 
-    # Optional partner delivery time windows (OCA stock_partner_delivery_window)
-    # We only send them when:
-    # - The partner model provides the fields (module installed)
-    # - Batch has scheduled_date
-    # - We are optimizing by duration (time windows depend on travel time)
-    if use_duration and batch.scheduled_date and "delivery_time_preference" in env["res.partner"]._fields:
-        try:
-            route_dt = fields.Datetime.to_datetime(batch.scheduled_date)
-        except Exception:
-            route_dt = None
-        if route_dt:
-            # use company/user timezone to pick weekday consistently
-            tzname = env.user.tz or env.company.partner_id.tz or "UTC"
-            tz = pytz.timezone(tzname)
-            # Odoo stores datetimes as naive UTC in many contexts; treat as UTC when naive.
-            if route_dt.tzinfo is None:
-                route_dt = pytz.utc.localize(route_dt)
-            local_dt = route_dt.astimezone(tz)
-            weekday = local_dt.weekday()
-
-            partners = env["res.partner"].browse([s["partner"].id for s in stops]).exists()
-            windows_by_partner = {}
-            if hasattr(partners, "get_delivery_windows"):
-                windows_by_partner = partners.get_delivery_windows(weekday) or {}
-
-            def _time_to_seconds(t):
-                if isinstance(t, datetime.time):
-                    return int(t.hour * 3600 + t.minute * 60 + t.second)
-                return None
-
-            time_windows = [[0, 24 * 3600]]  # depot (wide)
-            for s in stops:
-                p = s["partner"]
-                # default: wide window
-                tw = [0, 24 * 3600]
-                try:
-                    pref = p.delivery_time_preference
-                except Exception:
-                    pref = "anytime"
-                if pref == "time_windows":
-                    wset = windows_by_partner.get(p.id)
-                    if wset:
-                        starts = []
-                        ends = []
-                        for w in wset:
-                            st = None
-                            en = None
-                            if hasattr(w, "get_time_window_start_time"):
-                                st = _time_to_seconds(w.get_time_window_start_time())
-                            if hasattr(w, "get_time_window_end_time"):
-                                en = _time_to_seconds(w.get_time_window_end_time())
-                            # fallback: common float fields on OCA models
-                            if st is None and "time_window_start" in w._fields:
-                                try:
-                                    st = int(round(float(w.time_window_start) * 3600))
-                                except Exception:
-                                    st = None
-                            if en is None and "time_window_end" in w._fields:
-                                try:
-                                    en = int(round(float(w.time_window_end) * 3600))
-                                except Exception:
-                                    en = None
-                            if st is not None and en is not None:
-                                starts.append(st)
-                                ends.append(en)
-                        if starts and ends:
-                            # union of multiple windows: allows deliveries in gaps,
-                            # but keeps the route within the overall preferred span.
-                            tw = [min(starts), max(ends)]
-                elif pref == "workdays":
-                    # If scheduled_date is on weekend, we do not hard-fail: we ignore the restriction.
-                    if weekday > 4:
-                        tw = [0, 24 * 3600]
-                time_windows.append(tw)
-
-            payload["time_windows"] = time_windows
+    # OCA stock_partner_delivery_window: time windows per stop (requires duration matrix).
+    if use_duration:
+        time_payload = delivery_windows.build_vrp_time_payload(env, batch, stops, icp)
+        if time_payload:
+            payload.update(time_payload)
 
     try:
         result = ortools_client.solve_vrp(ortools_url, payload, timeout=timeout, api_key=ortools_api_key)

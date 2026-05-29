@@ -1,0 +1,9 @@
+services:
+  ortools-service:
+    build: .
+    container_name: ortools-service
+    restart: always
+    ports:
+      - "8080:8000"
+    env_file:
+      - .env

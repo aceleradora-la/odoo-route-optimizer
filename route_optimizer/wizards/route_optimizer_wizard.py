@@ -2,7 +2,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-from ..services.route_service import optimize_batch
+from ..services import delivery_windows
+from ..services.route_service import _param_bool, optimize_batch
 
 
 class RouteOptimizerWizard(models.TransientModel):
@@ -62,6 +63,26 @@ class RouteOptimizerWizard(models.TransientModel):
         self.ensure_one()
         if self.num_vehicles < 1:
             raise UserError(_("Number of vehicles must be at least 1."))
+        if self.use_duration:
+            pickings = self.batch_id.picking_ids.filtered(lambda p: p.state != "cancel")
+            stops = [
+                {"picking": p, "partner": p._route_optimizer_delivery_partner()}
+                for p in pickings
+                if p._route_optimizer_delivery_partner()
+            ]
+            warnings = delivery_windows.validate_stops_delivery_windows(
+                self.env, self.batch_id, stops
+            )
+            if warnings:
+                icp = self.env["ir.config_parameter"].sudo()
+                block = _param_bool(
+                    icp.get_param("route_optimizer.block_outside_windows", "False"),
+                    default=False,
+                )
+                body = _("Delivery window warnings:\n") + "\n".join(f"• {w}" for w in warnings)
+                if block:
+                    raise UserError(body)
+                self.batch_id.message_post(body=body)
         res = optimize_batch(
             self.env,
             self.batch_id,

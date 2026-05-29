@@ -76,10 +76,19 @@ Este servicio se consume desde Odoo. Se recomienda **API key por header**:
 
 - Header: `X-API-KEY`
 
+**Código de referencia en este repositorio:** carpeta [`ortools_service/`](ortools_service/) (`main.py`, `Dockerfile`, `docker-compose.yml`). Copiá esa carpeta al servidor o usá el `main.py` embebido abajo (debe coincidir con la versión del repo).
+
+Soporta en **`POST /vrp`** (contrato extendido Odoo):
+
+- `time_windows` y `time_windows_list` (varias franjas por parada; OR en el solver)
+- `route_start_seconds` (salida del depósito)
+- `service_times` (tiempo de atención por parada en la dimensión Tiempo)
+- Capacidad peso/volumen, `max_stops_per_vehicle`, `max_route_duration_seconds`
+
 ### A) Estructura de carpeta
 
 ```text
-~/or-tools-test/
+~/or-tools-test/    # o ortools_service/ del repo
   Dockerfile
   main.py
   docker-compose.yml
@@ -143,6 +152,10 @@ class VrpRequest(BaseModel):
     max_route_duration_seconds: int = 0
     # Optional time windows (one per node, includes depot at index 0): [[start,end], ...]
     time_windows: List[List[int]] = []
+    # Multiple intervals per node (OR constraint): [[[start,end], ...], ...]
+    time_windows_list: List[List[List[int]]] = []
+    route_start_seconds: int = 0
+    service_times: List[int] = []
 
 @app.post("/optimize")
 async def optimize(request: RouteRequest, token: str = Depends(get_api_key)):
