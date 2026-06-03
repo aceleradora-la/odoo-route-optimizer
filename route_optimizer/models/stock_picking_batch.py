@@ -124,7 +124,7 @@ class StockPickingBatch(models.Model):
         if "vehicle_id" in self._fields and self.vehicle_id:
             default_fleet_vehicle_id = self.vehicle_id.id
         return {
-            "name": _("Optimize route"),
+            "name": _("Optimizar ruta"),
             "type": "ir.actions.act_window",
             "res_model": "route.optimizer.wizard",
             "view_mode": "form",

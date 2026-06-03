@@ -62,7 +62,7 @@ class RouteOptimizerWizard(models.TransientModel):
     def action_optimize(self):
         self.ensure_one()
         if self.num_vehicles < 1:
-            raise UserError(_("Number of vehicles must be at least 1."))
+            raise UserError(_("La cantidad de vehículos debe ser al menos 1."))
         if self.use_duration:
             pickings = self.batch_id.picking_ids.filtered(lambda p: p.state != "cancel")
             stops = [
@@ -79,7 +79,7 @@ class RouteOptimizerWizard(models.TransientModel):
                     icp.get_param("route_optimizer.block_outside_windows", "False"),
                     default=False,
                 )
-                body = _("Delivery window warnings:\n") + "\n".join(f"• {w}" for w in warnings)
+                body = _("Advertencias de ventana horaria:\n") + "\n".join(f"• {w}" for w in warnings)
                 if block:
                     raise UserError(body)
                 self.batch_id.message_post(body=body)

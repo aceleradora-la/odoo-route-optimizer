@@ -9,7 +9,7 @@
                 <button
                     name="action_route_optimizer_from_picking"
                     type="object"
-                    string="Optimize batch route"
+                    string="Optimizar ruta del lote"
                     class="btn-secondary"
                     invisible="not batch_id or state in ('done', 'cancel')"
                 />
