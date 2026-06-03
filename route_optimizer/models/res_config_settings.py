@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class ResConfigSettings(models.TransientModel):
@@ -88,6 +89,16 @@ class ResConfigSettings(models.TransientModel):
         help="If enabled, refuse to optimize when a transfer scheduled date/time is outside "
         "the customer delivery window (OCA rules).",
     )
+
+    @api.constrains("route_optimizer_route_start_hour")
+    def _check_route_start_hour(self):
+        for rec in self:
+            try:
+                hour = float(rec.route_optimizer_route_start_hour or 8.0)
+            except (TypeError, ValueError):
+                hour = 8.0
+            if not (0 <= hour < 24):
+                raise ValidationError(_("Route departure hour must be between 0 and 23.9."))
 
     @api.model
     def get_values(self):

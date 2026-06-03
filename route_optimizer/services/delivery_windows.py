@@ -90,12 +90,24 @@ def _window_record_interval(window_rec):
     return [st, en]
 
 
+def _oca_windows_api(partner):
+    """Return the OCA delivery-windows method available on partner, or None.
+
+    OCA renamed the method between versions; check both names so the module
+    works across OCA releases without patching.
+    """
+    for name in ("_get_delivery_windows", "get_delivery_windows"):
+        method = getattr(partner.__class__, name, None)
+        if method is not None:
+            return name
+    return None
+
+
 def _partner_delivery_windows(partners, weekday):
-    """Map partner_id -> recordset of windows for weekday (OCA 19 API)."""
-    if hasattr(partners, "_get_delivery_windows"):
-        return partners._get_delivery_windows(weekday) or {}
-    if hasattr(partners, "get_delivery_windows"):
-        return partners.get_delivery_windows(weekday) or {}
+    """Map partner_id -> recordset of windows for weekday (OCA API)."""
+    method_name = _oca_windows_api(partners)
+    if method_name:
+        return getattr(partners, method_name)(weekday) or {}
     return {}
 
 
