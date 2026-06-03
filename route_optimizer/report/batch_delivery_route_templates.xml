@@ -67,8 +67,7 @@
                                             <span t-field="pick.partner_id"/>
                                         </td>
                                         <td style="white-space:nowrap;">
-                                            <t t-set="phone" t-value="pick.partner_id.phone or pick.partner_id.mobile or ''"/>
-                                            <span t-esc="phone"/>
+                                            <span t-esc="pick.route_optimizer_partner_phone"/>
                                         </td>
                                         <td>
                                             <span t-esc="pick.route_optimizer_delivery_address"/>

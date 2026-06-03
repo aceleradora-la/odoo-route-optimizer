@@ -144,7 +144,7 @@ class StockPickingBatch(models.Model):
             p = pick.partner_id
             name = p.display_name if p else pick.name
             address = pick.route_optimizer_delivery_address or ""
-            phone = (p.phone or p.mobile or "") if p else ""
+            phone = pick.route_optimizer_partner_phone if p else ""
             line = f"{i}. {name}"
             if address:
                 line += f"\n   {address}"
