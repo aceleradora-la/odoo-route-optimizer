@@ -6,61 +6,60 @@
                 <t t-call="web.external_layout">
                     <div class="page">
 
-                        <!-- Header -->
-                        <h2>
-                            <span t-esc="env._('Delivery route')"/>
-                            —
-                            <span t-field="o.name"/>
-                        </h2>
-
-                        <div class="row mb-2">
-                            <div class="col-6">
-                                <t t-if="o.user_id">
-                                    <strong><span t-esc="env._('Responsible')"/>:</strong>
-                                    <span t-field="o.user_id"/>
-                                    <br/>
-                                </t>
-                                <t t-if="o.scheduled_date">
-                                    <strong><span t-esc="env._('Scheduled')"/>:</strong>
-                                    <span t-field="o.scheduled_date"/>
-                                    <br/>
-                                </t>
+                        <!-- Encabezado -->
+                        <div class="row mb-1">
+                            <div class="col-9">
+                                <h2 style="margin-bottom:4px;">
+                                    Hoja de Ruta — <span t-field="o.name"/>
+                                </h2>
                                 <t t-set="visit_pickings" t-value="o._route_optimizer_pickings_visit_order().filtered(lambda p: p.state != 'cancel')"/>
-                                <strong><span t-esc="env._('Stops')"/>:</strong>
-                                <span t-esc="len(visit_pickings)"/>
                                 <t t-set="total_weight" t-value="sum(p.shipping_weight or 0 for p in visit_pickings)"/>
-                                <t t-if="total_weight">
-                                    &amp;nbsp;·&amp;nbsp;
-                                    <strong><span t-esc="env._('Total weight')"/>:</strong>
-                                    <span t-esc="'%.1f kg' % total_weight"/>
-                                </t>
+                                <span style="font-size:12px;">
+                                    <t t-if="o.user_id">
+                                        <strong>Responsable:</strong>
+                                        <span t-field="o.user_id"/>
+                                        &amp;nbsp;·&amp;nbsp;
+                                    </t>
+                                    <t t-if="o.scheduled_date">
+                                        <strong>Fecha:</strong>
+                                        <span t-field="o.scheduled_date"/>
+                                        &amp;nbsp;·&amp;nbsp;
+                                    </t>
+                                    <strong>Paradas:</strong>
+                                    <span t-esc="len(visit_pickings)"/>
+                                    <t t-if="total_weight">
+                                        &amp;nbsp;·&amp;nbsp;
+                                        <strong>Peso total:</strong>
+                                        <span t-esc="'%.1f kg' % total_weight"/>
+                                    </t>
+                                </span>
                             </div>
-                            <div class="col-6 text-right" t-if="o.route_optimizer_gmaps_url">
-                                <strong><span t-esc="env._('Route link')"/>:</strong><br/>
-                                <span
-                                    t-esc="o.route_optimizer_gmaps_url"
-                                    style="font-size:8px; word-break:break-all;"
-                                />
+                            <!-- QR code Google Maps (solo si hay ruta optimizada) -->
+                            <div class="col-3 text-right" t-if="o.route_optimizer_gmaps_qr_src">
+                                <img t-att-src="o.route_optimizer_gmaps_qr_src"
+                                     style="width:90px; height:90px;"
+                                     title="Abrir ruta en Google Maps"/>
+                                <div style="font-size:8px; color:#555; margin-top:2px;">Ruta Google Maps</div>
                             </div>
                         </div>
 
-                        <!-- Stops table -->
-                        <table class="table table-sm o_main_table mt-2" style="font-size:11px;">
+                        <!-- Tabla de paradas -->
+                        <table class="table table-sm o_main_table mt-1" style="font-size:11px;">
                             <thead>
                                 <tr>
                                     <th style="width:4%">#</th>
-                                    <th style="width:18%"><span t-esc="env._('Customer')"/></th>
-                                    <th style="width:8%"><span t-esc="env._('Phone')"/></th>
-                                    <th style="width:26%"><span t-esc="env._('Address')"/></th>
-                                    <th style="width:28%"><span t-esc="env._('Products')"/></th>
-                                    <th style="width:10%"><span t-esc="env._('Window')"/></th>
-                                    <th style="width:6%"><span t-esc="env._('Status')"/></th>
+                                    <th style="width:18%">Cliente</th>
+                                    <th style="width:9%">Teléfono</th>
+                                    <th style="width:25%">Dirección</th>
+                                    <th style="width:29%">Productos</th>
+                                    <th style="width:9%">Ventana</th>
+                                    <th style="width:6%">Estado</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <t t-foreach="visit_pickings" t-as="pick">
                                     <tr>
-                                        <td t-att-style="'font-weight:bold; color:#1565C0;'">
+                                        <td style="font-weight:bold; color:#1565C0;">
                                             <span t-field="pick.batch_sequence"/>
                                         </td>
                                         <td>
@@ -82,7 +81,7 @@
                                             <span t-field="pick.state"/>
                                         </td>
                                     </tr>
-                                    <!-- Notes row (only if present) -->
+                                    <!-- Fila de notas (solo si existe) -->
                                     <tr t-if="pick.note">
                                         <td/>
                                         <td colspan="6" style="font-size:10px; color:#555; padding-top:0; border-top:none;">
@@ -94,30 +93,27 @@
                             <tfoot>
                                 <tr style="font-weight:bold; border-top: 2px solid #333;">
                                     <td colspan="2">
-                                        <span t-esc="env._('Total')"/>:
-                                        <span t-esc="len(visit_pickings)"/>
-                                        <span t-esc="env._(' stops')"/>
+                                        Total: <span t-esc="len(visit_pickings)"/> paradas
                                     </td>
                                     <td colspan="2"/>
                                     <td colspan="3" t-if="total_weight">
-                                        <span t-esc="env._('Weight')"/>:
-                                        <span t-esc="'%.1f kg' % total_weight"/>
+                                        Peso: <span t-esc="'%.1f kg' % total_weight"/>
                                     </td>
                                 </tr>
                             </tfoot>
                         </table>
 
-                        <!-- Signature block -->
+                        <!-- Bloque de firma -->
                         <div class="row mt-4">
                             <div class="col-5">
                                 <div style="border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size:10px;">
-                                    <span t-esc="env._('Carrier signature')"/>
+                                    Firma del transportista
                                 </div>
                             </div>
                             <div class="col-2"/>
                             <div class="col-5">
                                 <div style="border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size:10px;">
-                                    <span t-esc="env._('Date / Time')"/>
+                                    Fecha / Hora
                                 </div>
                             </div>
                         </div>
