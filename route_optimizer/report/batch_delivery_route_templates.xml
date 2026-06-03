@@ -5,38 +5,124 @@
             <t t-foreach="docs" t-as="o">
                 <t t-call="web.external_layout">
                     <div class="page">
-                        <h2><span t-esc="env._('Delivery route')"/> — <span t-field="o.name"/></h2>
-                        <p t-if="o.user_id">
-                            <strong><span t-esc="env._('Responsible')"/>:</strong>
-                            <span t-field="o.user_id"/>
-                        </p>
-                        <p t-if="o.scheduled_date">
-                            <strong><span t-esc="env._('Scheduled')"/>:</strong>
-                            <span t-field="o.scheduled_date"/>
-                        </p>
-                        <table class="table table-sm o_main_table mt-3">
+
+                        <!-- Header -->
+                        <h2>
+                            <span t-esc="env._('Delivery route')"/>
+                            —
+                            <span t-field="o.name"/>
+                        </h2>
+
+                        <div class="row mb-2">
+                            <div class="col-6">
+                                <t t-if="o.user_id">
+                                    <strong><span t-esc="env._('Responsible')"/>:</strong>
+                                    <span t-field="o.user_id"/>
+                                    <br/>
+                                </t>
+                                <t t-if="o.scheduled_date">
+                                    <strong><span t-esc="env._('Scheduled')"/>:</strong>
+                                    <span t-field="o.scheduled_date"/>
+                                    <br/>
+                                </t>
+                                <t t-set="visit_pickings" t-value="o._route_optimizer_pickings_visit_order().filtered(lambda p: p.state != 'cancel')"/>
+                                <strong><span t-esc="env._('Stops')"/>:</strong>
+                                <span t-esc="len(visit_pickings)"/>
+                                <t t-set="total_weight" t-value="sum(p.shipping_weight or 0 for p in visit_pickings)"/>
+                                <t t-if="total_weight">
+                                    &amp;nbsp;·&amp;nbsp;
+                                    <strong><span t-esc="env._('Total weight')"/>:</strong>
+                                    <span t-esc="'%.1f kg' % total_weight"/>
+                                </t>
+                            </div>
+                            <div class="col-6 text-right" t-if="o.route_optimizer_gmaps_url">
+                                <strong><span t-esc="env._('Route link')"/>:</strong><br/>
+                                <span
+                                    t-esc="o.route_optimizer_gmaps_url"
+                                    style="font-size:8px; word-break:break-all;"
+                                />
+                            </div>
+                        </div>
+
+                        <!-- Stops table -->
+                        <table class="table table-sm o_main_table mt-2" style="font-size:11px;">
                             <thead>
                                 <tr>
-                                    <th name="th_seq"><span t-esc="env._('Seq.')"/></th>
-                                    <th name="th_customer"><span t-esc="env._('Customer')"/></th>
-                                    <th name="th_address"><span t-esc="env._('Address')"/></th>
-                                    <th name="th_transfer"><span t-esc="env._('Transfer')"/></th>
-                                    <th name="th_state"><span t-esc="env._('Status')"/></th>
+                                    <th style="width:4%">#</th>
+                                    <th style="width:18%"><span t-esc="env._('Customer')"/></th>
+                                    <th style="width:8%"><span t-esc="env._('Phone')"/></th>
+                                    <th style="width:26%"><span t-esc="env._('Address')"/></th>
+                                    <th style="width:28%"><span t-esc="env._('Products')"/></th>
+                                    <th style="width:10%"><span t-esc="env._('Window')"/></th>
+                                    <th style="width:6%"><span t-esc="env._('Status')"/></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <t t-set="visit_pickings" t-value="o._route_optimizer_pickings_visit_order()"/>
                                 <t t-foreach="visit_pickings" t-as="pick">
                                     <tr>
-                                        <td><span t-field="pick.batch_sequence"/></td>
-                                        <td><span t-field="pick.partner_id"/></td>
-                                        <td><span t-esc="pick.route_optimizer_delivery_address"/></td>
-                                        <td><span t-field="pick.name"/></td>
-                                        <td><span t-field="pick.state"/></td>
+                                        <td t-att-style="'font-weight:bold; color:#1565C0;'">
+                                            <span t-field="pick.batch_sequence"/>
+                                        </td>
+                                        <td>
+                                            <span t-field="pick.partner_id"/>
+                                        </td>
+                                        <td style="white-space:nowrap;">
+                                            <t t-set="phone" t-value="pick.partner_id.phone or pick.partner_id.mobile or ''"/>
+                                            <span t-esc="phone"/>
+                                        </td>
+                                        <td>
+                                            <span t-esc="pick.route_optimizer_delivery_address"/>
+                                        </td>
+                                        <td style="font-size:10px;">
+                                            <span t-esc="pick.route_optimizer_products_summary"/>
+                                        </td>
+                                        <td style="white-space:nowrap; font-size:10px;">
+                                            <span t-esc="pick.route_optimizer_time_window"/>
+                                        </td>
+                                        <td>
+                                            <span t-field="pick.state"/>
+                                        </td>
+                                    </tr>
+                                    <!-- Notes row (only if present) -->
+                                    <tr t-if="pick.note">
+                                        <td/>
+                                        <td colspan="6" style="font-size:10px; color:#555; padding-top:0; border-top:none;">
+                                            <i><span t-field="pick.note" t-options='{"widget": "text"}'/></i>
+                                        </td>
                                     </tr>
                                 </t>
                             </tbody>
+                            <tfoot>
+                                <tr style="font-weight:bold; border-top: 2px solid #333;">
+                                    <td colspan="2">
+                                        <span t-esc="env._('Total')"/>:
+                                        <span t-esc="len(visit_pickings)"/>
+                                        <span t-esc="env._(' stops')"/>
+                                    </td>
+                                    <td colspan="2"/>
+                                    <td colspan="3" t-if="total_weight">
+                                        <span t-esc="env._('Weight')"/>:
+                                        <span t-esc="'%.1f kg' % total_weight"/>
+                                    </td>
+                                </tr>
+                            </tfoot>
                         </table>
+
+                        <!-- Signature block -->
+                        <div class="row mt-4">
+                            <div class="col-5">
+                                <div style="border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size:10px;">
+                                    <span t-esc="env._('Carrier signature')"/>
+                                </div>
+                            </div>
+                            <div class="col-2"/>
+                            <div class="col-5">
+                                <div style="border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size:10px;">
+                                    <span t-esc="env._('Date / Time')"/>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </t>
             </t>
