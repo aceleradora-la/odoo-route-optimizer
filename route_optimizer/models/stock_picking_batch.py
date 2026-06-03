@@ -1,8 +1,26 @@
 # -*- coding: utf-8 -*-
+import base64
+import io
 from urllib.parse import quote as url_quote
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+
+def _build_qr_data_uri(text):
+    """Generate a PNG QR code as a base64 data URI (works in wkhtmltopdf without HTTP)."""
+    try:
+        import qrcode  # available in Odoo's standard dependencies
+        qr = qrcode.QRCode(box_size=4, border=2)
+        qr.add_data(text)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+        return f"data:image/png;base64,{b64}"
+    except Exception:
+        return False
 
 
 class StockPickingBatch(models.Model):
@@ -73,10 +91,7 @@ class StockPickingBatch(models.Model):
             if len(points) >= 2:
                 gmaps_url = "https://www.google.com/maps/dir/" + "/".join(points)
                 batch.route_optimizer_gmaps_url = gmaps_url
-                batch.route_optimizer_gmaps_qr_src = (
-                    "/report/barcode/?type=QR&value=%s&width=120&height=120"
-                    % url_quote(gmaps_url, safe="")
-                )
+                batch.route_optimizer_gmaps_qr_src = _build_qr_data_uri(gmaps_url)
             else:
                 batch.route_optimizer_gmaps_url = False
                 batch.route_optimizer_gmaps_qr_src = False

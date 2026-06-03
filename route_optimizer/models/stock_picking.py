@@ -3,6 +3,13 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
+def _safe_float(val):
+    try:
+        return float(val or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
@@ -67,34 +74,38 @@ class StockPicking(models.Model):
     def _compute_route_optimizer_products_summary(self):
         for pick in self:
             moves = pick.move_ids.filtered(lambda m: m.state != "cancel")
-            parts = []
+
+            # Decidir si usar packaging o UdM estándar
+            use_packaging = any(
+                _safe_float(getattr(m, "packaging_uom_qty", None)) > 0
+                and getattr(m, "packaging_uom_id", None)
+                for m in moves
+            )
+
+            totals = {}  # {uom_id: (total_qty, uom_name)}
             for move in moves:
-                name = move.product_id.display_name if move.product_id else ""
-                pkg_qty = getattr(move, "packaging_uom_qty", None)
-                pkg_uom = getattr(move, "packaging_uom_id", None)
-                if pkg_qty and pkg_uom:
-                    try:
-                        pkg_qty_f = float(pkg_qty)
-                    except (TypeError, ValueError):
-                        pkg_qty_f = 0.0
-                    if pkg_qty_f > 0:
-                        pkg_qty_str = (
-                            str(int(pkg_qty_f))
-                            if pkg_qty_f == int(pkg_qty_f)
-                            else f"{pkg_qty_f:.2f}".rstrip("0").rstrip(".")
-                        )
-                        pkg_name = pkg_uom.name if hasattr(pkg_uom, "name") else str(pkg_uom)
-                        parts.append(f"{pkg_qty_str} {pkg_name} {name}".strip())
-                        continue
-                # Fallback: cantidad en UdM estándar
-                qty = move.product_uom_qty
-                uom = move.product_uom.name if move.product_uom else ""
+                if use_packaging:
+                    pkg_qty = _safe_float(getattr(move, "packaging_uom_qty", None))
+                    pkg_uom = getattr(move, "packaging_uom_id", None)
+                    if pkg_qty > 0 and pkg_uom:
+                        key = pkg_uom.id
+                        name = pkg_uom.name if hasattr(pkg_uom, "name") else str(pkg_uom)
+                        totals[key] = (totals.get(key, (0.0, name))[0] + pkg_qty, name)
+                else:
+                    qty = _safe_float(move.product_uom_qty)
+                    uom = move.product_uom
+                    if qty > 0 and uom:
+                        totals[uom.id] = (totals.get(uom.id, (0.0, uom.name))[0] + qty, uom.name)
+
+            parts = []
+            for total_qty, uom_name in totals.values():
                 qty_str = (
-                    str(int(qty))
-                    if qty == int(qty)
-                    else f"{qty:.2f}".rstrip("0").rstrip(".")
+                    str(int(total_qty))
+                    if total_qty == int(total_qty)
+                    else f"{total_qty:.2f}".rstrip("0").rstrip(".")
                 )
-                parts.append(f"{qty_str} {uom} {name}".strip())
+                parts.append(f"{qty_str} {uom_name}")
+
             pick.route_optimizer_products_summary = " | ".join(parts)
 
     @api.depends("partner_id")
