@@ -18,7 +18,7 @@ class StockPickingBatch(models.Model):
         copy=False,
         readonly=True,
         help="Numbered list of transfers after the last optimization. Same order as column "
-        ""Visit order" / batch sequence on the Transfers tab.",
+        "'Visit order' / batch sequence on the Transfers tab.",
     )
     route_optimizer_gmaps_url = fields.Char(
         string="Google Maps route",
