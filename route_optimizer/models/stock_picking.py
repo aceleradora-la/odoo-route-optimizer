@@ -18,6 +18,10 @@ class StockPicking(models.Model):
         string="Time window",
         compute="_compute_route_optimizer_time_window",
     )
+    route_optimizer_partner_phone = fields.Char(
+        string="Contact phone",
+        compute="_compute_route_optimizer_partner_phone",
+    )
 
     @api.depends(
         "partner_id",
@@ -104,6 +108,17 @@ class StockPicking(models.Model):
                 pick.route_optimizer_time_window = ", ".join(windows)
             else:
                 pick.route_optimizer_time_window = ""
+
+    @api.depends("partner_id")
+    def _compute_route_optimizer_partner_phone(self):
+        for pick in self:
+            p = pick.partner_id
+            if not p:
+                pick.route_optimizer_partner_phone = ""
+                continue
+            phone = getattr(p, "phone", "") or ""
+            mobile = getattr(p, "mobile", "") or ""
+            pick.route_optimizer_partner_phone = phone or mobile
 
     def _route_optimizer_delivery_partner(self):
         """Partner used for stop coordinates (outgoing customer deliveries)."""
