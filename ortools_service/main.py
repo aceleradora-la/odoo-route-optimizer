@@ -5,6 +5,7 @@ Deploy with Docker (see DEPLOYMENT_MANUAL_SECURE.md). Auth: X-API-KEY header.
 """
 from __future__ import annotations
 
+import logging
 import os
 from typing import List, Optional
 
@@ -15,6 +16,9 @@ from pydantic import BaseModel, Field
 
 API_KEY_NAME = "X-API-KEY"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger("ortools_service")
 
 app = FastAPI(title="Odoo Route Optimizer OR-Tools")
 
@@ -101,6 +105,7 @@ def _apply_time_windows(
 
 @app.post("/optimize")
 async def optimize(request: RouteRequest, token: str = Depends(get_api_key)):
+    logger.info("POST /optimize: %d locations, %d vehicles", len(request.locations), request.num_vehicles)
     n = len(request.distance_matrix)
     if n == 0 or any(len(row) != n for row in request.distance_matrix):
         raise HTTPException(status_code=422, detail="distance_matrix debe ser NxN")
@@ -128,8 +133,10 @@ async def optimize(request: RouteRequest, token: str = Depends(get_api_key)):
 
     solution = routing.SolveWithParameters(search_parameters)
     if not solution:
+        logger.warning("/optimize: no solution found for %d locations", n)
         return {"success": False, "error": "No solution found"}
 
+    logger.info("/optimize: solved, total_distance=%d", int(solution.ObjectiveValue()))
     if num_vehicles > 1:
         routes: List[dict] = []
         for v in range(num_vehicles):
@@ -158,9 +165,17 @@ async def optimize(request: RouteRequest, token: str = Depends(get_api_key)):
 
 @app.post("/vrp")
 async def vrp(request: VrpRequest, token: str = Depends(get_api_key)):
+    logger.info(
+        "POST /vrp: %d nodes, %d vehicles, metric=%s, time_windows=%s",
+        len(request.matrix),
+        request.num_vehicles,
+        request.matrix_metric,
+        bool(request.time_windows or request.time_windows_list),
+    )
     n = len(request.matrix)
     if n == 0 or any(len(row) != n for row in request.matrix):
         raise HTTPException(status_code=422, detail="matrix debe ser NxN")
+    # NOTE: variable depot_index is not yet implemented; only index 0 is supported.
     if request.depot_index != 0:
         raise HTTPException(status_code=422, detail="Solo se soporta depot_index=0")
 
@@ -302,8 +317,10 @@ async def vrp(request: VrpRequest, token: str = Depends(get_api_key)):
 
     solution = routing.SolveWithParameters(search_parameters)
     if not solution:
+        logger.warning("/vrp: no solution found for %d nodes, %d vehicles", n, num_vehicles)
         return {"success": False, "error": "No solution found"}
 
+    logger.info("/vrp: solved, total_cost=%d", int(solution.ObjectiveValue()))
     routes: List[dict] = []
     for v in range(num_vehicles):
         index = routing.Start(v)

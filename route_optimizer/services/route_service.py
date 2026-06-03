@@ -225,53 +225,90 @@ def optimize_batch(
 
     # Minimal HTTP API: {locations, distance_matrix} -> {optimized_route: [...]}
     if simple_ortools:
-        if nv > 1:
-            raise UserError(
-                _(
-                    "Simple OR-Tools API only supports one vehicle. "
-                    "Set Vehicles to 1 or disable Simple OR-Tools API in settings."
-                )
-            )
-        dist_m = table["distances"]
-        if len(dist_m) != n or any(len(row) != n for row in dist_m):
-            raise UserError(_("OSRM distance matrix size does not match the number of nodes."))
-        matrix_int = _matrix_to_int_meters(dist_m)
-        depot_label = "__ODOO_DEPOT__"
-        locations = [depot_label] + [f"P{pid}" for pid in picking_ids_order]
-        try:
-            result = ortools_client.solve_simple_distance_api(
-                ortools_url, locations, matrix_int, timeout=timeout, api_key=ortools_api_key
-            )
-        except ortools_client.OrtoolsServiceError as e:
-            raise UserError(_("OR-Tools service error: %s") % str(e)) from e
-        ordered_ids = _ordered_pickings_from_simple_route(
-            result, depot_label, picking_ids_order
+        return _run_simple_api(
+            batch, table, n, nv, picking_ids_order, ortools_url, timeout, ortools_api_key
         )
-        _apply_order_single_batch(batch, ordered_ids)
-        msg = _("Route optimized (%(n)s stops, distance).") % {"n": len(ordered_ids)}
-        _write_optimization_result(batch, msg, ordered_ids)
-        return {"message": msg}
 
+    return _run_vrp_api(
+        env,
+        batch,
+        table,
+        n,
+        nv,
+        picking_ids_order,
+        demands_weight,
+        demands_volume,
+        vehicle_capacity,
+        vehicle_volume_capacity,
+        max_stops_per_vehicle,
+        max_route_duration_minutes,
+        use_duration,
+        ortools_url,
+        timeout,
+        ortools_api_key,
+        icp,
+        stops,
+    )
+
+
+def _run_simple_api(batch, table, n, nv, picking_ids_order, ortools_url, timeout, ortools_api_key):
+    """Call the minimal /optimize endpoint (single vehicle, distance matrix)."""
+    if nv > 1:
+        raise UserError(
+            _(
+                "Simple OR-Tools API only supports one vehicle. "
+                "Set Vehicles to 1 or disable Simple OR-Tools API in settings."
+            )
+        )
+    dist_m = table["distances"]
+    if len(dist_m) != n or any(len(row) != n for row in dist_m):
+        raise UserError(_("OSRM distance matrix size does not match the number of nodes."))
+    matrix_int = _matrix_to_int_meters(dist_m)
+    depot_label = "__ODOO_DEPOT__"
+    locations = [depot_label] + [f"P{pid}" for pid in picking_ids_order]
+    try:
+        result = ortools_client.solve_simple_distance_api(
+            ortools_url, locations, matrix_int, timeout=timeout, api_key=ortools_api_key
+        )
+    except ortools_client.OrtoolsServiceError as e:
+        raise UserError(_("OR-Tools service error: %s") % str(e)) from e
+    ordered_ids = _ordered_pickings_from_simple_route(result, depot_label, picking_ids_order)
+    _apply_order_single_batch(batch, ordered_ids)
+    msg = _("Route optimized (%(n)s stops, distance).") % {"n": len(ordered_ids)}
+    _write_optimization_result(batch, msg, ordered_ids)
+    return {"message": msg}
+
+
+def _build_vrp_payload(
+    table,
+    n,
+    nv,
+    picking_ids_order,
+    demands_weight,
+    demands_volume,
+    vehicle_capacity,
+    vehicle_volume_capacity,
+    max_stops_per_vehicle,
+    max_route_duration_minutes,
+    use_duration,
+):
+    """Assemble the JSON payload for the extended /vrp endpoint."""
     matrix = table["durations"] if use_duration else table["distances"]
     metric = "duration" if use_duration else "distance"
 
     if len(matrix) != n or any(len(row) != n for row in matrix):
         raise UserError(_("OSRM matrix size does not match the number of nodes."))
 
-    capacities_weight = []
     if vehicle_capacity and vehicle_capacity > 0:
         capacities_weight = [float(vehicle_capacity)] * nv
     else:
-        # Large default so capacity does not bind unless service requires it
         total_demand = sum(demands_weight[1:])
         capacities_weight = [max(total_demand * 2, 1.0)] * nv
 
-    capacities_volume = []
     if vehicle_volume_capacity and vehicle_volume_capacity > 0:
         capacities_volume = [float(vehicle_volume_capacity)] * nv
     else:
         total_vol = sum(demands_volume[1:])
-        # Large default so volume does not bind unless service requires it
         capacities_volume = [max(total_vol * 2, 0.000001)] * nv
 
     payload = {
@@ -283,7 +320,7 @@ def optimize_batch(
         # Backward-compatible keys (weight)
         "demands": demands_weight,
         "vehicle_capacities": capacities_weight,
-        # New explicit keys (recommended)
+        # Explicit keys (recommended)
         "demands_weight": demands_weight,
         "vehicle_capacities_weight": capacities_weight,
         "demands_volume": demands_volume,
@@ -291,7 +328,6 @@ def optimize_batch(
         "picking_ids": picking_ids_order,
     }
 
-    # Optional hard limits / constraints
     try:
         ms = int(max_stops_per_vehicle) if max_stops_per_vehicle else 0
     except (TypeError, ValueError):
@@ -306,6 +342,44 @@ def optimize_batch(
     if mmins > 0:
         payload["max_route_duration_seconds"] = mmins * 60
 
+    return payload, metric
+
+
+def _run_vrp_api(
+    env,
+    batch,
+    table,
+    n,
+    nv,
+    picking_ids_order,
+    demands_weight,
+    demands_volume,
+    vehicle_capacity,
+    vehicle_volume_capacity,
+    max_stops_per_vehicle,
+    max_route_duration_minutes,
+    use_duration,
+    ortools_url,
+    timeout,
+    ortools_api_key,
+    icp,
+    stops,
+):
+    """Call the extended /vrp endpoint and apply results to the batch."""
+    payload, metric = _build_vrp_payload(
+        table,
+        n,
+        nv,
+        picking_ids_order,
+        demands_weight,
+        demands_volume,
+        vehicle_capacity,
+        vehicle_volume_capacity,
+        max_stops_per_vehicle,
+        max_route_duration_minutes,
+        use_duration,
+    )
+
     # OCA stock_partner_delivery_window: time windows per stop (requires duration matrix).
     if use_duration:
         time_payload = delivery_windows.build_vrp_time_payload(env, batch, stops, icp)
@@ -319,7 +393,6 @@ def optimize_batch(
 
     routes = result.get("routes") or []
 
-    # Multi-vehicle: prefer structured routes when num_vehicles > 1
     if nv > 1 and routes:
         batch_orders = _apply_multi_vehicle_routes(env, batch, routes, picking_ids_order)
         msg = _("VRP applied: %(v)s vehicles, metric %(metric)s.") % {"v": nv, "metric": metric}
@@ -327,11 +400,7 @@ def optimize_batch(
             if i == 0:
                 _write_optimization_result(b, msg, pids)
             else:
-                _write_optimization_result(
-                    b,
-                    _("Optimized route for this vehicle (VRP)."),
-                    pids,
-                )
+                _write_optimization_result(b, _("Optimized route for this vehicle (VRP)."), pids)
         return {"message": msg}
 
     if result.get("ordered_picking_ids"):
@@ -343,12 +412,11 @@ def optimize_batch(
 
     if routes:
         nodes = routes[0].get("node_indices") or routes[0].get("nodes") or []
-        ordered_ids = []
-        for idx in nodes:
-            if idx == 0:
-                continue
-            if 1 <= idx < len(picking_ids_order) + 1:
-                ordered_ids.append(picking_ids_order[idx - 1])
+        ordered_ids = [
+            picking_ids_order[idx - 1]
+            for idx in nodes
+            if idx != 0 and 1 <= idx < len(picking_ids_order) + 1
+        ]
         if ordered_ids:
             _apply_order_single_batch(batch, ordered_ids)
             msg = _("Route optimized (%(n)s stops, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}

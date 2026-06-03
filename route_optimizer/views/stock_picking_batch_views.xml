@@ -12,6 +12,7 @@
                     string="Print route"
                     class="btn-secondary"
                     invisible="not picking_ids"
+                    groups="stock.group_stock_user"
                 />
                 <button
                     name="action_route_optimizer_wizard"
@@ -19,6 +20,7 @@
                     string="Optimize route"
                     class="btn-secondary"
                     invisible="state in ('done', 'cancel')"
+                    groups="stock.group_stock_manager"
                 />
             </xpath>
             <!-- many2many widget ignores list default_order; use one2many list so batch_sequence = visit order -->
