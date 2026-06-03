@@ -9,7 +9,7 @@
                 <button
                     name="action_print_delivery_route"
                     type="object"
-                    string="Print route"
+                    string="Imprimir hoja de ruta"
                     class="btn-secondary"
                     invisible="not picking_ids"
                     groups="stock.group_stock_user"
@@ -17,7 +17,7 @@
                 <button
                     name="action_open_gmaps_route"
                     type="object"
-                    string="Google Maps"
+                    string="Abrir en Google Maps"
                     class="btn-secondary"
                     invisible="not route_optimizer_gmaps_url"
                     groups="stock.group_stock_user"
@@ -25,7 +25,7 @@
                 <button
                     name="action_share_whatsapp"
                     type="object"
-                    string="Share on WhatsApp"
+                    string="Compartir por WhatsApp"
                     class="btn-secondary"
                     invisible="not route_optimizer_gmaps_url"
                     groups="stock.group_stock_user"
@@ -33,7 +33,7 @@
                 <button
                     name="action_route_optimizer_wizard"
                     type="object"
-                    string="Optimize route"
+                    string="Optimizar ruta"
                     class="btn-secondary"
                     invisible="state in ('done', 'cancel')"
                     groups="stock.group_stock_manager"

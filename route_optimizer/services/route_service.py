@@ -150,11 +150,11 @@ def optimize_batch(
     """
     batch.ensure_one()
     if batch.state in ("done", "cancel"):
-        raise UserError(_("Cannot optimize a batch that is done or cancelled."))
+        raise UserError(_("No se puede optimizar un lote que está finalizado o cancelado."))
 
     pickings = batch.picking_ids.filtered(lambda p: p.state != "cancel")
     if not pickings:
-        raise UserError(_("There are no transfers in this batch."))
+        raise UserError(_("No hay traslados en este lote."))
 
     icp = env["ir.config_parameter"].sudo()
     base_url = icp.get_param("route_optimizer.osrm_url") or ""
@@ -171,7 +171,7 @@ def optimize_batch(
     depot_coords = _partner_coords(depot)
     if not depot_coords:
         raise UserError(
-            _("Depot partner %(name)s is missing valid partner_latitude / partner_longitude.")
+            _("El depósito %(name)s no tiene coordenadas válidas (partner_latitude / partner_longitude).")
             % {"name": depot.display_name}
         )
 
@@ -187,19 +187,19 @@ def optimize_batch(
 
     if missing:
         raise UserError(
-            _("Missing coordinates for delivery partners on transfers: %s")
+            _("Faltan coordenadas en los partners de entrega de los traslados: %s")
             % (", ".join(missing))
         )
 
     if not stops:
-        raise UserError(_("No stops with coordinates could be built."))
+        raise UserError(_("No se pudieron construir paradas con coordenadas."))
 
     coordinates_lonlat = [depot_coords] + [s["coords"] for s in stops]
 
     try:
         table = osrm_client.fetch_table(base_url, profile, coordinates_lonlat, timeout=timeout)
     except osrm_client.OsrmError as e:
-        raise UserError(_("OSRM error: %s") % str(e)) from e
+        raise UserError(_("Error de OSRM: %s") % str(e)) from e
 
     picking_ids_order = [s["picking"].id for s in stops]
     demands_weight = [0]
@@ -219,7 +219,7 @@ def optimize_batch(
     nv = max(1, int(num_vehicles or 1))
     if nv > len(stops):
         raise UserError(
-            _("Number of vehicles (%(v)s) cannot exceed the number of delivery stops (%(s)s).")
+            _("La cantidad de vehículos (%(v)s) no puede superar la cantidad de paradas (%(s)s).")
             % {"v": nv, "s": len(stops)}
         )
 
@@ -262,7 +262,7 @@ def _run_simple_api(batch, table, n, nv, picking_ids_order, ortools_url, timeout
         )
     dist_m = table["distances"]
     if len(dist_m) != n or any(len(row) != n for row in dist_m):
-        raise UserError(_("OSRM distance matrix size does not match the number of nodes."))
+        raise UserError(_("El tamaño de la matriz de distancias de OSRM no coincide con la cantidad de nodos."))
     matrix_int = _matrix_to_int_meters(dist_m)
     depot_label = "__ODOO_DEPOT__"
     locations = [depot_label] + [f"P{pid}" for pid in picking_ids_order]
@@ -271,10 +271,10 @@ def _run_simple_api(batch, table, n, nv, picking_ids_order, ortools_url, timeout
             ortools_url, locations, matrix_int, timeout=timeout, api_key=ortools_api_key
         )
     except ortools_client.OrtoolsServiceError as e:
-        raise UserError(_("OR-Tools service error: %s") % str(e)) from e
+        raise UserError(_("Error del servicio OR-Tools: %s") % str(e)) from e
     ordered_ids = _ordered_pickings_from_simple_route(result, depot_label, picking_ids_order)
     _apply_order_single_batch(batch, ordered_ids)
-    msg = _("Route optimized (%(n)s stops, distance).") % {"n": len(ordered_ids)}
+    msg = _("Ruta optimizada (%(n)s paradas, distancia).") % {"n": len(ordered_ids)}
     _write_optimization_result(batch, msg, ordered_ids)
     return {"message": msg}
 
@@ -297,7 +297,7 @@ def _build_vrp_payload(
     metric = "duration" if use_duration else "distance"
 
     if len(matrix) != n or any(len(row) != n for row in matrix):
-        raise UserError(_("OSRM matrix size does not match the number of nodes."))
+        raise UserError(_("El tamaño de la matriz de OSRM no coincide con la cantidad de nodos."))
 
     if vehicle_capacity and vehicle_capacity > 0:
         capacities_weight = [float(vehicle_capacity)] * nv
@@ -389,24 +389,24 @@ def _run_vrp_api(
     try:
         result = ortools_client.solve_vrp(ortools_url, payload, timeout=timeout, api_key=ortools_api_key)
     except ortools_client.OrtoolsServiceError as e:
-        raise UserError(_("OR-Tools service error: %s") % str(e)) from e
+        raise UserError(_("Error del servicio OR-Tools: %s") % str(e)) from e
 
     routes = result.get("routes") or []
 
     if nv > 1 and routes:
         batch_orders = _apply_multi_vehicle_routes(env, batch, routes, picking_ids_order)
-        msg = _("VRP applied: %(v)s vehicles, metric %(metric)s.") % {"v": nv, "metric": metric}
+        msg = _("VRP aplicado: %(v)s vehículos, métrica %(metric)s.") % {"v": nv, "metric": metric}
         for i, (b, pids) in enumerate(batch_orders):
             if i == 0:
                 _write_optimization_result(b, msg, pids)
             else:
-                _write_optimization_result(b, _("Optimized route for this vehicle (VRP)."), pids)
+                _write_optimization_result(b, _("Ruta optimizada para este vehículo (VRP)."), pids)
         return {"message": msg}
 
     if result.get("ordered_picking_ids"):
         ordered_ids = [int(x) for x in result["ordered_picking_ids"]]
         _apply_order_single_batch(batch, ordered_ids)
-        msg = _("Route optimized (%(n)s stops, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}
+        msg = _("Ruta optimizada (%(n)s paradas, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}
         _write_optimization_result(batch, msg, ordered_ids)
         return {"message": msg}
 
@@ -419,12 +419,12 @@ def _run_vrp_api(
         ]
         if ordered_ids:
             _apply_order_single_batch(batch, ordered_ids)
-            msg = _("Route optimized (%(n)s stops, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}
+            msg = _("Ruta optimizada (%(n)s paradas, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}
             _write_optimization_result(batch, msg, ordered_ids)
             return {"message": msg}
 
     raise UserError(
-        _("Could not interpret OR-Tools response. Expected ordered_picking_ids or routes.")
+        _("No se pudo interpretar la respuesta de OR-Tools. Se esperaba ordered_picking_ids o routes.")
     )
 
 
@@ -453,7 +453,7 @@ def _ordered_pickings_from_simple_route(result, depot_label, picking_ids_order):
         route = result.get("route")
     if not route:
         raise UserError(
-            _("Could not interpret OR-Tools response: missing optimized_route (or route).")
+            _("No se pudo interpretar la respuesta de OR-Tools: falta optimized_route (o route).")
         )
     label_to_id = {f"P{pid}": pid for pid in picking_ids_order}
     ordered_ids = []
@@ -528,7 +528,7 @@ def _apply_multi_vehicle_routes(env, original_batch, routes, picking_ids_order):
     # Keep only routes that actually carry at least one stop.
     vehicle_routes = [r for r in vehicle_routes if r]
     if not vehicle_routes:
-        raise UserError(_("Empty routes from OR-Tools."))
+        raise UserError(_("OR-Tools devolvió rutas vacías."))
 
     batch_orders = []
 
