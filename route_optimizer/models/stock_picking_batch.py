@@ -25,6 +25,11 @@ class StockPickingBatch(models.Model):
         compute="_compute_route_optimizer_gmaps_url",
         help="Google Maps directions URL with all stops in optimized order.",
     )
+    route_optimizer_gmaps_qr_src = fields.Char(
+        string="QR Google Maps",
+        compute="_compute_route_optimizer_gmaps_url",
+        help="URL del QR code para el PDF de la hoja de ruta.",
+    )
 
     @api.depends(
         "picking_ids.batch_sequence",
@@ -44,6 +49,7 @@ class StockPickingBatch(models.Model):
             )
             if not pickings:
                 batch.route_optimizer_gmaps_url = False
+                batch.route_optimizer_gmaps_qr_src = False
                 continue
 
             depot_partner = None
@@ -65,11 +71,15 @@ class StockPickingBatch(models.Model):
                         points.append(pt)
 
             if len(points) >= 2:
-                batch.route_optimizer_gmaps_url = (
-                    "https://www.google.com/maps/dir/" + "/".join(points)
+                gmaps_url = "https://www.google.com/maps/dir/" + "/".join(points)
+                batch.route_optimizer_gmaps_url = gmaps_url
+                batch.route_optimizer_gmaps_qr_src = (
+                    "/report/barcode/?type=QR&value=%s&width=120&height=120"
+                    % url_quote(gmaps_url, safe="")
                 )
             else:
                 batch.route_optimizer_gmaps_url = False
+                batch.route_optimizer_gmaps_qr_src = False
 
     @staticmethod
     def _route_optimizer_gmaps_point(partner):
