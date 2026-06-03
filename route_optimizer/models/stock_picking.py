@@ -69,8 +69,25 @@ class StockPicking(models.Model):
             moves = pick.move_ids.filtered(lambda m: m.state != "cancel")
             parts = []
             for move in moves:
-                qty = move.product_uom_qty
                 name = move.product_id.display_name if move.product_id else ""
+                pkg_qty = getattr(move, "packaging_uom_qty", None)
+                pkg_uom = getattr(move, "packaging_uom_id", None)
+                if pkg_qty and pkg_uom:
+                    try:
+                        pkg_qty_f = float(pkg_qty)
+                    except (TypeError, ValueError):
+                        pkg_qty_f = 0.0
+                    if pkg_qty_f > 0:
+                        pkg_qty_str = (
+                            str(int(pkg_qty_f))
+                            if pkg_qty_f == int(pkg_qty_f)
+                            else f"{pkg_qty_f:.2f}".rstrip("0").rstrip(".")
+                        )
+                        pkg_name = pkg_uom.name if hasattr(pkg_uom, "name") else str(pkg_uom)
+                        parts.append(f"{pkg_qty_str} {pkg_name} {name}".strip())
+                        continue
+                # Fallback: cantidad en UdM estándar
+                qty = move.product_uom_qty
                 uom = move.product_uom.name if move.product_uom else ""
                 qty_str = (
                     str(int(qty))
