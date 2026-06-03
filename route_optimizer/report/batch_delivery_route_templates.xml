@@ -43,78 +43,77 @@
                             </div>
                         </div>
 
-                        <!-- Tabla de paradas -->
-                        <table class="table table-sm o_main_table mt-1" style="font-size:11px;">
+                        <!-- Tabla de paradas — border-collapse para bordes limpios en wkhtmltopdf -->
+                        <table style="width:100%; border-collapse:collapse; font-size:11px; margin-top:6px;">
                             <thead>
-                                <tr>
-                                    <th style="width:4%">#</th>
-                                    <th style="width:18%">Cliente</th>
-                                    <th style="width:9%">Teléfono</th>
-                                    <th style="width:25%">Dirección</th>
-                                    <th style="width:29%">Productos</th>
-                                    <th style="width:9%">Ventana</th>
-                                    <th style="width:6%">Estado</th>
+                                <tr style="background-color:#f0f0f0;">
+                                    <th style="width:4%;  border:1px solid #bbb; padding:4px 3px;">#</th>
+                                    <th style="width:18%; border:1px solid #bbb; padding:4px 3px;">Cliente</th>
+                                    <th style="width:9%;  border:1px solid #bbb; padding:4px 3px;">Teléfono</th>
+                                    <th style="width:25%; border:1px solid #bbb; padding:4px 3px;">Dirección</th>
+                                    <th style="width:29%; border:1px solid #bbb; padding:4px 3px;">Productos</th>
+                                    <th style="width:9%;  border:1px solid #bbb; padding:4px 3px;">Ventana</th>
+                                    <th style="width:6%;  border:1px solid #bbb; padding:4px 3px;">Estado</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <t t-foreach="visit_pickings" t-as="pick">
                                     <tr>
-                                        <td style="font-weight:bold; color:#1565C0;">
+                                        <td style="border:1px solid #ddd; padding:4px 3px; font-weight:bold; color:#1565C0; vertical-align:top;">
                                             <span t-field="pick.batch_sequence"/>
                                         </td>
-                                        <td>
+                                        <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
                                             <span t-field="pick.partner_id"/>
                                         </td>
-                                        <td style="white-space:nowrap;">
+                                        <td style="border:1px solid #ddd; padding:4px 3px; white-space:nowrap; vertical-align:top;">
                                             <span t-esc="pick.route_optimizer_partner_phone"/>
                                         </td>
-                                        <td>
+                                        <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
                                             <span t-esc="pick.route_optimizer_delivery_address"/>
                                         </td>
-                                        <td style="font-size:10px;">
+                                        <td style="border:1px solid #ddd; padding:4px 3px; font-size:10px; vertical-align:top;">
                                             <span t-esc="pick.route_optimizer_products_summary"/>
                                         </td>
-                                        <td style="white-space:nowrap; font-size:10px;">
+                                        <td style="border:1px solid #ddd; padding:4px 3px; white-space:nowrap; font-size:10px; vertical-align:top;">
                                             <span t-esc="pick.route_optimizer_time_window"/>
                                         </td>
-                                        <td>
+                                        <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
                                             <span t-field="pick.state"/>
                                         </td>
                                     </tr>
                                     <!-- Fila de notas (solo si existe) -->
                                     <tr t-if="pick.note">
-                                        <td/>
-                                        <td colspan="6" style="font-size:10px; color:#555; padding-top:0; border-top:none;">
+                                        <td style="border:1px solid #ddd; padding:2px 3px;"/>
+                                        <td colspan="6" style="border:1px solid #ddd; padding:2px 6px; font-size:10px; color:#555;">
                                             <i><span t-field="pick.note" t-options='{"widget": "text"}'/></i>
                                         </td>
                                     </tr>
                                 </t>
                             </tbody>
                             <tfoot>
-                                <tr style="font-weight:bold; border-top: 2px solid #333;">
-                                    <td colspan="2">
+                                <tr>
+                                    <td colspan="2" style="border-top:2px solid #555; padding:4px 3px; font-weight:bold;">
                                         Total: <span t-esc="len(visit_pickings)"/> paradas
                                     </td>
-                                    <td colspan="2"/>
-                                    <td colspan="3" t-if="total_weight">
+                                    <td colspan="2" style="border-top:2px solid #555; padding:4px 3px;"/>
+                                    <td colspan="3" style="border-top:2px solid #555; padding:4px 3px; font-weight:bold;" t-if="total_weight">
                                         Peso: <span t-esc="'%.1f kg' % total_weight"/>
                                     </td>
+                                    <td colspan="3" style="border-top:2px solid #555; padding:4px 3px;" t-if="not total_weight"/>
                                 </tr>
                             </tfoot>
                         </table>
 
-                        <!-- Bloque de firma -->
-                        <div class="row mt-4">
+                        <!-- Bloque de firma — espacio amplio para escribir -->
+                        <div class="row" style="margin-top:50px;">
                             <div class="col-5">
-                                <div style="border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size:10px;">
-                                    Firma del transportista
-                                </div>
+                                <div style="font-size:10px; color:#555; margin-bottom:60px;">Firma del transportista</div>
+                                <div style="border-top:1px solid #333; padding-top:4px; font-size:10px;">Aclaración</div>
                             </div>
                             <div class="col-2"/>
                             <div class="col-5">
-                                <div style="border-top: 1px solid #333; margin-top: 40px; padding-top: 4px; font-size:10px;">
-                                    Fecha / Hora
-                                </div>
+                                <div style="font-size:10px; color:#555; margin-bottom:60px;">Fecha / Hora de entrega</div>
+                                <div style="border-top:1px solid #333; padding-top:4px; font-size:10px;">Sello / Recibido conforme</div>
                             </div>
                         </div>
 
