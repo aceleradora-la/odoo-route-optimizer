@@ -15,6 +15,22 @@
                     groups="stock.group_stock_user"
                 />
                 <button
+                    name="action_open_gmaps_route"
+                    type="object"
+                    string="Google Maps"
+                    class="btn-secondary"
+                    invisible="not route_optimizer_gmaps_url"
+                    groups="stock.group_stock_user"
+                />
+                <button
+                    name="action_share_whatsapp"
+                    type="object"
+                    string="Share on WhatsApp"
+                    class="btn-secondary"
+                    invisible="not route_optimizer_gmaps_url"
+                    groups="stock.group_stock_user"
+                />
+                <button
                     name="action_route_optimizer_wizard"
                     type="object"
                     string="Optimize route"
@@ -38,6 +54,13 @@
                         readonly="1"
                         widget="text"
                         placeholder="Run Optimize route to fill the visit order."
+                    />
+                    <field
+                        name="route_optimizer_gmaps_url"
+                        readonly="1"
+                        widget="url"
+                        invisible="not route_optimizer_gmaps_url"
+                        string="Route link"
                     />
                 </group>
             </xpath>
