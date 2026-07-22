@@ -242,6 +242,28 @@ def optimize_batch(
 
     # Minimal HTTP API: {locations, distance_matrix} -> {optimized_route: [...]}
     if simple_ortools:
+        # /optimize solo recibe ubicaciones + matriz: no puede aplicar límites ni
+        # capacidades. Avisar en vez de ignorarlos silenciosamente.
+        ignored = []
+        if max_stops_per_vehicle and int(max_stops_per_vehicle or 0) > 0:
+            ignored.append(_("máx. paradas por vehículo"))
+        if max_route_duration_minutes and int(max_route_duration_minutes or 0) > 0:
+            ignored.append(_("duración máx. de ruta"))
+        if vehicle_capacity and float(vehicle_capacity or 0) > 0:
+            ignored.append(_("capacidad de peso"))
+        if vehicle_volume_capacity and float(vehicle_volume_capacity or 0) > 0:
+            ignored.append(_("capacidad de volumen"))
+        if ignored:
+            raise UserError(
+                _(
+                    "La API simple de OR-Tools no soporta estas restricciones: %(items)s.\n\n"
+                    "Opciones:\n"
+                    "• Dejá esos campos en 0 para optimizar solo el orden de visita, o\n"
+                    "• Desactivá «API simple de OR-Tools» en Ajustes para usar la API "
+                    "extendida (/vrp), que sí las aplica."
+                )
+                % {"items": ", ".join(ignored)}
+            )
         return _run_simple_api(
             batch, table, n, nv, picking_ids_order, ortools_url, timeout, ortools_api_key
         )
@@ -470,8 +492,9 @@ def _run_simple_api(batch, table, n, nv, picking_ids_order, ortools_url, timeout
     if nv > 1:
         raise UserError(
             _(
-                "Simple OR-Tools API only supports one vehicle. "
-                "Set Vehicles to 1 or disable Simple OR-Tools API in settings."
+                "La API simple de OR-Tools solo soporta un vehículo. "
+                "Poné Vehículos en 1, o desactivá «API simple de OR-Tools» en Ajustes "
+                "para usar la API extendida (/vrp) con multi-vehículo."
             )
         )
     dist_m = table["distances"]
