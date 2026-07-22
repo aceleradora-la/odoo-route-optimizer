@@ -173,11 +173,24 @@ def validate_stops_delivery_windows(env, batch, stops):
     for s in stops:
         picking = s["picking"]
         partner = s["partner"]
-        local_dt = planned_delivery_datetime(picking, batch, env)
-        if not local_dt:
+        if hasattr(picking, "_planned_delivery_date"):
+            raw = picking._planned_delivery_date()
+        else:
+            raw = picking.scheduled_date or batch.scheduled_date
+        if not raw:
             continue
+        try:
+            naive_utc = fields.Datetime.to_datetime(raw)
+        except Exception:
+            continue
+        if not naive_utc:
+            continue
+        # OCA _is_in_delivery_window() expects a NAIVE datetime in UTC (it calls
+        # pytz.utc.localize internally); passing an aware datetime raises ValueError.
+        if naive_utc.tzinfo is not None:
+            naive_utc = naive_utc.astimezone(pytz.utc).replace(tzinfo=None)
         if hasattr(partner, "_is_in_delivery_window"):
-            if not partner._is_in_delivery_window(local_dt):
+            if not partner._is_in_delivery_window(naive_utc):
                 ref = picking.name or str(picking.id)
                 warnings.append(
                     _(
@@ -187,7 +200,7 @@ def validate_stops_delivery_windows(env, batch, stops):
                     % {
                         "picking": ref,
                         "partner": partner.display_name,
-                        "when": fields.Datetime.to_string(local_dt.astimezone(pytz.utc)),
+                        "when": fields.Datetime.to_string(naive_utc),
                     }
                 )
     return warnings
