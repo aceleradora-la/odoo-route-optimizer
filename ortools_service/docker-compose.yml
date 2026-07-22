@@ -4,6 +4,8 @@ services:
     container_name: ortools-service
     restart: always
     ports:
-      - "8080:8000"
+      # Solo localhost: el acceso externo entra por nginx (HTTPS) que hace
+      # proxy a 127.0.0.1:8080. Nunca exponer 8080 directo a internet.
+      - "127.0.0.1:8080:8000"
     env_file:
       - .env
