@@ -83,8 +83,9 @@ class StockPickingBatch(models.Model):
                     points.append(pt)
 
             for pick in pickings:
-                if pick.partner_id:
-                    pt = self._route_optimizer_gmaps_point(pick.partner_id)
+                partner = pick._route_optimizer_delivery_partner()
+                if partner:
+                    pt = self._route_optimizer_gmaps_point(partner)
                     if pt:
                         points.append(pt)
 
@@ -138,7 +139,7 @@ class StockPickingBatch(models.Model):
     def action_open_gmaps_route(self):
         self.ensure_one()
         if not self.route_optimizer_gmaps_url:
-            raise UserError(_("No optimized route available. Run 'Optimize route' first."))
+            raise UserError(_("No hay una ruta optimizada disponible. Ejecutá 'Optimizar ruta' primero."))
         return {
             "type": "ir.actions.act_url",
             "url": self.route_optimizer_gmaps_url,
@@ -166,7 +167,7 @@ class StockPickingBatch(models.Model):
         lines.append(f"Paradas: {len(pickings)}\n")
 
         for i, pick in enumerate(pickings, 1):
-            p = pick.partner_id
+            p = pick._route_optimizer_delivery_partner()
             name = p.display_name if p else pick.name
             address = pick.route_optimizer_delivery_address or ""
             phone = pick.route_optimizer_partner_phone if p else ""
