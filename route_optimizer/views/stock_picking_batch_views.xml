@@ -45,7 +45,7 @@
             </xpath>
             <xpath expr="//sheet" position="inside">
                 <group
-                    string="Route optimization"
+                    string="Optimización de ruta"
                     invisible="not route_optimizer_last_message and not route_optimizer_visit_summary"
                 >
                     <field name="route_optimizer_last_message" readonly="1"/>
@@ -53,14 +53,14 @@
                         name="route_optimizer_visit_summary"
                         readonly="1"
                         widget="text"
-                        placeholder="Run Optimize route to fill the visit order."
+                        placeholder="Ejecutá Optimizar ruta para completar el orden de visita."
                     />
                     <field
                         name="route_optimizer_gmaps_url"
                         readonly="1"
                         widget="url"
                         invisible="not route_optimizer_gmaps_url"
-                        string="Route link"
+                        string="Link de ruta"
                     />
                 </group>
             </xpath>

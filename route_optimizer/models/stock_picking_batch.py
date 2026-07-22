@@ -27,21 +27,21 @@ class StockPickingBatch(models.Model):
     _inherit = "stock.picking.batch"
 
     route_optimizer_last_message = fields.Char(
-        string="Last route optimization",
+        string="Última optimización de ruta",
         copy=False,
         readonly=True,
     )
     route_optimizer_visit_summary = fields.Text(
-        string="Visit order (last run)",
+        string="Orden de visita (última corrida)",
         copy=False,
         readonly=True,
-        help="Numbered list of transfers after the last optimization. Same order as column "
-        "'Visit order' / batch sequence on the Transfers tab.",
+        help="Lista numerada de traslados tras la última optimización. Mismo orden que la columna "
+        "'Orden de visita' / secuencia del lote en la pestaña Traslados.",
     )
     route_optimizer_gmaps_url = fields.Char(
-        string="Google Maps route",
+        string="Ruta en Google Maps",
         compute="_compute_route_optimizer_gmaps_url",
-        help="Google Maps directions URL with all stops in optimized order.",
+        help="URL de indicaciones de Google Maps con todas las paradas en orden optimizado.",
     )
     route_optimizer_gmaps_qr_src = fields.Char(
         string="QR Google Maps",

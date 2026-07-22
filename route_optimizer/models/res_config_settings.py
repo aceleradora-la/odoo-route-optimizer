@@ -21,73 +21,73 @@ class ResConfigSettings(models.TransientModel):
         return bool(default)
 
     route_optimizer_osrm_url = fields.Char(
-        string="OSRM base URL",
+        string="URL base de OSRM",
         config_parameter="route_optimizer.osrm_url",
-        help="Base URL without trailing slash, e.g. https://router.project-osrm.org",
+        help="URL base sin barra final, ej. https://router.project-osrm.org",
     )
     route_optimizer_osrm_profile = fields.Char(
-        string="OSRM profile",
+        string="Perfil OSRM",
         config_parameter="route_optimizer.osrm_profile",
         default="driving",
     )
     route_optimizer_ortools_url = fields.Char(
-        string="OR-Tools service URL",
+        string="URL del servicio OR-Tools",
         config_parameter="route_optimizer.ortools_url",
-        help="HTTP endpoint that accepts the VRP JSON payload and returns ordered routes.",
+        help="Endpoint HTTP que acepta el payload JSON del VRP y devuelve rutas ordenadas.",
     )
     route_optimizer_ortools_api_key = fields.Char(
-        string="OR-Tools API key",
+        string="API key de OR-Tools",
         config_parameter="route_optimizer.ortools_api_key",
-        help="Optional API key sent as X-API-KEY header to the OR-Tools service.",
+        help="API key opcional enviada como header X-API-KEY al servicio OR-Tools.",
     )
     route_optimizer_ortools_simple_api = fields.Boolean(
-        string="Simple OR-Tools API",
+        string="API simple de OR-Tools",
         config_parameter="route_optimizer.ortools_simple_api",
         default=True,
-        help="Recommended for typical /optimize endpoints: JSON with locations + distance_matrix "
-        "and response optimized_route. Uncheck only if your service uses the extended contract "
-        "(version, matrix, picking_ids, …). Single-vehicle only.",
+        help="Recomendado para endpoints /optimize típicos: JSON con locations + distance_matrix "
+        "y respuesta optimized_route. Desmarcar solo si el servicio usa el contrato extendido "
+        "(version, matrix, picking_ids, …). Solo un vehículo.",
     )
     route_optimizer_timeout = fields.Integer(
-        string="HTTP timeout (seconds)",
+        string="Timeout HTTP (segundos)",
         config_parameter="route_optimizer.timeout",
         default=60,
     )
     route_optimizer_max_stops_per_vehicle = fields.Integer(
-        string="Max stops per vehicle",
+        string="Máx. paradas por vehículo",
         config_parameter="route_optimizer.max_stops_per_vehicle",
-        help="Optional hard limit to force splitting stops across vehicles.",
+        help="Límite duro opcional para forzar la división de paradas entre vehículos.",
     )
     route_optimizer_max_route_duration_minutes = fields.Integer(
-        string="Max route duration (minutes)",
+        string="Duración máx. de ruta (minutos)",
         config_parameter="route_optimizer.max_route_duration_minutes",
-        help="Optional hard limit per vehicle route duration (requires duration optimization).",
+        help="Límite duro opcional de duración por ruta de vehículo (requiere optimizar por duración).",
     )
     route_optimizer_use_delivery_windows = fields.Boolean(
-        string="Respect partner delivery windows",
+        string="Respetar ventanas horarias del cliente",
         config_parameter="route_optimizer.use_delivery_windows",
         default=True,
-        help="When OCA «Stock Partner Delivery Window» is installed, send time windows to "
-        "the OR-Tools /vrp service (requires «Optimize by duration»).",
+        help="Con el módulo OCA «Stock Partner Delivery Window» instalado, envía las ventanas "
+        "horarias al servicio /vrp de OR-Tools (requiere «Optimizar por duración»).",
     )
     route_optimizer_route_start_hour = fields.Float(
-        string="Route departure hour",
+        string="Hora de salida de ruta",
         config_parameter="route_optimizer.route_start_hour",
         default=8.0,
-        help="Local time when vehicles leave the depot (0–24). Used with partner time windows.",
+        help="Hora local en que los vehículos salen del depósito (0–24). Se usa con las ventanas horarias.",
     )
     route_optimizer_service_time_seconds = fields.Integer(
-        string="Service time per stop (seconds)",
+        string="Tiempo de servicio por parada (segundos)",
         config_parameter="route_optimizer.service_time_seconds",
         default=600,
-        help="Estimated time at each customer stop, added to the travel time dimension.",
+        help="Tiempo estimado en cada parada, sumado a la dimensión de tiempo de viaje.",
     )
     route_optimizer_block_outside_windows = fields.Boolean(
-        string="Block optimization outside windows",
+        string="Bloquear optimización fuera de ventana",
         config_parameter="route_optimizer.block_outside_windows",
         default=False,
-        help="If enabled, refuse to optimize when a transfer scheduled date/time is outside "
-        "the customer delivery window (OCA rules).",
+        help="Si está activo, rechaza optimizar cuando la fecha/hora planificada de un traslado "
+        "está fuera de la ventana horaria del cliente (reglas OCA).",
     )
 
     @api.constrains("route_optimizer_route_start_hour")
