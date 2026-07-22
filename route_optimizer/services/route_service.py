@@ -268,6 +268,22 @@ def optimize_batch(
             batch, table, n, nv, picking_ids_order, ortools_url, timeout, ortools_api_key
         )
 
+    # Chequeo de factibilidad previo: nv vehículos con tope de paradas deben
+    # poder cubrir todas las entregas.
+    try:
+        ms_check = int(max_stops_per_vehicle) if max_stops_per_vehicle else 0
+    except (TypeError, ValueError):
+        ms_check = 0
+    if ms_check > 0 and nv * ms_check < len(stops):
+        raise UserError(
+            _(
+                "Imposible: %(v)s vehículo(s) con máximo %(m)s parada(s) cada uno "
+                "cubren %(cap)s entregas, pero el lote tiene %(n)s.\n"
+                "Subí el máximo de paradas, agregá vehículos o quitá entregas del lote."
+            )
+            % {"v": nv, "m": ms_check, "cap": nv * ms_check, "n": len(stops)}
+        )
+
     return _run_vrp_api(
         env,
         batch,
@@ -626,7 +642,35 @@ def _run_vrp_api(
     try:
         result = ortools_client.solve_vrp(ortools_url, payload, timeout=timeout, api_key=ortools_api_key)
     except ortools_client.OrtoolsServiceError as e:
-        raise UserError(_("Error del servicio OR-Tools: %s") % str(e)) from e
+        msg = str(e)
+        if "No solution" in msg:
+            active = []
+            if payload.get("max_stops_per_vehicle"):
+                active.append(
+                    _("máx. %s paradas/vehículo") % payload["max_stops_per_vehicle"]
+                )
+            if payload.get("max_route_duration_seconds"):
+                active.append(
+                    _("duración máx. %s min") % (payload["max_route_duration_seconds"] // 60)
+                )
+            if payload.get("time_windows") or payload.get("time_windows_list"):
+                active.append(_("ventanas horarias de clientes"))
+            if vehicle_capacity and vehicle_capacity > 0:
+                active.append(_("capacidad de peso"))
+            if vehicle_volume_capacity and vehicle_volume_capacity > 0:
+                active.append(_("capacidad de volumen"))
+            hint = (
+                _(
+                    "\n\nEl solver no encontró ninguna combinación que cumpla todas las "
+                    "restricciones activas: %(active)s.\n"
+                    "Probá relajando de a una (subir paradas/duración, quitar capacidades, "
+                    "o desactivar «Respetar ventanas horarias» en Ajustes) para identificar "
+                    "cuál la hace imposible."
+                )
+                % {"active": ", ".join(active) if active else _("ninguna")}
+            )
+            raise UserError(_("Error del servicio OR-Tools: %s") % (msg + hint)) from e
+        raise UserError(_("Error del servicio OR-Tools: %s") % msg) from e
 
     routes = result.get("routes") or []
 
