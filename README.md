@@ -16,6 +16,30 @@ Instalá el código desde la rama que coincida con tu versión de Odoo.
 - **`route_optimizer`**: configuración (URLs OSRM / OR-Tools), asistente desde el batch, clientes HTTP, aplicación de orden (`batch_sequence`) y reparto multi-vehículo opcional. En la rama **19.0** integra ventanas horarias del contacto vía OCA **`stock_partner_delivery_window`**.
 - **`route_optimizer_fleet`** (opcional): campo `fleet.vehicle` en el asistente; requiere el módulo `fleet`.
 
+## Proveedores: self-hosted vs. Google (pago)
+
+Desde la versión 19.0.1.3.0 el módulo soporta proveedores intercambiables por configuración
+(**Ajustes → Inventario → Optimización de rutas → Proveedores**). Las dos piezas se eligen
+por separado:
+
+| Combinación | Matrices | Solver | Credenciales | Costo |
+|---|---|---|---|---|
+| **Self-hosted** (default) | OSRM | OR-Tools | ninguna (Docker propio) | solo el VPS |
+| **Híbrido** (recomendado para tráfico real) | Google Routes API | OR-Tools | API key de GCP | ~USD 5–10 por 1.000 elementos de matriz |
+| **Google completo** | — (no aplica) | Google Route Optimization | Service account de GCP + project id | por envío optimizado (tier gratuito mensual inicial) |
+
+Notas:
+
+- **Híbrido**: `computeRouteMatrix` devuelve tiempos con tráfico real. Solo requiere una
+  API key con *Routes API* habilitada. El solver sigue siendo tu microservicio OR-Tools
+  (gratis, sin límite de paradas).
+- **Google completo**: `optimizeTours` recibe las paradas con lat/lng, capacidades y
+  ventanas horarias, y devuelve las rutas resueltas — no se usa matriz ni OSRM ni OR-Tools.
+  ⚠️ No acepta API key: hay que crear un **service account** en GCP, habilitar
+  *Route Optimization API* y pegar el JSON de la clave en Ajustes.
+- Con los defaults (`OSRM + OR-Tools`) el comportamiento es exactamente el de siempre:
+  las credenciales de Google solo se piden si elegís un proveedor de Google.
+
 ## Instalación
 
 1. Clonar el repo y cambiar a la rama adecuada:

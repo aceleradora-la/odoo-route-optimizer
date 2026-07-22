@@ -40,10 +40,15 @@ Or multi-vehicle (num_vehicles > 1)::
 
 Node index 0 is always the depot; indices 1..n map to picking_ids[i-1].
 """
+import datetime
+
+import pytz
+
 from odoo import _, fields
 from odoo.exceptions import UserError
 
 from . import delivery_windows
+from . import google_client
 from . import osrm_client
 from . import ortools_client
 from urllib.parse import urlsplit, urlunsplit
@@ -196,11 +201,6 @@ def optimize_batch(
 
     coordinates_lonlat = [depot_coords] + [s["coords"] for s in stops]
 
-    try:
-        table = osrm_client.fetch_table(base_url, profile, coordinates_lonlat, timeout=timeout)
-    except osrm_client.OsrmError as e:
-        raise UserError(_("Error de OSRM: %s") % str(e)) from e
-
     picking_ids_order = [s["picking"].id for s in stops]
     demands_weight = [0]
     demands_volume = [0]
@@ -222,6 +222,23 @@ def optimize_batch(
             _("La cantidad de vehículos (%(v)s) no puede superar la cantidad de paradas (%(s)s).")
             % {"v": nv, "s": len(stops)}
         )
+
+    # Google Route Optimization solves matrix + VRP in one call: no matrix step needed.
+    solver_provider = (icp.get_param("route_optimizer.solver_provider") or "ortools").strip()
+    if solver_provider == "google":
+        return _run_google_solver(
+            env,
+            batch,
+            stops,
+            depot_coords,
+            nv,
+            vehicle_capacity,
+            max_route_duration_minutes,
+            icp,
+            timeout,
+        )
+
+    table = _fetch_matrix(icp, coordinates_lonlat, timeout, base_url, profile)
 
     # Minimal HTTP API: {locations, distance_matrix} -> {optimized_route: [...]}
     if simple_ortools:
@@ -249,6 +266,203 @@ def optimize_batch(
         icp,
         stops,
     )
+
+
+def _fetch_matrix(icp, coordinates_lonlat, timeout, osrm_base_url, osrm_profile):
+    """Dispatch matrix computation to the configured provider (osrm | google).
+
+    Both providers return the same contract: {"durations": [[s]], "distances": [[m]]}.
+    """
+    provider = (icp.get_param("route_optimizer.matrix_provider") or "osrm").strip()
+    if provider == "google":
+        api_key = (icp.get_param("route_optimizer.google_api_key") or "").strip()
+        if not api_key:
+            raise UserError(
+                _("Falta configurar la Google API key (Routes API) en Ajustes → Optimización de rutas.")
+            )
+        try:
+            return google_client.fetch_route_matrix(api_key, coordinates_lonlat, timeout=timeout)
+        except google_client.GoogleApiError as e:
+            raise UserError(_("Error de Google Routes API: %s") % str(e)) from e
+    try:
+        return osrm_client.fetch_table(
+            osrm_base_url, osrm_profile, coordinates_lonlat, timeout=timeout
+        )
+    except osrm_client.OsrmError as e:
+        raise UserError(_("Error de OSRM: %s") % str(e)) from e
+
+
+def _rfc3339(dt_aware):
+    return dt_aware.astimezone(pytz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _run_google_solver(
+    env,
+    batch,
+    stops,
+    depot_coords,
+    nv,
+    vehicle_capacity,
+    max_route_duration_minutes,
+    icp,
+    timeout,
+):
+    """
+    Solve the whole VRP with Google Route Optimization (optimizeTours).
+    No matrix step: the API takes lat/lng per stop and computes travel itself.
+    Reuses the existing apply/report helpers so downstream behavior is identical.
+    """
+    project_id = (icp.get_param("route_optimizer.google_project_id") or "").strip()
+    sa_json = (icp.get_param("route_optimizer.google_service_account_json") or "").strip()
+    if not project_id or not sa_json:
+        raise UserError(
+            _(
+                "Para usar Google Route Optimization configurá el project id y el JSON "
+                "del service account en Ajustes → Optimización de rutas."
+            )
+        )
+
+    tz = pytz.timezone(delivery_windows._routing_timezone(env, batch))
+    base_dt = None
+    if batch.scheduled_date:
+        base_dt = delivery_windows.localize_delivery_datetime(env, batch, batch.scheduled_date)
+    if not base_dt:
+        base_dt = datetime.datetime.now(tz)
+    local_midnight = tz.localize(datetime.datetime(base_dt.year, base_dt.month, base_dt.day))
+
+    try:
+        route_start_hour = float(icp.get_param("route_optimizer.route_start_hour", "8") or 8)
+    except (TypeError, ValueError):
+        route_start_hour = 8.0
+    route_start_hour = max(0.0, min(route_start_hour, 24.0))
+    global_start = local_midnight + datetime.timedelta(seconds=int(route_start_hour * 3600))
+    global_end = local_midnight + datetime.timedelta(days=1)
+
+    try:
+        service_time = int(icp.get_param("route_optimizer.service_time_seconds", "600") or 600)
+    except (TypeError, ValueError):
+        service_time = 600
+    service_time = max(0, service_time)
+
+    use_windows = delivery_windows._param_bool(
+        icp.get_param("route_optimizer.use_delivery_windows", "True"), True
+    ) and "delivery_time_preference" in env["res.partner"]._fields
+
+    day_seconds = 24 * 3600
+    infeasible = []
+    shipments = []
+    for s in stops:
+        lon, lat = s["coords"]
+        delivery = {"arrivalLocation": {"latitude": lat, "longitude": lon}}
+        if service_time:
+            delivery["duration"] = f"{service_time}s"
+
+        if use_windows:
+            partner = s["partner"]
+            local_dt = delivery_windows.planned_delivery_datetime(s["picking"], batch, env)
+            weekday = local_dt.weekday() if local_dt else local_midnight.weekday()
+            windows_by_partner = delivery_windows._partner_delivery_windows(partner, weekday)
+            intervals = delivery_windows._intervals_for_partner(
+                partner, weekday, local_dt, windows_by_partner
+            )
+            if intervals is None:
+                ref = s["picking"].name or str(s["picking"].id)
+                infeasible.append(f"{ref} ({partner.display_name})")
+                intervals = []
+            full_day = len(intervals) == 1 and intervals[0][0] <= 0 and intervals[0][1] >= day_seconds
+            if intervals and not full_day:
+                delivery["timeWindows"] = [
+                    {
+                        "startTime": _rfc3339(local_midnight + datetime.timedelta(seconds=iv[0])),
+                        "endTime": _rfc3339(
+                            local_midnight + datetime.timedelta(seconds=min(iv[1], day_seconds))
+                        ),
+                    }
+                    for iv in intervals
+                ]
+
+        shipment = {"deliveries": [delivery]}
+        w = s["picking"].shipping_weight or 0.0
+        if vehicle_capacity and vehicle_capacity > 0 and w > 0:
+            shipment["loadDemands"] = {"weight": {"amount": str(int(round(float(w))))}}
+        shipments.append(shipment)
+
+    if infeasible:
+        raise UserError(
+            _(
+                "No se puede optimizar: las siguientes entregas están planificadas en un día "
+                "no laborable para clientes con preferencia «Días hábiles»:\n%(stops)s"
+            )
+            % {"stops": "\n".join(infeasible)}
+        )
+
+    depot_lon, depot_lat = depot_coords
+    depot_location = {"latitude": depot_lat, "longitude": depot_lon}
+    vehicle_tpl = {"startLocation": depot_location, "endLocation": depot_location}
+    if vehicle_capacity and vehicle_capacity > 0:
+        vehicle_tpl["loadLimits"] = {
+            "weight": {"maxLoad": str(int(round(float(vehicle_capacity))))}
+        }
+    try:
+        mmins = int(max_route_duration_minutes) if max_route_duration_minutes else 0
+    except (TypeError, ValueError):
+        mmins = 0
+    if mmins > 0:
+        vehicle_tpl["routeDurationLimit"] = {"maxDuration": f"{mmins * 60}s"}
+
+    model = {
+        "shipments": shipments,
+        "vehicles": [dict(vehicle_tpl) for _i in range(nv)],
+        "globalStartTime": _rfc3339(global_start),
+        "globalEndTime": _rfc3339(global_end),
+    }
+
+    try:
+        result = google_client.optimize_tours(
+            project_id, sa_json, model, timeout=max(int(timeout), 120)
+        )
+    except google_client.GoogleApiError as e:
+        raise UserError(_("Error de Google Route Optimization: %s") % str(e)) from e
+
+    picking_ids_order = [s["picking"].id for s in stops]
+    node_routes = []
+    for r in result.get("routes") or []:
+        nodes = [0]
+        for visit in r.get("visits") or []:
+            # shipmentIndex 0 is omitted by Google's JSON encoding.
+            si = int(visit.get("shipmentIndex", 0))
+            if 0 <= si < len(picking_ids_order):
+                nodes.append(si + 1)
+        nodes.append(0)
+        node_routes.append({"node_indices": nodes})
+
+    if not any(len(r["node_indices"]) > 2 for r in node_routes):
+        raise UserError(_("Google Route Optimization no devolvió rutas con paradas."))
+
+    skipped = result.get("skippedShipments") or []
+    warn = ""
+    if skipped:
+        warn = " " + _("Advertencia: %(n)s entregas sin asignar (capacidad o ventana horaria).") % {
+            "n": len(skipped)
+        }
+
+    if nv > 1:
+        batch_orders = _apply_multi_vehicle_routes(env, batch, node_routes, picking_ids_order)
+        msg = _("VRP aplicado (Google): %(v)s vehículos.") % {"v": nv} + warn
+        for i, (b, pids) in enumerate(batch_orders):
+            if i == 0:
+                _write_optimization_result(b, msg, pids)
+            else:
+                _write_optimization_result(b, _("Ruta optimizada para este vehículo (Google)."), pids)
+        return {"message": msg}
+
+    ordered_ids = [
+        picking_ids_order[i - 1] for i in node_routes[0]["node_indices"] if i != 0
+    ]
+    _apply_order_single_batch(batch, ordered_ids)
+    msg = _("Ruta optimizada con Google (%(n)s paradas).") % {"n": len(ordered_ids)} + warn
+    _write_optimization_result(batch, msg, ordered_ids)
+    return {"message": msg}
 
 
 def _run_simple_api(batch, table, n, nv, picking_ids_order, ortools_url, timeout, ortools_api_key):

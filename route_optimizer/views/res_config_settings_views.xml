@@ -7,6 +7,30 @@
         <field name="arch" type="xml">
             <xpath expr="//app[@name='stock']" position="inside">
                 <block title="Optimización de rutas" name="route_optimizer_block">
+                    <setting id="route_optimizer_providers_setting" string="Proveedores" help="Elegí qué servicio calcula las matrices de viaje y cuál resuelve la ruta. Los defaults (OSRM + OR-Tools) son los servicios self-hosted en Docker; Google es pago y no requiere infraestructura propia.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_matrix_provider"/>
+                                <field name="route_optimizer_matrix_provider" class="oe_inline"/>
+                            </div>
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_solver_provider"/>
+                                <field name="route_optimizer_solver_provider" class="oe_inline"/>
+                            </div>
+                            <div class="row mt16" invisible="route_optimizer_matrix_provider != 'google' and route_optimizer_solver_provider != 'google'">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_google_api_key"/>
+                                <field name="route_optimizer_google_api_key" class="oe_inline" password="True" placeholder="(Routes API)"/>
+                            </div>
+                            <div class="row mt16" invisible="route_optimizer_solver_provider != 'google'">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_google_project_id"/>
+                                <field name="route_optimizer_google_project_id" class="oe_inline"/>
+                            </div>
+                            <div class="row mt16" invisible="route_optimizer_solver_provider != 'google'">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_google_service_account_json"/>
+                                <field name="route_optimizer_google_service_account_json" class="oe_inline" placeholder='{"type": "service_account", ...}'/>
+                            </div>
+                        </div>
+                    </setting>
                     <setting id="route_optimizer_osrm_setting" string="Servidor OSRM" help="Solo la URL raíz del servidor OSRM (ej. http://IP:5000). No agregar /table/v1/ — Odoo arma esa ruta automáticamente.">
                         <div class="content-group">
                             <div class="row mt16">
