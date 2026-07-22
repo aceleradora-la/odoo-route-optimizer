@@ -46,9 +46,10 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer.google_project_id",
         help="ID del proyecto de GCP con Route Optimization API habilitada.",
     )
+    # NOTE: no config_parameter here — res.config.settings rejects Text fields with
+    # config_parameter; persisted manually in get_values/set_values below.
     route_optimizer_google_service_account_json = fields.Text(
         string="Google service account (JSON)",
-        config_parameter="route_optimizer.google_service_account_json",
         help="Contenido completo del archivo JSON del service account de GCP. "
         "Requerido solo si el solver es Google Route Optimization.",
     )
@@ -150,6 +151,9 @@ class ResConfigSettings(models.TransientModel):
         )
         # Ensure value shows even if config_parameter isn't picked up by the UI cache yet.
         res["route_optimizer_ortools_api_key"] = icp.get_param("route_optimizer.ortools_api_key", "") or ""
+        res["route_optimizer_google_service_account_json"] = (
+            icp.get_param("route_optimizer.google_service_account_json", "") or ""
+        )
         return res
 
     def set_values(self):
@@ -162,6 +166,10 @@ class ResConfigSettings(models.TransientModel):
         icp.set_param(
             "route_optimizer.ortools_api_key",
             (self.route_optimizer_ortools_api_key or "").strip(),
+        )
+        icp.set_param(
+            "route_optimizer.google_service_account_json",
+            (self.route_optimizer_google_service_account_json or "").strip(),
         )
         icp.set_param(
             "route_optimizer.use_delivery_windows",
