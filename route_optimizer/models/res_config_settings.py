@@ -20,6 +20,38 @@ class ResConfigSettings(models.TransientModel):
             return False
         return bool(default)
 
+    route_optimizer_matrix_provider = fields.Selection(
+        [("osrm", "OSRM (self-hosted)"), ("google", "Google Routes API (pago)")],
+        string="Proveedor de matrices",
+        config_parameter="route_optimizer.matrix_provider",
+        default="osrm",
+        help="Servicio que calcula las matrices de distancia/tiempo entre paradas. "
+        "Se ignora si el solver es Google (calcula sus propias matrices).",
+    )
+    route_optimizer_solver_provider = fields.Selection(
+        [("ortools", "OR-Tools (self-hosted)"), ("google", "Google Route Optimization (pago)")],
+        string="Proveedor del solver",
+        config_parameter="route_optimizer.solver_provider",
+        default="ortools",
+        help="Servicio que resuelve el orden de la ruta (VRP). Google Route Optimization "
+        "requiere un service account de GCP, no una API key.",
+    )
+    route_optimizer_google_api_key = fields.Char(
+        string="Google API key (Routes API)",
+        config_parameter="route_optimizer.google_api_key",
+        help="API key de GCP con Routes API habilitada. Solo para el proveedor de matrices.",
+    )
+    route_optimizer_google_project_id = fields.Char(
+        string="Google project id",
+        config_parameter="route_optimizer.google_project_id",
+        help="ID del proyecto de GCP con Route Optimization API habilitada.",
+    )
+    route_optimizer_google_service_account_json = fields.Text(
+        string="Google service account (JSON)",
+        config_parameter="route_optimizer.google_service_account_json",
+        help="Contenido completo del archivo JSON del service account de GCP. "
+        "Requerido solo si el solver es Google Route Optimization.",
+    )
     route_optimizer_osrm_url = fields.Char(
         string="URL base de OSRM",
         config_parameter="route_optimizer.osrm_url",
