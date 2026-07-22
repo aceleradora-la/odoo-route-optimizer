@@ -40,6 +40,9 @@ Notas:
 - Con los defaults (`OSRM + OR-Tools`) el comportamiento es exactamente el de siempre:
   las credenciales de Google solo se piden si elegís un proveedor de Google.
 
+👉 **Guía paso a paso del modo híbrido** (GCP, API key, Docker y Odoo):
+[GOOGLE_HYBRID_SETUP.md](GOOGLE_HYBRID_SETUP.md)
+
 ## Instalación
 
 1. Clonar el repo y cambiar a la rama adecuada:
