@@ -117,7 +117,7 @@ class StockPicking(models.Model):
                 continue
             pref = getattr(pick.partner_id, "delivery_time_preference", "anytime")
             if pref == "workdays":
-                pick.route_optimizer_time_window = _("Weekdays")
+                pick.route_optimizer_time_window = _("Días hábiles")
             elif pref == "time_windows":
                 windows = []
                 for w in getattr(pick.partner_id, "delivery_time_window_ids", []):
@@ -157,5 +157,5 @@ class StockPicking(models.Model):
         """Secondary entry: open the optimizer wizard for the batch of this transfer."""
         self.ensure_one()
         if not self.batch_id:
-            raise UserError(_("This transfer is not part of a batch."))
+            raise UserError(_("Este traslado no forma parte de un lote."))
         return self.batch_id.action_route_optimizer_wizard()

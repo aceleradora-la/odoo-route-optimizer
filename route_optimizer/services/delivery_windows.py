@@ -181,8 +181,8 @@ def validate_stops_delivery_windows(env, batch, stops):
                 ref = picking.name or str(picking.id)
                 warnings.append(
                     _(
-                        "%(picking)s — %(partner)s: planned delivery %(when)s is outside "
-                        "the partner delivery window."
+                        "%(picking)s — %(partner)s: la entrega planificada %(when)s está fuera "
+                        "de la ventana horaria del cliente."
                     )
                     % {
                         "picking": ref,
@@ -265,9 +265,9 @@ def build_vrp_time_payload(env, batch, stops, icp):
     if infeasible:
         raise UserError(
             _(
-                "Cannot optimize: the following deliveries are scheduled on a non-working "
-                "day for partners set to «Weekdays» only:\n%(stops)s\n"
-                "Adjust the scheduled date on the transfer or the partner preference."
+                "No se puede optimizar: las siguientes entregas están planificadas en un día "
+                "no laborable para clientes con preferencia «Días hábiles»:\n%(stops)s\n"
+                "Ajustá la fecha planificada del traslado o la preferencia del cliente."
             )
             % {"stops": "\n".join(infeasible)}
         )

@@ -475,16 +475,21 @@ def _format_visit_order_display(env, ordered_picking_ids):
     """Human-readable numbered lines for the batch form (visit order)."""
     if not ordered_picking_ids:
         return ""
+    # Single browse + exists() so the ORM prefetches all records in one query.
+    existing = env["stock.picking"].browse(ordered_picking_ids).exists()
+    by_id = {p.id: p for p in existing}
     lines = []
-    for idx, pid in enumerate(ordered_picking_ids, start=1):
-        picking = env["stock.picking"].browse(pid)
-        if not picking.exists():
+    pos = 0
+    for pid in ordered_picking_ids:
+        picking = by_id.get(pid)
+        if not picking:
             continue
+        pos += 1
         partner = picking.partner_id.display_name if picking.partner_id else ""
         ref = picking.name or str(picking.id)
         lines.append(
             _("%(pos)s. %(picking)s — %(partner)s")
-            % {"pos": idx, "picking": ref, "partner": partner}
+            % {"pos": pos, "picking": ref, "partner": partner}
         )
     return "\n".join(lines)
 
@@ -503,11 +508,13 @@ def _write_optimization_result(batch, message, ordered_picking_ids):
 
 def _apply_order_single_batch(batch, ordered_picking_ids):
     """Set batch_sequence on pickings following optimized order."""
+    by_id = {p.id: p for p in batch.picking_ids}
     seq = 10
     for pid in ordered_picking_ids:
-        picking = batch.picking_ids.filtered(lambda p, pid=pid: p.id == pid)
+        picking = by_id.get(pid)
         if picking:
-            picking.write({"batch_sequence": seq})
+            if picking.batch_sequence != seq:
+                picking.write({"batch_sequence": seq})
             seq += 10
 
 

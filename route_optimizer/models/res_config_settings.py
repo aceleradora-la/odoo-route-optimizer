@@ -98,7 +98,7 @@ class ResConfigSettings(models.TransientModel):
             except (TypeError, ValueError):
                 hour = 8.0
             if not (0 <= hour < 24):
-                raise ValidationError(_("Route departure hour must be between 0 and 23.9."))
+                raise ValidationError(_("La hora de salida de ruta debe estar entre 0 y 23.9."))
 
     @api.model
     def get_values(self):
