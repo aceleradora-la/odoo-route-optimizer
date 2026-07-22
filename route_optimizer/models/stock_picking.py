@@ -14,19 +14,19 @@ class StockPicking(models.Model):
     _inherit = "stock.picking"
 
     route_optimizer_delivery_address = fields.Char(
-        string="Delivery address",
+        string="Dirección de entrega",
         compute="_compute_route_optimizer_delivery_address",
     )
     route_optimizer_products_summary = fields.Char(
-        string="Products",
+        string="Productos",
         compute="_compute_route_optimizer_products_summary",
     )
     route_optimizer_time_window = fields.Char(
-        string="Time window",
+        string="Ventana horaria",
         compute="_compute_route_optimizer_time_window",
     )
     route_optimizer_partner_phone = fields.Char(
-        string="Contact phone",
+        string="Teléfono de contacto",
         compute="_compute_route_optimizer_partner_phone",
     )
 

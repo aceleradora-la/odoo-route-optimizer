@@ -7,8 +7,8 @@ class RouteOptimizerWizard(models.TransientModel):
 
     fleet_vehicle_id = fields.Many2one(
         "fleet.vehicle",
-        string="Fleet vehicle",
-        help="Optional link for traceability; set capacity below for the solver.",
+        string="Vehículo de flota",
+        help="Vínculo opcional para trazabilidad; definí la capacidad más abajo para el solver.",
     )
 
     @staticmethod

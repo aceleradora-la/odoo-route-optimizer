@@ -6,8 +6,8 @@
         <field name="inherit_id" ref="stock.res_config_settings_view_form"/>
         <field name="arch" type="xml">
             <xpath expr="//app[@name='stock']" position="inside">
-                <block title="Route optimization" name="route_optimizer_block">
-                    <setting id="route_optimizer_osrm_setting" string="OSRM server" help="Root URL of the OSRM server only (e.g. http://IP:5000). Do not add /table/v1/ — Odoo builds that path automatically.">
+                <block title="Optimización de rutas" name="route_optimizer_block">
+                    <setting id="route_optimizer_osrm_setting" string="Servidor OSRM" help="Solo la URL raíz del servidor OSRM (ej. http://IP:5000). No agregar /table/v1/ — Odoo arma esa ruta automáticamente.">
                         <div class="content-group">
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_osrm_url"/>
@@ -19,7 +19,7 @@
                             </div>
                         </div>
                     </setting>
-                    <setting id="route_optimizer_ortools_setting" string="OR-Tools service" help="Base URL (IP:port) or full endpoint. Odoo adds /optimize or /vrp automatically. With OCA delivery windows and duration optimization, each stop uses its transfer scheduled date (weekday and time) and partner windows are sent to /vrp.">
+                    <setting id="route_optimizer_ortools_setting" string="Servicio OR-Tools" help="URL base (IP:puerto) o endpoint completo. Odoo agrega /optimize o /vrp automáticamente. Con ventanas horarias OCA y optimización por duración, cada parada usa la fecha planificada del traslado (día y hora) y las ventanas del cliente se envían a /vrp.">
                         <div class="content-group">
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_url"/>
@@ -27,7 +27,7 @@
                             </div>
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_api_key"/>
-                                <field name="route_optimizer_ortools_api_key" class="oe_inline" password="True" placeholder="(optional)"/>
+                                <field name="route_optimizer_ortools_api_key" class="oe_inline" password="True" placeholder="(opcional)"/>
                             </div>
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_simple_api"/>
