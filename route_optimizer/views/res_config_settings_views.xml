@@ -7,7 +7,7 @@
         <field name="arch" type="xml">
             <xpath expr="//app[@name='stock']" position="inside">
                 <block title="Optimización de rutas" name="route_optimizer_block">
-                    <setting id="route_optimizer_providers_setting" string="Proveedores" help="Elegí qué servicio calcula las matrices de viaje y cuál resuelve la ruta. Los defaults (OSRM + OR-Tools) son los servicios self-hosted en Docker; Google es pago y no requiere infraestructura propia.">
+                    <setting id="route_optimizer_providers_setting" string="Proveedores" help="El proveedor de MATRICES aporta los datos: tiempos y distancias reales por calle entre cada par de puntos (OSRM self-hosted gratis, o Google Routes API pago con mejor cartografía). El SOLVER toma esos datos y decide el orden de visita y el reparto entre vehículos (OR-Tools self-hosted gratis, o Google Route Optimization pago que además calcula sus propias matrices — en ese caso el proveedor de matrices se ignora).">
                         <div class="content-group">
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_matrix_provider"/>
@@ -31,7 +31,7 @@
                             </div>
                         </div>
                     </setting>
-                    <setting id="route_optimizer_osrm_setting" string="Servidor OSRM" help="Solo la URL raíz del servidor OSRM (ej. http://IP:5000). No agregar /table/v1/ — Odoo arma esa ruta automáticamente.">
+                    <setting id="route_optimizer_osrm_setting" string="Servidor OSRM" help="Solo la URL raíz del servidor OSRM (ej. http://IP:5000). No agregar /table/v1/ — Odoo arma esa ruta automáticamente." invisible="route_optimizer_matrix_provider == 'google' or route_optimizer_solver_provider == 'google'">
                         <div class="content-group">
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_osrm_url"/>
@@ -43,7 +43,7 @@
                             </div>
                         </div>
                     </setting>
-                    <setting id="route_optimizer_ortools_setting" string="Servicio OR-Tools" help="URL base (IP:puerto) o endpoint completo. Odoo agrega /optimize o /vrp automáticamente. Con ventanas horarias OCA y optimización por duración, cada parada usa la fecha planificada del traslado (día y hora) y las ventanas del cliente se envían a /vrp.">
+                    <setting id="route_optimizer_ortools_setting" string="Servicio OR-Tools" help="URL base (IP:puerto) o endpoint completo. Odoo agrega /optimize o /vrp automáticamente. Con ventanas horarias OCA y optimización por duración, cada parada usa la fecha planificada del traslado (día y hora) y las ventanas del cliente se envían a /vrp." invisible="route_optimizer_solver_provider == 'google'">
                         <div class="content-group">
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_url"/>
