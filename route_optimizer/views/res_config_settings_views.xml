@@ -29,6 +29,15 @@
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_google_service_account_json"/>
                                 <field name="route_optimizer_google_service_account_json" class="oe_inline" placeholder='{"type": "service_account", ...}'/>
                             </div>
+                            <div class="mt8" invisible="route_optimizer_matrix_provider != 'google' and route_optimizer_solver_provider != 'google'">
+                                <button
+                                    name="action_route_optimizer_test_google"
+                                    type="object"
+                                    string="Probar conexión con Google"
+                                    icon="fa-television"
+                                    class="btn-link"
+                                />
+                            </div>
                         </div>
                     </setting>
                     <setting id="route_optimizer_osrm_setting" string="Servidor OSRM" help="Solo la URL raíz del servidor OSRM (ej. http://IP:5000). No agregar /table/v1/ — Odoo arma esa ruta automáticamente." invisible="route_optimizer_matrix_provider == 'google' or route_optimizer_solver_provider == 'google'">
@@ -40,6 +49,15 @@
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_osrm_profile"/>
                                 <field name="route_optimizer_osrm_profile" class="oe_inline"/>
+                            </div>
+                            <div class="mt8">
+                                <button
+                                    name="action_route_optimizer_test_osrm"
+                                    type="object"
+                                    string="Probar conexión"
+                                    icon="fa-television"
+                                    class="btn-link"
+                                />
                             </div>
                         </div>
                     </setting>
@@ -56,6 +74,15 @@
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_ortools_simple_api"/>
                                 <field name="route_optimizer_ortools_simple_api"/>
+                            </div>
+                            <div class="mt8">
+                                <button
+                                    name="action_route_optimizer_test_ortools"
+                                    type="object"
+                                    string="Probar conexión"
+                                    icon="fa-television"
+                                    class="btn-link"
+                                />
                             </div>
                             <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_timeout"/>
