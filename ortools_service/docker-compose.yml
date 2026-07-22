@@ -5,7 +5,8 @@ services:
     restart: always
     ports:
       # Solo localhost: el acceso externo entra por nginx (HTTPS) que hace
-      # proxy a 127.0.0.1:8080. Nunca exponer 8080 directo a internet.
-      - "127.0.0.1:8080:8000"
+      # proxy a 127.0.0.1:18080. Nunca exponer este puerto directo a internet.
+      # 18080 (no estándar) evita colisiones con otros servicios del VPS.
+      - "127.0.0.1:18080:8000"
     env_file:
       - .env
