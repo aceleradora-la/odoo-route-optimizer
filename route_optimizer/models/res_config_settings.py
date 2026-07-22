@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
+
+from ..services import google_client, ortools_client, osrm_client, route_service
+
+# Dos puntos cercanos en CABA para tests de conexión (matriz 2x2 trivial).
+_TEST_COORDS = [(-58.3816, -34.6037), (-58.3712, -34.6083)]
 
 
 class ResConfigSettings(models.TransientModel):
@@ -179,3 +184,112 @@ class ResConfigSettings(models.TransientModel):
             "route_optimizer.block_outside_windows",
             "True" if self.route_optimizer_block_outside_windows else "False",
         )
+
+    # ------------------------------------------------------------------
+    # Botones "Probar conexión"
+    # ------------------------------------------------------------------
+
+    def _route_optimizer_test_ok(self, title, message):
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "title": title,
+                "message": message,
+                "type": "success",
+                "sticky": False,
+            },
+        }
+
+    def action_route_optimizer_test_osrm(self):
+        """Consulta una matriz 2x2 trivial contra el servidor OSRM configurado."""
+        self.ensure_one()
+        if not (self.route_optimizer_osrm_url or "").strip():
+            raise UserError(_("Cargá primero la URL base de OSRM."))
+        try:
+            osrm_client.fetch_table(
+                self.route_optimizer_osrm_url,
+                (self.route_optimizer_osrm_profile or "driving").strip(),
+                _TEST_COORDS,
+                timeout=15,
+            )
+        except osrm_client.OsrmError as e:
+            raise UserError(_("OSRM: falló la conexión.\n\n%s") % str(e)) from e
+        return self._route_optimizer_test_ok(
+            _("OSRM"), _("Conexión exitosa: el servidor respondió la matriz de prueba.")
+        )
+
+    def action_route_optimizer_test_ortools(self):
+        """Envía un problema trivial (2 nodos) al microservicio OR-Tools configurado."""
+        self.ensure_one()
+        if not (self.route_optimizer_ortools_url or "").strip():
+            raise UserError(_("Cargá primero la URL del servicio OR-Tools."))
+        simple = bool(self.route_optimizer_ortools_simple_api)
+        url = route_service._normalize_ortools_service_url(
+            self.route_optimizer_ortools_url, simple
+        )
+        api_key = (self.route_optimizer_ortools_api_key or "").strip() or None
+        matrix = [[0, 10], [10, 0]]
+        try:
+            if simple:
+                ortools_client.solve_simple_distance_api(
+                    url, ["__TEST_DEPOT__", "__TEST_STOP__"], matrix, timeout=15, api_key=api_key
+                )
+            else:
+                ortools_client.solve_vrp(
+                    url,
+                    {
+                        "version": 1,
+                        "num_vehicles": 1,
+                        "depot_index": 0,
+                        "matrix": matrix,
+                        "matrix_metric": "distance",
+                        "picking_ids": [0],
+                    },
+                    timeout=15,
+                    api_key=api_key,
+                )
+        except ortools_client.OrtoolsServiceError as e:
+            msg = str(e)
+            if "403" in msg:
+                msg += "\n\n" + _(
+                    "El servicio rechazó la API key. Verificá que coincida con la variable "
+                    "API_KEY del archivo .env del contenedor."
+                )
+            raise UserError(_("OR-Tools: falló la conexión.\n\n%s") % msg) from e
+        return self._route_optimizer_test_ok(
+            _("OR-Tools"),
+            _("Conexión exitosa: el solver resolvió el problema de prueba (API key válida)."),
+        )
+
+    def action_route_optimizer_test_google(self):
+        """Valida la API key (matriz 2x2, 4 elementos) y/o el service account (token OAuth)."""
+        self.ensure_one()
+        checks = []
+        api_key = (self.route_optimizer_google_api_key or "").strip()
+        if self.route_optimizer_matrix_provider == "google":
+            if not api_key:
+                raise UserError(_("Cargá primero la Google API key (Routes API)."))
+            try:
+                google_client.fetch_route_matrix(api_key, _TEST_COORDS, timeout=15)
+            except google_client.GoogleApiError as e:
+                raise UserError(_("Google Routes API: falló la conexión.\n\n%s") % str(e)) from e
+            checks.append(_("Routes API OK (matriz de prueba, 4 elementos)"))
+        if self.route_optimizer_solver_provider == "google":
+            sa_json = (self.route_optimizer_google_service_account_json or "").strip()
+            if not sa_json:
+                raise UserError(_("Cargá primero el JSON del service account."))
+            if not (self.route_optimizer_google_project_id or "").strip():
+                raise UserError(_("Cargá primero el Google project id."))
+            try:
+                google_client._service_account_token(sa_json, timeout=15)
+            except google_client.GoogleApiError as e:
+                raise UserError(
+                    _("Google service account: falló la autenticación.\n\n%s") % str(e)
+                ) from e
+            checks.append(_("Service account OK (token OAuth emitido)"))
+        if not checks:
+            raise UserError(
+                _("Ningún proveedor está configurado como Google; no hay nada que probar.")
+            )
+        return self._route_optimizer_test_ok(_("Google"), " · ".join(checks))
