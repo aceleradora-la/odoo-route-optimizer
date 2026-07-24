@@ -72,6 +72,17 @@ class StockPicking(models.Model):
         "move_ids.state",
     )
     def _compute_route_optimizer_products_summary(self):
+        # Etiqueta traducida del campo (respeta el idioma del usuario). `number_of_packages`
+        # lo aporta el módulo `delivery`, por eso el acceso es defensivo. No se puede
+        # declarar en @api.depends porque el campo puede no existir en la instalación.
+        picking_fields = self.env["stock.picking"]._fields
+        pkg_label = ""
+        if "number_of_packages" in picking_fields:
+            pkg_label = (
+                self.env["stock.picking"]
+                .fields_get(["number_of_packages"], ["string"])["number_of_packages"]["string"]
+            )
+
         for pick in self:
             moves = pick.move_ids.filtered(lambda m: m.state != "cancel")
 
@@ -105,6 +116,14 @@ class StockPicking(models.Model):
                     else f"{total_qty:.2f}".rstrip("0").rstrip(".")
                 )
                 parts.append(f"{qty_str} {uom_name}")
+
+            if pkg_label:
+                try:
+                    n_packages = int(pick.number_of_packages or 0)
+                except (TypeError, ValueError):
+                    n_packages = 0
+                if n_packages > 0:
+                    parts.append(f"{pkg_label}: {n_packages}")
 
             pick.route_optimizer_products_summary = " | ".join(parts)
 
