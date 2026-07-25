@@ -49,8 +49,8 @@ class DeliveryZone(models.Model):
 
     def _compute_partner_count(self):
         grouped = self.env["res.partner"]._read_group(
-            [("delivery_zone_id", "in", self.ids)],
-            groupby=["delivery_zone_id"],
+            [("geo_delivery_zone_id", "in", self.ids)],
+            groupby=["geo_delivery_zone_id"],
             aggregates=["__count"],
         )
         counts = {zone.id: count for zone, count in grouped}
@@ -64,8 +64,8 @@ class DeliveryZone(models.Model):
             "name": _("Contactos de %s") % self.name,
             "res_model": "res.partner",
             "view_mode": "list,form",
-            "domain": [("delivery_zone_id", "=", self.id)],
-            "context": {"default_delivery_zone_id": self.id},
+            "domain": [("geo_delivery_zone_id", "=", self.id)],
+            "context": {"default_geo_delivery_zone_id": self.id},
         }
 
     # ------------------------------------------------------------------

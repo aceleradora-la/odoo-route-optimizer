@@ -8,8 +8,8 @@
         <field name="arch" type="xml">
             <!-- Junto a los datos de dirección/venta -->
             <xpath expr="//field[@name='category_id']" position="before">
-                <field name="delivery_zone_id" options="{'no_create_edit': True}"/>
-                <field name="delivery_zone_effective_id" invisible="1"/>
+                <field name="geo_delivery_zone_id" options="{'no_create_edit': True}"/>
+                <field name="geo_delivery_zone_effective_id" invisible="1"/>
             </xpath>
             <xpath expr="//div[@name='button_box']" position="inside">
                 <button
@@ -34,15 +34,15 @@
         <field name="inherit_id" ref="base.view_res_partner_filter"/>
         <field name="arch" type="xml">
             <field name="category_id" position="after">
-                <field name="delivery_zone_id"/>
+                <field name="geo_delivery_zone_id"/>
             </field>
-            <group position="inside">
+            <xpath expr="//group[@name='group_by']" position="inside">
                 <filter
                     name="group_delivery_zone"
                     string="Zona de entrega"
-                    context="{'group_by': 'delivery_zone_id'}"
+                    context="{'group_by': 'geo_delivery_zone_id'}"
                 />
-            </group>
+            </xpath>
         </field>
     </record>
 

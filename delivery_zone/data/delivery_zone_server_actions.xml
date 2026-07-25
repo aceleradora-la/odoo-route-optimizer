@@ -7,7 +7,8 @@
         <field name="binding_model_id" ref="base.model_res_partner"/>
         <field name="binding_view_types">list,form</field>
         <field name="state">code</field>
-        <field name="groups_id" eval="[(4, ref('stock.group_stock_manager'))]"/>
+        <!-- Odoo 19 renombró groups_id -> group_ids en ir.actions.server -->
+        <field name="group_ids" eval="[(4, ref('stock.group_stock_manager'))]"/>
         <field name="code">action = records.action_delivery_zone_detect()</field>
     </record>
 </odoo>
