@@ -63,7 +63,7 @@ class DeliveryZone(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Contactos de %s") % self.name,
             "res_model": "res.partner",
-            "view_mode": "list,form",
+            "view_mode": "tree,form",
             "domain": [("geo_delivery_zone_id", "=", self.id)],
             "context": {"default_geo_delivery_zone_id": self.id},
         }

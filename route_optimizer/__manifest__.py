@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer (OSRM + OR-Tools)",
-    "version": "18.0.1.3.0",
+    "version": "17.0.1.3.0",
     "category": "Inventory/Delivery",
     "summary": "Optimización de rutas de entrega para traslados por lote usando OSRM y OR-Tools",
     "description": """
@@ -36,7 +36,6 @@ Requisitos
     "license": "LGPL-3",
     "depends": [
         "stock_picking_batch",
-        "stock_partner_delivery_window",
         "base_geolocalize",
         "web",
     ],

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer — Fleet bridge",
-    "version": "18.0.1.0.5",
+    "version": "17.0.1.0.5",
     "category": "Inventory/Delivery",
     "summary": "Vincula vehículos de Flota con el optimizador de rutas y precarga capacidades",
     "description": """
