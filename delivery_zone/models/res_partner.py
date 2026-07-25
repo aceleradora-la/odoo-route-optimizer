@@ -82,5 +82,8 @@ class ResPartner(models.Model):
                 "message": " ".join(msg_parts),
                 "type": "success" if detected else "warning",
                 "sticky": False,
+                # Sin esto la vista no se refresca y el campo sigue viéndose vacío
+                # aunque la zona ya quedó guardada.
+                "next": {"type": "ir.actions.client", "tag": "reload"},
             },
         }
