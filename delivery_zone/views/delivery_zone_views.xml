@@ -82,7 +82,8 @@
                 <filter name="filter_mymaps" string="Desde My Maps" domain="[('source', '=', 'mymaps')]"/>
                 <separator/>
                 <filter name="filter_inactive" string="Archivadas" domain="[('active', '=', False)]"/>
-                <group expand="0" string="Agrupar por">
+                <!-- El RNG de Odoo no permite expand/string en <group> dentro de search -->
+                <group name="group_by">
                     <filter name="group_source" string="Origen" context="{'group_by': 'source'}"/>
                 </group>
             </search>
