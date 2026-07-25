@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="stock_picking_type_form_delivery_zone" model="ir.ui.view">
+        <field name="name">stock.picking.type.form.delivery_zone</field>
+        <field name="model">stock.picking.type</field>
+        <field name="inherit_id" ref="stock_picking_batch.stock_picking_type_view_form"/>
+        <field name="arch" type="xml">
+            <!-- Se agrega como un criterio más de "Agrupación por lotes", junto a
+                 Contacto / País de destino / Ubicaciones. -->
+            <field name="batch_group_by_partner" position="after">
+                <field name="batch_group_by_delivery_zone"/>
+            </field>
+        </field>
+    </record>
+</odoo>
