@@ -5,14 +5,14 @@
         <field name="name">delivery.zone.list</field>
         <field name="model">delivery.zone</field>
         <field name="arch" type="xml">
-            <list string="Zonas de entrega">
+            <tree string="Zonas de entrega">
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="code" optional="show"/>
                 <field name="source"/>
                 <field name="partner_count" string="Contactos"/>
                 <field name="company_id" groups="base.group_multi_company" optional="hide"/>
-            </list>
+            </tree>
         </field>
     </record>
 
@@ -93,7 +93,7 @@
     <record id="action_delivery_zone" model="ir.actions.act_window">
         <field name="name">Zonas de entrega</field>
         <field name="res_model">delivery.zone</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">tree,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Creá tu primera zona de entrega</p>
             <p>
