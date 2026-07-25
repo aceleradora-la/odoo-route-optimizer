@@ -19,9 +19,14 @@ from pathlib import Path
 from lxml import etree
 
 RNG_BASE = "https://raw.githubusercontent.com/odoo/odoo/{v}/odoo/addons/base/rng"
-RNG_FILES = ["common.rng", "search_view.rng", "list_view.rng"]
+# Odoo 17 llama tree_view.rng a lo que 18+ llaman list_view.rng: se intentan ambos.
+RNG_FILES = ["common.rng", "search_view.rng", "list_view.rng", "tree_view.rng"]
 # tag raíz del arch -> esquema que lo valida
-SCHEMA_BY_TAG = {"search": "search_view.rng", "list": "list_view.rng", "tree": "list_view.rng"}
+SCHEMA_BY_TAG = {
+    "search": "search_view.rng",
+    "list": "list_view.rng",
+    "tree": "tree_view.rng",
+}
 
 
 def ensure_schemas(version):
@@ -36,8 +41,9 @@ def ensure_schemas(version):
             with urllib.request.urlopen(url, timeout=30) as resp:
                 path.write_bytes(resp.read())
             print(f"  descargado {version}/{name}")
-        except Exception as exc:  # noqa: BLE001
-            print(f"  AVISO: no se pudo bajar {name} ({exc})")
+        except Exception:  # noqa: BLE001
+            # Normal: list_view.rng no existe en 17, tree_view.rng no existe en 18+.
+            pass
     return target
 
 

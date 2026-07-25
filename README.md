@@ -4,16 +4,55 @@ Módulos Odoo para optimizar rutas de entrega en **lotes de transferencias** (`s
 
 ## Ramas y versiones de Odoo
 
-| Rama   | Odoo |
-|--------|------|
-| `18.0` | 18.0 |
-| `19.0` | 19.0 |
+| Rama   | Odoo | Community | Enterprise | Ventanas horarias (OCA) |
+|--------|------|-----------|------------|--------------------------|
+| `17.0` | 17.0 | ✅ | ✅ | ❌ no portado a OCA 17 |
+| `18.0` | 18.0 | ✅ | ✅ | ✅ |
+| `19.0` | 19.0 | ✅ | ✅ | ✅ |
 
 Instalá el código desde la rama que coincida con tu versión de Odoo.
 
+**Community**: los tres módulos funcionan en Odoo Community. Solo dependen de módulos
+del core (`stock_picking_batch`, `base_geolocalize`, `contacts`, `fleet`, `web`), que
+están disponibles en ambas ediciones. No se usa ningún módulo Enterprise.
+
+<details>
+<summary>Diferencias entre ramas (para mantenimiento)</summary>
+
+El código Python es tolerante a versión por diseño, así que las ramas difieren en muy
+poco. Todo el delta está declarado en `tools/port_to_version.py`:
+
+| | 17.0 | 18.0 / 19.0 |
+|---|---|---|
+| Tag de lista en las vistas | `<tree>` | `<list>` |
+| `view_mode` de las acciones | `tree,form` | `list,form` |
+| Dependencia OCA de ventanas horarias | quitada | incluida |
+
+Resuelto en el propio código, sin divergencia entre ramas:
+
+- Campos de embalaje: `product_packaging_*` (17/18) y `packaging_uom_*` (19)
+  se detectan en tiempo de ejecución (`_move_packaging`).
+- Dominios de agrupación: Odoo 17/18 devuelven `list`, Odoo 19 un objeto `Domain`
+  (`_extend_domain`).
+- `_get_auto_batch_description` no existe en Odoo 17: el `super()` se resuelve con
+  `getattr`.
+- La acción de servidor no fija grupo, porque el campo cambió de nombre
+  (`groups_id` en 17/18, `group_ids` en 19).
+
+Para sincronizar una rama con las novedades de `19.0`:
+
+```bash
+git checkout 18.0            # o 17.0
+git checkout 19.0 -- .
+python tools/port_to_version.py 18.0
+python tools/validate_views.py 18.0
+```
+
+</details>
+
 ## Módulos
 
-- **`route_optimizer`**: configuración (URLs OSRM / OR-Tools), asistente desde el batch, clientes HTTP, aplicación de orden (`batch_sequence`) y reparto multi-vehículo opcional. En la rama **19.0** integra ventanas horarias del contacto vía OCA **`stock_partner_delivery_window`**.
+- **`route_optimizer`**: configuración (URLs OSRM / OR-Tools), asistente desde el batch, clientes HTTP, aplicación de orden (`batch_sequence`) y reparto multi-vehículo opcional. Integra ventanas horarias del contacto vía OCA **`stock_partner_delivery_window`** cuando ese módulo está instalado (la integración es opcional: si falta, el resto sigue funcionando).
 - **`route_optimizer_fleet`** (opcional): campo `fleet.vehicle` en el asistente; requiere el módulo `fleet`.
 - **`delivery_zone`** (independiente): zonas de entrega por contacto, con autodetección desde un **Google My Maps** público (sin API key), filtro/agrupación por zona en las órdenes de entrega y **agrupación automática de lotes por zona** en el Tipo de Operación. No requiere `route_optimizer`. Ver [Zonas de entrega](#zonas-de-entrega).
 
