@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_delivery_zone" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.delivery_zone</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="stock.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='stock']" position="inside">
+                <block title="Zonas de entrega" name="delivery_zone_block">
+                    <setting
+                        id="delivery_zone_mymaps_setting"
+                        string="Google My Maps"
+                        help="Pegá el ID (mid) o la URL de un mapa de My Maps con las zonas dibujadas como polígonos. El mapa debe estar compartido como «cualquiera con el enlace». No requiere API key ni cuenta de Google."
+                    >
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="delivery_zone_mymaps_mid"/>
+                                <field
+                                    name="delivery_zone_mymaps_mid"
+                                    class="oe_inline"
+                                    placeholder="1AbCdEfGhIjK…  o  https://www.google.com/maps/d/edit?mid=…"
+                                />
+                            </div>
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="delivery_zone_point_lookup"/>
+                                <field name="delivery_zone_point_lookup" class="oe_inline"/>
+                            </div>
+                            <div class="mt8">
+                                <button
+                                    name="action_delivery_zone_test_mymaps"
+                                    type="object"
+                                    string="Probar mapa"
+                                    icon="fa-television"
+                                    class="btn-link"
+                                />
+                                <button
+                                    name="action_delivery_zone_sync_mymaps"
+                                    type="object"
+                                    string="Sincronizar zonas"
+                                    icon="fa-refresh"
+                                    class="btn-link"
+                                />
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

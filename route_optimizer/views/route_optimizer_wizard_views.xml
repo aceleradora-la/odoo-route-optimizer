@@ -4,7 +4,7 @@
         <field name="name">route.optimizer.wizard.form</field>
         <field name="model">route.optimizer.wizard</field>
         <field name="arch" type="xml">
-            <form string="Optimize route">
+            <form string="Optimizar ruta">
                 <group>
                     <field name="batch_id" readonly="1"/>
                     <field name="num_vehicles"/>
@@ -16,8 +16,8 @@
                     <field name="max_route_duration_minutes"/>
                 </group>
                 <footer>
-                    <button name="action_optimize" string="Optimize" type="object" class="btn-primary" data-hotkey="q"/>
-                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                    <button name="action_optimize" string="Optimizar" type="object" class="btn-primary" data-hotkey="q"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
         </field>

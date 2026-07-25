@@ -9,16 +9,34 @@
                 <button
                     name="action_print_delivery_route"
                     type="object"
-                    string="Print route"
+                    string="Imprimir hoja de ruta"
                     class="btn-secondary"
                     invisible="not picking_ids"
+                    groups="stock.group_stock_user"
+                />
+                <button
+                    name="action_open_gmaps_route"
+                    type="object"
+                    string="Abrir en Google Maps"
+                    class="btn-secondary"
+                    invisible="not route_optimizer_gmaps_url"
+                    groups="stock.group_stock_user"
+                />
+                <button
+                    name="action_share_whatsapp"
+                    type="object"
+                    string="Compartir por WhatsApp"
+                    class="btn-secondary"
+                    invisible="not route_optimizer_gmaps_url"
+                    groups="stock.group_stock_user"
                 />
                 <button
                     name="action_route_optimizer_wizard"
                     type="object"
-                    string="Optimize route"
+                    string="Optimizar ruta"
                     class="btn-secondary"
                     invisible="state in ('done', 'cancel')"
+                    groups="stock.group_stock_manager"
                 />
             </xpath>
             <!-- many2many widget ignores list default_order; use one2many list so batch_sequence = visit order -->
@@ -27,7 +45,7 @@
             </xpath>
             <xpath expr="//sheet" position="inside">
                 <group
-                    string="Route optimization"
+                    string="Optimización de ruta"
                     invisible="not route_optimizer_last_message and not route_optimizer_visit_summary"
                 >
                     <field name="route_optimizer_last_message" readonly="1"/>
@@ -35,7 +53,14 @@
                         name="route_optimizer_visit_summary"
                         readonly="1"
                         widget="text"
-                        placeholder="Run Optimize route to fill the visit order."
+                        placeholder="Ejecutá Optimizar ruta para completar el orden de visita."
+                    />
+                    <field
+                        name="route_optimizer_gmaps_url"
+                        readonly="1"
+                        widget="url"
+                        invisible="not route_optimizer_gmaps_url"
+                        string="Link de ruta"
                     />
                 </group>
             </xpath>

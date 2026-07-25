@@ -1,0 +1,11 @@
+ors.aceleradora.la {
+	# Let's Encrypt automático: Caddy emite y renueva el certificado solo.
+	# Requisito: el DNS del subdominio debe apuntar a este servidor y los
+	# puertos 80 y 443 deben estar abiertos en el firewall.
+	reverse_proxy ortools-service:8000
+
+	# Opcional: limitar tamaño de request (los payloads VRP son chicos)
+	request_body {
+		max_size 10MB
+	}
+}

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_partner_form_delivery_zone" model="ir.ui.view">
+        <field name="name">res.partner.form.delivery_zone</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <!-- Junto a los datos de dirección/venta -->
+            <xpath expr="//field[@name='category_id']" position="before">
+                <field name="geo_delivery_zone_id" options="{'no_create_edit': True}"/>
+                <field name="geo_delivery_zone_effective_id" invisible="1"/>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button
+                    name="action_delivery_zone_detect"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-map-marker"
+                    groups="stock.group_stock_manager"
+                >
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Detectar</span>
+                        <span class="o_stat_text">zona</span>
+                    </div>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_res_partner_filter_delivery_zone" model="ir.ui.view">
+        <field name="name">res.partner.search.delivery_zone</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="arch" type="xml">
+            <field name="category_id" position="after">
+                <field name="geo_delivery_zone_id"/>
+            </field>
+            <xpath expr="//group[@name='group_by']" position="inside">
+                <filter
+                    name="group_delivery_zone"
+                    string="Zona de entrega"
+                    context="{'group_by': 'geo_delivery_zone_id'}"
+                />
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

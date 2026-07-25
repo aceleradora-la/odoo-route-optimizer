@@ -12,7 +12,12 @@ Expected OR-Tools microservice contract (JSON POST body produced by Odoo)::
         "matrix_metric": "duration" | "distance",
         "demands": [0, w1, w2, ...],     # depot demand 0, then shipping_weight per stop
         "vehicle_capacities": [float, ...],
-        "picking_ids": [int, ...]        # same order as matrix columns after depot
+        "picking_ids": [int, ...],       # same order as matrix columns after depot
+        # Optional (OCA delivery windows, duration matrix only):
+        "route_start_seconds": int,
+        "service_times": [0, 600, ...],
+        "time_windows": [[start, end], ...],
+        "time_windows_list": [[[s,e], ...], ...],  # multiple intervals per node
     }
 
 Successful response (one of)::
@@ -42,6 +47,8 @@ import pytz
 from odoo import _, fields
 from odoo.exceptions import UserError
 
+from . import delivery_windows
+from . import google_client
 from . import osrm_client
 from . import ortools_client
 from urllib.parse import urlsplit, urlunsplit
@@ -148,11 +155,11 @@ def optimize_batch(
     """
     batch.ensure_one()
     if batch.state in ("done", "cancel"):
-        raise UserError(_("Cannot optimize a batch that is done or cancelled."))
+        raise UserError(_("No se puede optimizar un lote que está finalizado o cancelado."))
 
     pickings = batch.picking_ids.filtered(lambda p: p.state != "cancel")
     if not pickings:
-        raise UserError(_("There are no transfers in this batch."))
+        raise UserError(_("No hay traslados en este lote."))
 
     icp = env["ir.config_parameter"].sudo()
     base_url = icp.get_param("route_optimizer.osrm_url") or ""
@@ -169,7 +176,7 @@ def optimize_batch(
     depot_coords = _partner_coords(depot)
     if not depot_coords:
         raise UserError(
-            _("Depot partner %(name)s is missing valid partner_latitude / partner_longitude.")
+            _("El depósito %(name)s no tiene coordenadas válidas (partner_latitude / partner_longitude).")
             % {"name": depot.display_name}
         )
 
@@ -185,19 +192,14 @@ def optimize_batch(
 
     if missing:
         raise UserError(
-            _("Missing coordinates for delivery partners on transfers: %s")
+            _("Faltan coordenadas en los partners de entrega de los traslados: %s")
             % (", ".join(missing))
         )
 
     if not stops:
-        raise UserError(_("No stops with coordinates could be built."))
+        raise UserError(_("No se pudieron construir paradas con coordenadas."))
 
     coordinates_lonlat = [depot_coords] + [s["coords"] for s in stops]
-
-    try:
-        table = osrm_client.fetch_table(base_url, profile, coordinates_lonlat, timeout=timeout)
-    except osrm_client.OsrmError as e:
-        raise UserError(_("OSRM error: %s") % str(e)) from e
 
     picking_ids_order = [s["picking"].id for s in stops]
     demands_weight = [0]
@@ -217,59 +219,349 @@ def optimize_batch(
     nv = max(1, int(num_vehicles or 1))
     if nv > len(stops):
         raise UserError(
-            _("Number of vehicles (%(v)s) cannot exceed the number of delivery stops (%(s)s).")
+            _("La cantidad de vehículos (%(v)s) no puede superar la cantidad de paradas (%(s)s).")
             % {"v": nv, "s": len(stops)}
         )
 
+    # Google Route Optimization solves matrix + VRP in one call: no matrix step needed.
+    solver_provider = (icp.get_param("route_optimizer.solver_provider") or "ortools").strip()
+    if solver_provider == "google":
+        return _run_google_solver(
+            env,
+            batch,
+            stops,
+            depot_coords,
+            nv,
+            vehicle_capacity,
+            max_route_duration_minutes,
+            icp,
+            timeout,
+        )
+
+    table = _fetch_matrix(icp, coordinates_lonlat, timeout, base_url, profile)
+
     # Minimal HTTP API: {locations, distance_matrix} -> {optimized_route: [...]}
     if simple_ortools:
-        if nv > 1:
+        # /optimize solo recibe ubicaciones + matriz: no puede aplicar límites ni
+        # capacidades. Avisar en vez de ignorarlos silenciosamente.
+        ignored = []
+        if max_stops_per_vehicle and int(max_stops_per_vehicle or 0) > 0:
+            ignored.append(_("máx. paradas por vehículo"))
+        if max_route_duration_minutes and int(max_route_duration_minutes or 0) > 0:
+            ignored.append(_("duración máx. de ruta"))
+        if vehicle_capacity and float(vehicle_capacity or 0) > 0:
+            ignored.append(_("capacidad de peso"))
+        if vehicle_volume_capacity and float(vehicle_volume_capacity or 0) > 0:
+            ignored.append(_("capacidad de volumen"))
+        if ignored:
             raise UserError(
                 _(
-                    "Simple OR-Tools API only supports one vehicle. "
-                    "Set Vehicles to 1 or disable Simple OR-Tools API in settings."
+                    "La API simple de OR-Tools no soporta estas restricciones: %(items)s.\n\n"
+                    "Opciones:\n"
+                    "• Dejá esos campos en 0 para optimizar solo el orden de visita, o\n"
+                    "• Desactivá «API simple de OR-Tools» en Ajustes para usar la API "
+                    "extendida (/vrp), que sí las aplica."
                 )
+                % {"items": ", ".join(ignored)}
             )
-        dist_m = table["distances"]
-        if len(dist_m) != n or any(len(row) != n for row in dist_m):
-            raise UserError(_("OSRM distance matrix size does not match the number of nodes."))
-        matrix_int = _matrix_to_int_meters(dist_m)
-        depot_label = "__ODOO_DEPOT__"
-        locations = [depot_label] + [f"P{pid}" for pid in picking_ids_order]
-        try:
-            result = ortools_client.solve_simple_distance_api(
-                ortools_url, locations, matrix_int, timeout=timeout, api_key=ortools_api_key
-            )
-        except ortools_client.OrtoolsServiceError as e:
-            raise UserError(_("OR-Tools service error: %s") % str(e)) from e
-        ordered_ids = _ordered_pickings_from_simple_route(
-            result, depot_label, picking_ids_order
+        return _run_simple_api(
+            batch, table, n, nv, picking_ids_order, ortools_url, timeout, ortools_api_key
         )
-        _apply_order_single_batch(batch, ordered_ids)
-        msg = _("Route optimized (%(n)s stops, distance).") % {"n": len(ordered_ids)}
-        _write_optimization_result(batch, msg, ordered_ids)
+
+    # Chequeo de factibilidad previo: nv vehículos con tope de paradas deben
+    # poder cubrir todas las entregas.
+    try:
+        ms_check = int(max_stops_per_vehicle) if max_stops_per_vehicle else 0
+    except (TypeError, ValueError):
+        ms_check = 0
+    if ms_check > 0 and nv * ms_check < len(stops):
+        raise UserError(
+            _(
+                "Imposible: %(v)s vehículo(s) con máximo %(m)s parada(s) cada uno "
+                "cubren %(cap)s entregas, pero el lote tiene %(n)s.\n"
+                "Subí el máximo de paradas, agregá vehículos o quitá entregas del lote."
+            )
+            % {"v": nv, "m": ms_check, "cap": nv * ms_check, "n": len(stops)}
+        )
+
+    return _run_vrp_api(
+        env,
+        batch,
+        table,
+        n,
+        nv,
+        picking_ids_order,
+        demands_weight,
+        demands_volume,
+        vehicle_capacity,
+        vehicle_volume_capacity,
+        max_stops_per_vehicle,
+        max_route_duration_minutes,
+        use_duration,
+        ortools_url,
+        timeout,
+        ortools_api_key,
+        icp,
+        stops,
+    )
+
+
+def _fetch_matrix(icp, coordinates_lonlat, timeout, osrm_base_url, osrm_profile):
+    """Dispatch matrix computation to the configured provider (osrm | google).
+
+    Both providers return the same contract: {"durations": [[s]], "distances": [[m]]}.
+    """
+    provider = (icp.get_param("route_optimizer.matrix_provider") or "osrm").strip()
+    if provider == "google":
+        api_key = (icp.get_param("route_optimizer.google_api_key") or "").strip()
+        if not api_key:
+            raise UserError(
+                _("Falta configurar la Google API key (Routes API) en Ajustes → Optimización de rutas.")
+            )
+        try:
+            return google_client.fetch_route_matrix(api_key, coordinates_lonlat, timeout=timeout)
+        except google_client.GoogleApiError as e:
+            raise UserError(_("Error de Google Routes API: %s") % str(e)) from e
+    try:
+        return osrm_client.fetch_table(
+            osrm_base_url, osrm_profile, coordinates_lonlat, timeout=timeout
+        )
+    except osrm_client.OsrmError as e:
+        raise UserError(_("Error de OSRM: %s") % str(e)) from e
+
+
+def _rfc3339(dt_aware):
+    return dt_aware.astimezone(pytz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _run_google_solver(
+    env,
+    batch,
+    stops,
+    depot_coords,
+    nv,
+    vehicle_capacity,
+    max_route_duration_minutes,
+    icp,
+    timeout,
+):
+    """
+    Solve the whole VRP with Google Route Optimization (optimizeTours).
+    No matrix step: the API takes lat/lng per stop and computes travel itself.
+    Reuses the existing apply/report helpers so downstream behavior is identical.
+    """
+    project_id = (icp.get_param("route_optimizer.google_project_id") or "").strip()
+    sa_json = (icp.get_param("route_optimizer.google_service_account_json") or "").strip()
+    if not project_id or not sa_json:
+        raise UserError(
+            _(
+                "Para usar Google Route Optimization configurá el project id y el JSON "
+                "del service account en Ajustes → Optimización de rutas."
+            )
+        )
+
+    tz = pytz.timezone(delivery_windows._routing_timezone(env, batch))
+    base_dt = None
+    if batch.scheduled_date:
+        base_dt = delivery_windows.localize_delivery_datetime(env, batch, batch.scheduled_date)
+    if not base_dt:
+        base_dt = datetime.datetime.now(tz)
+    local_midnight = tz.localize(datetime.datetime(base_dt.year, base_dt.month, base_dt.day))
+
+    try:
+        route_start_hour = float(icp.get_param("route_optimizer.route_start_hour", "8") or 8)
+    except (TypeError, ValueError):
+        route_start_hour = 8.0
+    route_start_hour = max(0.0, min(route_start_hour, 24.0))
+    global_start = local_midnight + datetime.timedelta(seconds=int(route_start_hour * 3600))
+    global_end = local_midnight + datetime.timedelta(days=1)
+
+    try:
+        service_time = int(icp.get_param("route_optimizer.service_time_seconds", "600") or 600)
+    except (TypeError, ValueError):
+        service_time = 600
+    service_time = max(0, service_time)
+
+    use_windows = delivery_windows._param_bool(
+        icp.get_param("route_optimizer.use_delivery_windows", "True"), True
+    ) and "delivery_time_preference" in env["res.partner"]._fields
+
+    day_seconds = 24 * 3600
+    infeasible = []
+    shipments = []
+    for s in stops:
+        lon, lat = s["coords"]
+        delivery = {"arrivalLocation": {"latitude": lat, "longitude": lon}}
+        if service_time:
+            delivery["duration"] = f"{service_time}s"
+
+        if use_windows:
+            partner = s["partner"]
+            local_dt = delivery_windows.planned_delivery_datetime(s["picking"], batch, env)
+            weekday = local_dt.weekday() if local_dt else local_midnight.weekday()
+            windows_by_partner = delivery_windows._partner_delivery_windows(partner, weekday)
+            intervals = delivery_windows._intervals_for_partner(
+                partner, weekday, local_dt, windows_by_partner
+            )
+            if intervals is None:
+                ref = s["picking"].name or str(s["picking"].id)
+                infeasible.append(f"{ref} ({partner.display_name})")
+                intervals = []
+            full_day = len(intervals) == 1 and intervals[0][0] <= 0 and intervals[0][1] >= day_seconds
+            if intervals and not full_day:
+                delivery["timeWindows"] = [
+                    {
+                        "startTime": _rfc3339(local_midnight + datetime.timedelta(seconds=iv[0])),
+                        "endTime": _rfc3339(
+                            local_midnight + datetime.timedelta(seconds=min(iv[1], day_seconds))
+                        ),
+                    }
+                    for iv in intervals
+                ]
+
+        shipment = {"deliveries": [delivery]}
+        w = s["picking"].shipping_weight or 0.0
+        if vehicle_capacity and vehicle_capacity > 0 and w > 0:
+            shipment["loadDemands"] = {"weight": {"amount": str(int(round(float(w))))}}
+        shipments.append(shipment)
+
+    if infeasible:
+        raise UserError(
+            _(
+                "No se puede optimizar: las siguientes entregas están planificadas en un día "
+                "no laborable para clientes con preferencia «Días hábiles»:\n%(stops)s"
+            )
+            % {"stops": "\n".join(infeasible)}
+        )
+
+    depot_lon, depot_lat = depot_coords
+    depot_location = {"latitude": depot_lat, "longitude": depot_lon}
+    vehicle_tpl = {"startLocation": depot_location, "endLocation": depot_location}
+    if vehicle_capacity and vehicle_capacity > 0:
+        vehicle_tpl["loadLimits"] = {
+            "weight": {"maxLoad": str(int(round(float(vehicle_capacity))))}
+        }
+    try:
+        mmins = int(max_route_duration_minutes) if max_route_duration_minutes else 0
+    except (TypeError, ValueError):
+        mmins = 0
+    if mmins > 0:
+        vehicle_tpl["routeDurationLimit"] = {"maxDuration": f"{mmins * 60}s"}
+
+    model = {
+        "shipments": shipments,
+        "vehicles": [dict(vehicle_tpl) for _i in range(nv)],
+        "globalStartTime": _rfc3339(global_start),
+        "globalEndTime": _rfc3339(global_end),
+    }
+
+    try:
+        result = google_client.optimize_tours(
+            project_id, sa_json, model, timeout=max(int(timeout), 120)
+        )
+    except google_client.GoogleApiError as e:
+        raise UserError(_("Error de Google Route Optimization: %s") % str(e)) from e
+
+    picking_ids_order = [s["picking"].id for s in stops]
+    node_routes = []
+    for r in result.get("routes") or []:
+        nodes = [0]
+        for visit in r.get("visits") or []:
+            # shipmentIndex 0 is omitted by Google's JSON encoding.
+            si = int(visit.get("shipmentIndex", 0))
+            if 0 <= si < len(picking_ids_order):
+                nodes.append(si + 1)
+        nodes.append(0)
+        node_routes.append({"node_indices": nodes})
+
+    if not any(len(r["node_indices"]) > 2 for r in node_routes):
+        raise UserError(_("Google Route Optimization no devolvió rutas con paradas."))
+
+    skipped = result.get("skippedShipments") or []
+    warn = ""
+    if skipped:
+        warn = " " + _("Advertencia: %(n)s entregas sin asignar (capacidad o ventana horaria).") % {
+            "n": len(skipped)
+        }
+
+    if nv > 1:
+        batch_orders = _apply_multi_vehicle_routes(env, batch, node_routes, picking_ids_order)
+        msg = _("VRP aplicado (Google): %(v)s vehículos.") % {"v": nv} + warn
+        for i, (b, pids) in enumerate(batch_orders):
+            if i == 0:
+                _write_optimization_result(b, msg, pids)
+            else:
+                _write_optimization_result(b, _("Ruta optimizada para este vehículo (Google)."), pids)
         return {"message": msg}
 
+    ordered_ids = [
+        picking_ids_order[i - 1] for i in node_routes[0]["node_indices"] if i != 0
+    ]
+    _apply_order_single_batch(batch, ordered_ids)
+    msg = _("Ruta optimizada con Google (%(n)s paradas).") % {"n": len(ordered_ids)} + warn
+    _write_optimization_result(batch, msg, ordered_ids)
+    return {"message": msg}
+
+
+def _run_simple_api(batch, table, n, nv, picking_ids_order, ortools_url, timeout, ortools_api_key):
+    """Call the minimal /optimize endpoint (single vehicle, distance matrix)."""
+    if nv > 1:
+        raise UserError(
+            _(
+                "La API simple de OR-Tools solo soporta un vehículo. "
+                "Poné Vehículos en 1, o desactivá «API simple de OR-Tools» en Ajustes "
+                "para usar la API extendida (/vrp) con multi-vehículo."
+            )
+        )
+    dist_m = table["distances"]
+    if len(dist_m) != n or any(len(row) != n for row in dist_m):
+        raise UserError(_("El tamaño de la matriz de distancias de OSRM no coincide con la cantidad de nodos."))
+    matrix_int = _matrix_to_int_meters(dist_m)
+    depot_label = "__ODOO_DEPOT__"
+    locations = [depot_label] + [f"P{pid}" for pid in picking_ids_order]
+    try:
+        result = ortools_client.solve_simple_distance_api(
+            ortools_url, locations, matrix_int, timeout=timeout, api_key=ortools_api_key
+        )
+    except ortools_client.OrtoolsServiceError as e:
+        raise UserError(_("Error del servicio OR-Tools: %s") % str(e)) from e
+    ordered_ids = _ordered_pickings_from_simple_route(result, depot_label, picking_ids_order)
+    _apply_order_single_batch(batch, ordered_ids)
+    msg = _("Ruta optimizada (%(n)s paradas, distancia).") % {"n": len(ordered_ids)}
+    _write_optimization_result(batch, msg, ordered_ids)
+    return {"message": msg}
+
+
+def _build_vrp_payload(
+    table,
+    n,
+    nv,
+    picking_ids_order,
+    demands_weight,
+    demands_volume,
+    vehicle_capacity,
+    vehicle_volume_capacity,
+    max_stops_per_vehicle,
+    max_route_duration_minutes,
+    use_duration,
+):
+    """Assemble the JSON payload for the extended /vrp endpoint."""
     matrix = table["durations"] if use_duration else table["distances"]
     metric = "duration" if use_duration else "distance"
 
     if len(matrix) != n or any(len(row) != n for row in matrix):
-        raise UserError(_("OSRM matrix size does not match the number of nodes."))
+        raise UserError(_("El tamaño de la matriz de OSRM no coincide con la cantidad de nodos."))
 
-    capacities_weight = []
     if vehicle_capacity and vehicle_capacity > 0:
         capacities_weight = [float(vehicle_capacity)] * nv
     else:
-        # Large default so capacity does not bind unless service requires it
         total_demand = sum(demands_weight[1:])
         capacities_weight = [max(total_demand * 2, 1.0)] * nv
 
-    capacities_volume = []
     if vehicle_volume_capacity and vehicle_volume_capacity > 0:
         capacities_volume = [float(vehicle_volume_capacity)] * nv
     else:
         total_vol = sum(demands_volume[1:])
-        # Large default so volume does not bind unless service requires it
         capacities_volume = [max(total_vol * 2, 0.000001)] * nv
 
     payload = {
@@ -281,7 +573,7 @@ def optimize_batch(
         # Backward-compatible keys (weight)
         "demands": demands_weight,
         "vehicle_capacities": capacities_weight,
-        # New explicit keys (recommended)
+        # Explicit keys (recommended)
         "demands_weight": demands_weight,
         "vehicle_capacities_weight": capacities_weight,
         "demands_volume": demands_volume,
@@ -289,7 +581,6 @@ def optimize_batch(
         "picking_ids": picking_ids_order,
     }
 
-    # Optional hard limits / constraints
     try:
         ms = int(max_stops_per_vehicle) if max_stops_per_vehicle else 0
     except (TypeError, ValueError):
@@ -304,128 +595,117 @@ def optimize_batch(
     if mmins > 0:
         payload["max_route_duration_seconds"] = mmins * 60
 
-    # Optional partner delivery time windows (OCA stock_partner_delivery_window)
-    # We only send them when:
-    # - The partner model provides the fields (module installed)
-    # - Batch has scheduled_date
-    # - We are optimizing by duration (time windows depend on travel time)
-    if use_duration and batch.scheduled_date and "delivery_time_preference" in env["res.partner"]._fields:
-        try:
-            route_dt = fields.Datetime.to_datetime(batch.scheduled_date)
-        except Exception:
-            route_dt = None
-        if route_dt:
-            # use company/user timezone to pick weekday consistently
-            tzname = env.user.tz or env.company.partner_id.tz or "UTC"
-            tz = pytz.timezone(tzname)
-            # Odoo stores datetimes as naive UTC in many contexts; treat as UTC when naive.
-            if route_dt.tzinfo is None:
-                route_dt = pytz.utc.localize(route_dt)
-            local_dt = route_dt.astimezone(tz)
-            weekday = local_dt.weekday()
+    return payload, metric
 
-            partners = env["res.partner"].browse([s["partner"].id for s in stops]).exists()
-            windows_by_partner = {}
-            if hasattr(partners, "get_delivery_windows"):
-                windows_by_partner = partners.get_delivery_windows(weekday) or {}
 
-            def _time_to_seconds(t):
-                if isinstance(t, datetime.time):
-                    return int(t.hour * 3600 + t.minute * 60 + t.second)
-                return None
+def _run_vrp_api(
+    env,
+    batch,
+    table,
+    n,
+    nv,
+    picking_ids_order,
+    demands_weight,
+    demands_volume,
+    vehicle_capacity,
+    vehicle_volume_capacity,
+    max_stops_per_vehicle,
+    max_route_duration_minutes,
+    use_duration,
+    ortools_url,
+    timeout,
+    ortools_api_key,
+    icp,
+    stops,
+):
+    """Call the extended /vrp endpoint and apply results to the batch."""
+    payload, metric = _build_vrp_payload(
+        table,
+        n,
+        nv,
+        picking_ids_order,
+        demands_weight,
+        demands_volume,
+        vehicle_capacity,
+        vehicle_volume_capacity,
+        max_stops_per_vehicle,
+        max_route_duration_minutes,
+        use_duration,
+    )
 
-            time_windows = [[0, 24 * 3600]]  # depot (wide)
-            for s in stops:
-                p = s["partner"]
-                # default: wide window
-                tw = [0, 24 * 3600]
-                try:
-                    pref = p.delivery_time_preference
-                except Exception:
-                    pref = "anytime"
-                if pref == "time_windows":
-                    wset = windows_by_partner.get(p.id)
-                    if wset:
-                        starts = []
-                        ends = []
-                        for w in wset:
-                            st = None
-                            en = None
-                            if hasattr(w, "get_time_window_start_time"):
-                                st = _time_to_seconds(w.get_time_window_start_time())
-                            if hasattr(w, "get_time_window_end_time"):
-                                en = _time_to_seconds(w.get_time_window_end_time())
-                            # fallback: common float fields on OCA models
-                            if st is None and "time_window_start" in w._fields:
-                                try:
-                                    st = int(round(float(w.time_window_start) * 3600))
-                                except Exception:
-                                    st = None
-                            if en is None and "time_window_end" in w._fields:
-                                try:
-                                    en = int(round(float(w.time_window_end) * 3600))
-                                except Exception:
-                                    en = None
-                            if st is not None and en is not None:
-                                starts.append(st)
-                                ends.append(en)
-                        if starts and ends:
-                            # union of multiple windows: allows deliveries in gaps,
-                            # but keeps the route within the overall preferred span.
-                            tw = [min(starts), max(ends)]
-                elif pref == "workdays":
-                    # If scheduled_date is on weekend, we do not hard-fail: we ignore the restriction.
-                    if weekday > 4:
-                        tw = [0, 24 * 3600]
-                time_windows.append(tw)
-
-            payload["time_windows"] = time_windows
+    # OCA stock_partner_delivery_window: time windows per stop (requires duration matrix).
+    if use_duration:
+        time_payload = delivery_windows.build_vrp_time_payload(env, batch, stops, icp)
+        if time_payload:
+            payload.update(time_payload)
 
     try:
         result = ortools_client.solve_vrp(ortools_url, payload, timeout=timeout, api_key=ortools_api_key)
     except ortools_client.OrtoolsServiceError as e:
-        raise UserError(_("OR-Tools service error: %s") % str(e)) from e
+        msg = str(e)
+        if "No solution" in msg:
+            active = []
+            if payload.get("max_stops_per_vehicle"):
+                active.append(
+                    _("máx. %s paradas/vehículo") % payload["max_stops_per_vehicle"]
+                )
+            if payload.get("max_route_duration_seconds"):
+                active.append(
+                    _("duración máx. %s min") % (payload["max_route_duration_seconds"] // 60)
+                )
+            if payload.get("time_windows") or payload.get("time_windows_list"):
+                active.append(_("ventanas horarias de clientes"))
+            if vehicle_capacity and vehicle_capacity > 0:
+                active.append(_("capacidad de peso"))
+            if vehicle_volume_capacity and vehicle_volume_capacity > 0:
+                active.append(_("capacidad de volumen"))
+            hint = (
+                _(
+                    "\n\nEl solver no encontró ninguna combinación que cumpla todas las "
+                    "restricciones activas: %(active)s.\n"
+                    "Probá relajando de a una (subir paradas/duración, quitar capacidades, "
+                    "o desactivar «Respetar ventanas horarias» en Ajustes) para identificar "
+                    "cuál la hace imposible."
+                )
+                % {"active": ", ".join(active) if active else _("ninguna")}
+            )
+            raise UserError(_("Error del servicio OR-Tools: %s") % (msg + hint)) from e
+        raise UserError(_("Error del servicio OR-Tools: %s") % msg) from e
 
     routes = result.get("routes") or []
 
-    # Multi-vehicle: prefer structured routes when num_vehicles > 1
     if nv > 1 and routes:
         batch_orders = _apply_multi_vehicle_routes(env, batch, routes, picking_ids_order)
-        msg = _("VRP applied: %(v)s vehicles, metric %(metric)s.") % {"v": nv, "metric": metric}
+        msg = _("VRP aplicado: %(v)s vehículos, métrica %(metric)s.") % {"v": nv, "metric": metric}
         for i, (b, pids) in enumerate(batch_orders):
             if i == 0:
                 _write_optimization_result(b, msg, pids)
             else:
-                _write_optimization_result(
-                    b,
-                    _("Optimized route for this vehicle (VRP)."),
-                    pids,
-                )
+                _write_optimization_result(b, _("Ruta optimizada para este vehículo (VRP)."), pids)
         return {"message": msg}
 
     if result.get("ordered_picking_ids"):
         ordered_ids = [int(x) for x in result["ordered_picking_ids"]]
         _apply_order_single_batch(batch, ordered_ids)
-        msg = _("Route optimized (%(n)s stops, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}
+        msg = _("Ruta optimizada (%(n)s paradas, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}
         _write_optimization_result(batch, msg, ordered_ids)
         return {"message": msg}
 
     if routes:
         nodes = routes[0].get("node_indices") or routes[0].get("nodes") or []
-        ordered_ids = []
-        for idx in nodes:
-            if idx == 0:
-                continue
-            if 1 <= idx < len(picking_ids_order) + 1:
-                ordered_ids.append(picking_ids_order[idx - 1])
+        ordered_ids = [
+            picking_ids_order[idx - 1]
+            for idx in nodes
+            if idx != 0 and 1 <= idx < len(picking_ids_order) + 1
+        ]
         if ordered_ids:
             _apply_order_single_batch(batch, ordered_ids)
-            msg = _("Route optimized (%(n)s stops, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}
+            msg = _("Ruta optimizada (%(n)s paradas, %(metric)s).") % {"n": len(ordered_ids), "metric": metric}
             _write_optimization_result(batch, msg, ordered_ids)
             return {"message": msg}
 
     raise UserError(
-        _("Could not interpret OR-Tools response. Expected ordered_picking_ids or routes.")
+        _("No se pudo interpretar la respuesta de OR-Tools. Se esperaba ordered_picking_ids o routes.")
     )
 
 
@@ -454,7 +734,7 @@ def _ordered_pickings_from_simple_route(result, depot_label, picking_ids_order):
         route = result.get("route")
     if not route:
         raise UserError(
-            _("Could not interpret OR-Tools response: missing optimized_route (or route).")
+            _("No se pudo interpretar la respuesta de OR-Tools: falta optimized_route (o route).")
         )
     label_to_id = {f"P{pid}": pid for pid in picking_ids_order}
     ordered_ids = []
@@ -476,16 +756,21 @@ def _format_visit_order_display(env, ordered_picking_ids):
     """Human-readable numbered lines for the batch form (visit order)."""
     if not ordered_picking_ids:
         return ""
+    # Single browse + exists() so the ORM prefetches all records in one query.
+    existing = env["stock.picking"].browse(ordered_picking_ids).exists()
+    by_id = {p.id: p for p in existing}
     lines = []
-    for idx, pid in enumerate(ordered_picking_ids, start=1):
-        picking = env["stock.picking"].browse(pid)
-        if not picking.exists():
+    pos = 0
+    for pid in ordered_picking_ids:
+        picking = by_id.get(pid)
+        if not picking:
             continue
+        pos += 1
         partner = picking.partner_id.display_name if picking.partner_id else ""
         ref = picking.name or str(picking.id)
         lines.append(
             _("%(pos)s. %(picking)s — %(partner)s")
-            % {"pos": idx, "picking": ref, "partner": partner}
+            % {"pos": pos, "picking": ref, "partner": partner}
         )
     return "\n".join(lines)
 
@@ -504,11 +789,13 @@ def _write_optimization_result(batch, message, ordered_picking_ids):
 
 def _apply_order_single_batch(batch, ordered_picking_ids):
     """Set batch_sequence on pickings following optimized order."""
+    by_id = {p.id: p for p in batch.picking_ids}
     seq = 10
     for pid in ordered_picking_ids:
-        picking = batch.picking_ids.filtered(lambda p, pid=pid: p.id == pid)
+        picking = by_id.get(pid)
         if picking:
-            picking.write({"batch_sequence": seq})
+            if picking.batch_sequence != seq:
+                picking.write({"batch_sequence": seq})
             seq += 10
 
 
@@ -529,7 +816,7 @@ def _apply_multi_vehicle_routes(env, original_batch, routes, picking_ids_order):
     # Keep only routes that actually carry at least one stop.
     vehicle_routes = [r for r in vehicle_routes if r]
     if not vehicle_routes:
-        raise UserError(_("Empty routes from OR-Tools."))
+        raise UserError(_("OR-Tools devolvió rutas vacías."))
 
     batch_orders = []
 
