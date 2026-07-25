@@ -3,13 +3,21 @@
     <record id="stock_picking_type_form_delivery_zone" model="ir.ui.view">
         <field name="name">stock.picking.type.form.delivery_zone</field>
         <field name="model">stock.picking.type</field>
-        <field name="inherit_id" ref="stock_picking_batch.stock_picking_type_view_form"/>
+        <field name="inherit_id" ref="stock_picking_batch.view_picking_type_form_inherit"/>
         <field name="arch" type="xml">
-            <!-- Se agrega como un criterio más de "Agrupación por lotes", junto a
-                 Contacto / País de destino / Ubicaciones. -->
-            <field name="batch_group_by_partner" position="after">
-                <field name="batch_group_by_delivery_zone"/>
-            </field>
+            <!-- El bloque "Batch Grouping" es un group de 2 columnas: cada criterio son
+                 dos nodos (un span espaciador + un div con field y label). Se replica esa
+                 estructura para que la grilla no se desalinee. -->
+            <xpath expr="//div[@name='batch_destination']" position="after">
+                <span invisible="not auto_batch"/>
+                <div name="batch_delivery_zone" class="o_row" invisible="not auto_batch">
+                    <field name="batch_group_by_geo_delivery_zone"/>
+                    <label
+                        for="batch_group_by_geo_delivery_zone"
+                        string="Zona de entrega"
+                    />
+                </div>
+            </xpath>
         </field>
     </record>
 </odoo>

@@ -6,27 +6,27 @@ from odoo.exceptions import UserError
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    delivery_zone_id = fields.Many2one(
+    geo_delivery_zone_id = fields.Many2one(
         "delivery.zone",
         string="Zona de entrega",
         index=True,
         help="Zona asignada a esta dirección. Si se deja vacía en una dirección de "
         "entrega, se usa la del contacto principal.",
     )
-    delivery_zone_effective_id = fields.Many2one(
+    geo_delivery_zone_effective_id = fields.Many2one(
         "delivery.zone",
         string="Zona efectiva",
-        compute="_compute_delivery_zone_effective_id",
+        compute="_compute_geo_delivery_zone_effective_id",
         help="Zona propia; si está vacía, la del contacto principal.",
     )
 
-    @api.depends("delivery_zone_id", "parent_id.delivery_zone_id")
-    def _compute_delivery_zone_effective_id(self):
+    @api.depends("geo_delivery_zone_id", "parent_id.geo_delivery_zone_id")
+    def _compute_geo_delivery_zone_effective_id(self):
         for partner in self:
-            zone = partner.delivery_zone_id
+            zone = partner.geo_delivery_zone_id
             if not zone and partner.parent_id:
-                zone = partner.parent_id.delivery_zone_id
-            partner.delivery_zone_effective_id = zone
+                zone = partner.parent_id.geo_delivery_zone_id
+            partner.geo_delivery_zone_effective_id = zone
 
     def action_delivery_zone_detect(self):
         """Detecta la zona por geolocalización contra los polígonos de My Maps."""
@@ -55,7 +55,7 @@ class ResPartner(models.Model):
                 continue
             zone = zone_model.find_zone_for_point(lngf, latf)
             if zone:
-                partner.delivery_zone_id = zone.id
+                partner.geo_delivery_zone_id = zone.id
                 detected += 1
             else:
                 no_match.append(partner.display_name)

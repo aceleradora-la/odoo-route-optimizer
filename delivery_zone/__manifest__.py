@@ -41,6 +41,7 @@ Requisitos
     "data": [
         "security/ir.model.access.csv",
         "data/delivery_zone_server_actions.xml",
+        "report/stock_picking_reports.xml",
         "views/delivery_zone_views.xml",
         "views/res_config_settings_views.xml",
         "views/res_partner_views.xml",

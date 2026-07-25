@@ -7,7 +7,7 @@
         <field name="inherit_id" ref="stock.view_picking_form"/>
         <field name="arch" type="xml">
             <field name="scheduled_date" position="after">
-                <field name="delivery_zone_id" options="{'no_create': True}"/>
+                <field name="geo_delivery_zone_id" options="{'no_create': True}"/>
             </field>
         </field>
     </record>
@@ -18,7 +18,7 @@
         <field name="inherit_id" ref="stock.vpicktree"/>
         <field name="arch" type="xml">
             <field name="partner_id" position="after">
-                <field name="delivery_zone_id" optional="show"/>
+                <field name="geo_delivery_zone_id" optional="show"/>
             </field>
         </field>
     </record>
@@ -29,13 +29,13 @@
         <field name="inherit_id" ref="stock.view_picking_internal_search"/>
         <field name="arch" type="xml">
             <field name="partner_id" position="after">
-                <field name="delivery_zone_id"/>
+                <field name="geo_delivery_zone_id"/>
             </field>
             <group position="inside">
                 <filter
                     name="group_delivery_zone"
                     string="Zona de entrega"
-                    context="{'group_by': 'delivery_zone_id'}"
+                    context="{'group_by': 'geo_delivery_zone_id'}"
                 />
             </group>
         </field>

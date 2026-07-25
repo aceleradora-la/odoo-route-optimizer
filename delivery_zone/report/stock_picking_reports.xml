@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Zona de entrega en el remito, junto a Pedido / Fecha de envío.
+         Se ancla en el bloque id="informations" del reporte estándar de Odoo
+         (addons/stock/report/report_deliveryslip.xml), sin depender de stock_ux. -->
+    <template
+        id="report_delivery_document_delivery_zone"
+        inherit_id="stock.report_delivery_document"
+    >
+        <xpath expr="//div[@id='informations']" position="inside">
+            <div
+                t-if="o.geo_delivery_zone_id"
+                class="col col-3 mw-100 mb-2"
+                name="div_delivery_zone"
+            >
+                <strong>Zona de entrega</strong>
+                <div t-field="o.geo_delivery_zone_id" class="m-0"/>
+            </div>
+        </xpath>
+    </template>
+</odoo>
