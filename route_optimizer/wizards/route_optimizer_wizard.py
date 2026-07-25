@@ -2,51 +2,52 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-from ..services.route_service import optimize_batch
+from ..services import delivery_windows
+from ..services.route_service import _param_bool, optimize_batch
 
 
 class RouteOptimizerWizard(models.TransientModel):
     _name = "route.optimizer.wizard"
-    _description = "Optimize delivery route (OSRM + OR-Tools)"
+    _description = "Optimizar ruta de entrega (OSRM + OR-Tools)"
 
     batch_id = fields.Many2one(
         "stock.picking.batch",
-        string="Batch transfer",
+        string="Traslado por lote",
         required=True,
         ondelete="cascade",
     )
     num_vehicles = fields.Integer(
-        string="Vehicles",
+        string="Vehículos",
         default=1,
-        help="Number of vehicles for the VRP. 1 = reorder stops within this batch only.",
+        help="Cantidad de vehículos para el VRP. 1 = solo reordenar las paradas dentro de este lote.",
     )
     use_duration = fields.Boolean(
-        string="Optimize by duration",
+        string="Optimizar por duración",
         default=True,
-        help="If enabled, use travel time matrix; otherwise use distance.",
+        help="Si está activo, usa la matriz de tiempos de viaje; si no, la de distancias.",
     )
     depot_partner_id = fields.Many2one(
         "res.partner",
-        string="Depot address",
-        help="Defaults to warehouse address. Used as start/end for routing.",
+        string="Dirección del depósito",
+        help="Por defecto, la dirección del almacén. Se usa como inicio/fin de la ruta.",
     )
     vehicle_capacity = fields.Float(
-        string="Vehicle capacity",
-        help="Optional max capacity per vehicle (same unit as transfer weight). "
-        "Leave empty to use a non-binding default in the solver.",
+        string="Capacidad del vehículo",
+        help="Capacidad máxima opcional por vehículo (misma unidad que el peso del traslado). "
+        "Dejar vacío para usar un valor no restrictivo en el solver.",
     )
     vehicle_volume_capacity = fields.Float(
-        string="Vehicle volume capacity",
-        help="Optional max volume capacity per vehicle (same unit as transfer volume, usually m³). "
-        "Leave empty to use a non-binding default in the solver.",
+        string="Capacidad de volumen del vehículo",
+        help="Capacidad máxima de volumen opcional por vehículo (misma unidad que el volumen del "
+        "traslado, normalmente m³). Dejar vacío para usar un valor no restrictivo en el solver.",
     )
     max_stops_per_vehicle = fields.Integer(
-        string="Max stops per vehicle",
-        help="Optional hard limit to force splitting stops across vehicles.",
+        string="Máx. paradas por vehículo",
+        help="Límite duro opcional para forzar la división de paradas entre vehículos.",
     )
     max_route_duration_minutes = fields.Integer(
-        string="Max route duration (minutes)",
-        help="Optional hard limit per vehicle route duration (requires duration optimization).",
+        string="Duración máx. de ruta (minutos)",
+        help="Límite duro opcional de duración por ruta de vehículo (requiere optimizar por duración).",
     )
 
     @api.onchange("batch_id")
@@ -61,7 +62,27 @@ class RouteOptimizerWizard(models.TransientModel):
     def action_optimize(self):
         self.ensure_one()
         if self.num_vehicles < 1:
-            raise UserError(_("Number of vehicles must be at least 1."))
+            raise UserError(_("La cantidad de vehículos debe ser al menos 1."))
+        if self.use_duration:
+            pickings = self.batch_id.picking_ids.filtered(lambda p: p.state != "cancel")
+            stops = [
+                {"picking": p, "partner": p._route_optimizer_delivery_partner()}
+                for p in pickings
+                if p._route_optimizer_delivery_partner()
+            ]
+            warnings = delivery_windows.validate_stops_delivery_windows(
+                self.env, self.batch_id, stops
+            )
+            if warnings:
+                icp = self.env["ir.config_parameter"].sudo()
+                block = _param_bool(
+                    icp.get_param("route_optimizer.block_outside_windows", "False"),
+                    default=False,
+                )
+                body = _("Advertencias de ventana horaria:\n") + "\n".join(f"• {w}" for w in warnings)
+                if block:
+                    raise UserError(body)
+                self.batch_id.message_post(body=body)
         res = optimize_batch(
             self.env,
             self.batch_id,

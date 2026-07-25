@@ -1,21 +1,20 @@
+
 # Byte-compiled / optimized
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-
-# Odoo
-*.pyc
-.pytest_cache/
-.coverage
-htmlcov/
-
 # Editors
-.idea/
-.vscode/
+# OS
+# Odoo
+*$py.class
+*.py[cod]
+*.pyc
+*.so
 *.swp
 *~
-
-# OS
 .DS_Store
+.coverage
+.idea/
+.pytest_cache/
+.vscode/
 Thumbs.db
+__pycache__/
+htmlcov/
+tools/rng/

@@ -1,0 +1,52 @@
+<section style="max-width: 875px; margin: 0 auto; font-family: sans-serif; color: #333;">
+    <div style="text-align: center; padding: 24px 0;">
+        <h1 style="color: #214263; margin-bottom: 8px;">Optimizador de Rutas de Entrega</h1>
+        <p style="font-size: 18px; color: #666;">OSRM + Google OR-Tools para traslados por lote</p>
+    </div>
+
+    <div style="background: #f5f7fa; border-radius: 8px; padding: 20px 24px; margin-bottom: 24px;">
+        <p style="font-size: 15px; line-height: 1.6; margin: 0;">
+            Optimizá el orden de visita de las entregas de un lote con un click.
+            El módulo consulta un servidor <strong>OSRM</strong> para calcular las matrices de
+            distancia y tiempo reales de manejo, y resuelve el problema de ruteo (VRP) con
+            <strong>Google OR-Tools</strong> mediante un microservicio Docker incluido en el repositorio.
+        </p>
+    </div>
+
+    <h2 style="color: #214263;">Funcionalidades</h2>
+    <ul style="font-size: 15px; line-height: 1.9;">
+        <li><strong>Optimización con un click</strong> desde el traslado por lote</li>
+        <li><strong>Multi-vehículo:</strong> divide el lote en varios lotes, uno por vehículo</li>
+        <li><strong>Capacidades:</strong> restricciones de peso y volumen por vehículo</li>
+        <li><strong>Ventanas horarias</strong> por cliente (integración con OCA <em>stock_partner_delivery_window</em>)</li>
+        <li><strong>Límites duros:</strong> máximo de paradas y duración máxima por ruta</li>
+        <li><strong>Hoja de Ruta PDF</strong> con QR de Google Maps, teléfonos, resumen de productos, ventanas horarias y bloque de firma</li>
+        <li><strong>Compartir por WhatsApp:</strong> mensaje pre-armado con las paradas y el link de la ruta</li>
+        <li><strong>Google Maps:</strong> link directo con todas las paradas en el orden optimizado</li>
+    </ul>
+
+    <h2 style="color: #214263;">Cómo funciona</h2>
+    <ol style="font-size: 15px; line-height: 1.9;">
+        <li>Creá un traslado por lote con las entregas del día</li>
+        <li>Hacé click en <strong>Optimizar ruta</strong> y elegí vehículos, depósito y capacidades</li>
+        <li>El sistema ordena las paradas minimizando tiempo o distancia</li>
+        <li>Imprimí la <strong>Hoja de Ruta</strong> o compartila por <strong>WhatsApp</strong> con el transportista</li>
+    </ol>
+
+    <h2 style="color: #214263;">Requisitos</h2>
+    <ul style="font-size: 15px; line-height: 1.9;">
+        <li>Servidor <strong>OSRM</strong> accesible (Docker, ver manual de deployment)</li>
+        <li>Microservicio <strong>OR-Tools</strong> incluido (carpeta <code>ortools_service</code>, deploy con docker-compose)</li>
+        <li>Contactos geolocalizados (<em>base_geolocalize</em>)</li>
+    </ul>
+
+    <h2 style="color: #214263;">Módulo complementario</h2>
+    <p style="font-size: 15px; line-height: 1.6;">
+        <strong>Route Optimizer — Fleet bridge:</strong> agrega el vehículo de Flota al asistente
+        y precarga las capacidades de peso/volumen desde la categoría del vehículo.
+    </p>
+
+    <div style="text-align: center; padding: 20px; color: #999; font-size: 13px;">
+        Licencia LGPL-3 · <a href="https://github.com/aceleradora-la/odoo-route-optimizer">GitHub</a>
+    </div>
+</section>

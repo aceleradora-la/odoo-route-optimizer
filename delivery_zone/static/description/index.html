@@ -1,0 +1,45 @@
+<section style="max-width: 875px; margin: 0 auto; font-family: sans-serif; color: #333;">
+    <div style="text-align: center; padding: 24px 0;">
+        <h1 style="color: #15655C; margin-bottom: 8px;">Zonas de Entrega</h1>
+        <p style="font-size: 18px; color: #666;">Agrupá y filtrá entregas por zona geográfica</p>
+    </div>
+
+    <div style="background: #f2f7f6; border-radius: 8px; padding: 20px 24px; margin-bottom: 24px;">
+        <p style="font-size: 15px; line-height: 1.6; margin: 0;">
+            Asigná una <strong>zona de entrega</strong> a cada contacto — a mano o
+            <strong>autodetectada</strong> según su geolocalización contra un mapa de
+            <strong>Google My Maps</strong>. Después filtrá las órdenes de entrega por zona
+            y dejá que Odoo arme los lotes agrupando por zona automáticamente.
+        </p>
+    </div>
+
+    <h2 style="color: #15655C;">Funcionalidades</h2>
+    <ul style="font-size: 15px; line-height: 1.9;">
+        <li><strong>Tabla de zonas</strong> configurable (Inventario → Configuración → Zonas de entrega)</li>
+        <li><strong>Autodetección desde Google My Maps</strong>: dibujás las zonas como polígonos en tu mapa y el módulo detecta en cuál cae cada contacto</li>
+        <li><strong>Sin API key ni cuenta de Google</strong>: se lee el KML del mapa compartido por enlace</li>
+        <li><strong>Herencia de zona</strong>: si una dirección de entrega no tiene zona propia, usa la del contacto principal</li>
+        <li><strong>Filtro y agrupación</strong> por zona en las órdenes de entrega y en contactos</li>
+        <li><strong>Lotes automáticos por zona</strong>: nueva opción en la agrupación del Tipo de Operación, junto a Contacto y País de destino</li>
+        <li><strong>Detección masiva</strong>: acción sobre una selección de contactos</li>
+    </ul>
+
+    <h2 style="color: #15655C;">Cómo se usa</h2>
+    <ol style="font-size: 15px; line-height: 1.9;">
+        <li>Creá un mapa en <a href="https://www.google.com/mymaps">Google My Maps</a> y dibujá las zonas como polígonos</li>
+        <li>Compartilo como «cualquiera con el enlace» y copiá la URL</li>
+        <li>Pegala en Ajustes → Inventario → Zonas de entrega y hacé click en <strong>Sincronizar zonas</strong></li>
+        <li>Geolocalizá tus contactos y usá <strong>Detectar zona</strong> (individual o masivo)</li>
+        <li>En el Tipo de Operación de entregas, tildá <strong>Zona de entrega</strong> en la agrupación por lotes</li>
+    </ol>
+
+    <h2 style="color: #15655C;">Requisitos</h2>
+    <ul style="font-size: 15px; line-height: 1.9;">
+        <li>Contactos geolocalizados (<em>base_geolocalize</em>) para la autodetección</li>
+        <li>Traslados por lote (<em>stock_picking_batch</em>)</li>
+    </ul>
+
+    <div style="text-align: center; padding: 20px; color: #999; font-size: 13px;">
+        Licencia LGPL-3 · <a href="https://github.com/aceleradora-la/odoo-route-optimizer">GitHub</a>
+    </div>
+</section>

@@ -261,8 +261,52 @@ msgid "OR-Tools service"
 msgstr "Servicio OR-Tools"
 
 #. module: route_optimizer
-msgid "Base URL (IP:port) or full endpoint. Odoo will automatically use /optimize when Simple OR-Tools API is enabled, or /vrp when disabled. If you paste a full URL with /optimize or /vrp it will be respected when it matches the selected mode. For delivery time windows (OCA stock_partner_delivery_window), Odoo uses the batch Scheduled date to pick the weekday and sends a single [start,end] window per stop (union of multiple windows)."
-msgstr "URL base (IP:puerto) o endpoint completo. Odoo usará automáticamente /optimize cuando la API simple esté activa, o /vrp cuando esté desactivada. Si pegás una URL completa con /optimize o /vrp se respeta cuando coincide con el modo seleccionado. Para ventanas horarias de entrega (OCA stock_partner_delivery_window), Odoo usa la Fecha programada del lote para elegir el día de la semana y envía una sola ventana [inicio,fin] por parada (unión de múltiples ventanas)."
+msgid "Base URL (IP:port) or full endpoint. Odoo adds /optimize or /vrp automatically. With OCA delivery windows and duration optimization, each stop uses its transfer scheduled date (weekday and time) and partner windows are sent to /vrp."
+msgstr "URL base (IP:puerto) o endpoint completo. Odoo agrega /optimize o /vrp automáticamente. Con ventanas OCA y optimización por duración, cada parada usa la fecha programada del traslado (día y hora) y las ventanas del contacto se envían a /vrp."
+
+#. module: route_optimizer
+msgid "Respect partner delivery windows"
+msgstr "Respetar ventanas de entrega del contacto"
+
+#. module: route_optimizer
+msgid "When OCA «Stock Partner Delivery Window» is installed, send time windows to the OR-Tools /vrp service (requires «Optimize by duration»)."
+msgstr "Con el módulo OCA instalado, envía ventanas horarias al servicio OR-Tools /vrp (requiere «Optimizar por duración»)."
+
+#. module: route_optimizer
+msgid "Route departure hour"
+msgstr "Hora de salida de la ruta"
+
+#. module: route_optimizer
+msgid "Local time when vehicles leave the depot (0–24). Used with partner time windows."
+msgstr "Hora local de salida del depósito (0–24). Se usa junto con las ventanas del contacto."
+
+#. module: route_optimizer
+msgid "Service time per stop (seconds)"
+msgstr "Tiempo de atención por parada (segundos)"
+
+#. module: route_optimizer
+msgid "Estimated time at each customer stop, added to the travel time dimension."
+msgstr "Tiempo estimado en cada cliente, sumado a la dimensión de viaje."
+
+#. module: route_optimizer
+msgid "Block optimization outside windows"
+msgstr "Bloquear optimización fuera de ventana"
+
+#. module: route_optimizer
+msgid "If enabled, refuse to optimize when a transfer scheduled date/time is outside the customer delivery window (OCA rules)."
+msgstr "Si está activo, no optimiza cuando la fecha/hora programada del traslado está fuera de la ventana del contacto (reglas OCA)."
+
+#. module: route_optimizer
+msgid "Delivery window warnings:"
+msgstr "Advertencias de ventana de entrega:"
+
+#. module: route_optimizer
+msgid "%(picking)s — %(partner)s: planned delivery %(when)s is outside the partner delivery window."
+msgstr "%(picking)s — %(partner)s: la entrega programada %(when)s está fuera de la ventana del contacto."
+
+#. module: route_optimizer
+msgid "Cannot optimize: the following deliveries are scheduled on a non-working day for partners set to «Weekdays» only:\n%(stops)s\nAdjust the scheduled date on the transfer or the partner preference."
+msgstr "No se puede optimizar: las siguientes entregas están en un día no laborable para contactos con preferencia «Solo días laborables»:\n%(stops)s\nAjuste la fecha programada del traslado o la preferencia del contacto."
 
 #. module: route_optimizer
 msgid "Address"

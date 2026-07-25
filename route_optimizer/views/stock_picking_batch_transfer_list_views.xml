@@ -7,10 +7,10 @@
         <field name="inherit_id" ref="stock_picking_batch.stock_picking_view_batch_tree_ref"/>
         <field name="arch" type="xml">
             <field name="batch_sequence" position="attributes">
-                <attribute name="string">Visit order</attribute>
+                <attribute name="string">Orden de visita</attribute>
             </field>
             <field name="batch_sequence" position="after">
-                <field name="route_optimizer_delivery_address" string="Address" optional="hide"/>
+                <field name="route_optimizer_delivery_address" string="Dirección" optional="hide"/>
             </field>
         </field>
     </record>

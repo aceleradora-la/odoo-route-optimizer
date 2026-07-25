@@ -7,8 +7,8 @@ class RouteOptimizerWizard(models.TransientModel):
 
     fleet_vehicle_id = fields.Many2one(
         "fleet.vehicle",
-        string="Fleet vehicle",
-        help="Optional link for traceability; set capacity below for the solver.",
+        string="Vehículo de flota",
+        help="Vínculo opcional para trazabilidad; definí la capacidad más abajo para el solver.",
     )
 
     @staticmethod
@@ -36,6 +36,12 @@ class RouteOptimizerWizard(models.TransientModel):
 
         We look in this order: vehicle → type → model → category.
         This keeps the bridge compatible with different localizations/custom modules.
+
+        The field lists below are intentionally heuristic: Odoo and its localizations
+        use many different naming conventions for vehicle payload capacity (weight_capacity,
+        capacity, x_payload, etc.). Adding a new field name here is safe — it only fires
+        when no earlier candidate matched. To guarantee a specific field is used, add it
+        to the top of the relevant candidates list.
         """
         # Prefer weight-based capacity first (Odoo sends demands based on shipping_weight).
         candidates = [
@@ -48,7 +54,6 @@ class RouteOptimizerWizard(models.TransientModel):
             "max_load",
             "payload",
             "max_weight",
-            "weight_capacity",
             "route_optimizer_capacity",
             # studio-style fields (common in real dbs)
             "x_capacity",

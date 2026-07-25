@@ -5,38 +5,118 @@
             <t t-foreach="docs" t-as="o">
                 <t t-call="web.external_layout">
                     <div class="page">
-                        <h2><span t-esc="env._('Delivery route')"/> — <span t-field="o.name"/></h2>
-                        <p t-if="o.user_id">
-                            <strong><span t-esc="env._('Responsible')"/>:</strong>
-                            <span t-field="o.user_id"/>
-                        </p>
-                        <p t-if="o.scheduled_date">
-                            <strong><span t-esc="env._('Scheduled')"/>:</strong>
-                            <span t-field="o.scheduled_date"/>
-                        </p>
-                        <table class="table table-sm o_main_table mt-3">
+
+                        <!-- Encabezado -->
+                        <div class="row mb-1">
+                            <div class="col-9">
+                                <h2 style="margin-bottom:4px;">
+                                    Hoja de Ruta — <span t-field="o.name"/>
+                                </h2>
+                                <t t-set="visit_pickings" t-value="o._route_optimizer_pickings_visit_order().filtered(lambda p: p.state != 'cancel')"/>
+                                <t t-set="total_weight" t-value="sum(p.shipping_weight or 0 for p in visit_pickings)"/>
+                                <span style="font-size:12px;">
+                                    <t t-if="o.user_id">
+                                        <strong>Responsable:</strong>
+                                        <span t-field="o.user_id"/>
+                                        &amp;nbsp;·&amp;nbsp;
+                                    </t>
+                                    <t t-if="o.scheduled_date">
+                                        <strong>Fecha:</strong>
+                                        <span t-field="o.scheduled_date"/>
+                                        &amp;nbsp;·&amp;nbsp;
+                                    </t>
+                                    <strong>Paradas:</strong>
+                                    <span t-esc="len(visit_pickings)"/>
+                                    <t t-if="total_weight">
+                                        &amp;nbsp;·&amp;nbsp;
+                                        <strong>Peso total:</strong>
+                                        <span t-esc="'%.1f kg' % total_weight"/>
+                                    </t>
+                                </span>
+                            </div>
+                            <!-- QR code Google Maps (solo si hay ruta optimizada) -->
+                            <div class="col-3 text-right" t-if="o.route_optimizer_gmaps_qr_src">
+                                <img t-att-src="o.route_optimizer_gmaps_qr_src"
+                                     style="width:90px; height:90px;"
+                                     title="Abrir ruta en Google Maps"/>
+                                <div style="font-size:8px; color:#555; margin-top:2px;">Ruta Google Maps</div>
+                            </div>
+                        </div>
+
+                        <!-- Tabla de paradas — border-collapse para bordes limpios en wkhtmltopdf -->
+                        <table style="width:100%; border-collapse:collapse; font-size:11px; margin-top:6px;">
                             <thead>
-                                <tr>
-                                    <th name="th_seq"><span t-esc="env._('Seq.')"/></th>
-                                    <th name="th_customer"><span t-esc="env._('Customer')"/></th>
-                                    <th name="th_address"><span t-esc="env._('Address')"/></th>
-                                    <th name="th_transfer"><span t-esc="env._('Transfer')"/></th>
-                                    <th name="th_state"><span t-esc="env._('Status')"/></th>
+                                <tr style="background-color:#f0f0f0;">
+                                    <th style="width:4%;  border:1px solid #bbb; padding:4px 3px;">#</th>
+                                    <th style="width:18%; border:1px solid #bbb; padding:4px 3px;">Cliente</th>
+                                    <th style="width:9%;  border:1px solid #bbb; padding:4px 3px;">Teléfono</th>
+                                    <th style="width:25%; border:1px solid #bbb; padding:4px 3px;">Dirección</th>
+                                    <th style="width:29%; border:1px solid #bbb; padding:4px 3px;">Productos</th>
+                                    <th style="width:9%;  border:1px solid #bbb; padding:4px 3px;">Ventana</th>
+                                    <th style="width:6%;  border:1px solid #bbb; padding:4px 3px;">Estado</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <t t-set="visit_pickings" t-value="o._route_optimizer_pickings_visit_order()"/>
                                 <t t-foreach="visit_pickings" t-as="pick">
                                     <tr>
-                                        <td><span t-field="pick.batch_sequence"/></td>
-                                        <td><span t-field="pick.partner_id"/></td>
-                                        <td><span t-esc="pick.route_optimizer_delivery_address"/></td>
-                                        <td><span t-field="pick.name"/></td>
-                                        <td><span t-field="pick.state"/></td>
+                                        <td style="border:1px solid #ddd; padding:4px 3px; font-weight:bold; color:#1565C0; vertical-align:top;">
+                                            <span t-field="pick.batch_sequence"/>
+                                        </td>
+                                        <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
+                                            <span t-field="pick.partner_id"/>
+                                        </td>
+                                        <td style="border:1px solid #ddd; padding:4px 3px; white-space:nowrap; vertical-align:top;">
+                                            <span t-esc="pick.route_optimizer_partner_phone"/>
+                                        </td>
+                                        <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
+                                            <span t-esc="pick.route_optimizer_delivery_address"/>
+                                        </td>
+                                        <td style="border:1px solid #ddd; padding:4px 3px; font-size:10px; vertical-align:top;">
+                                            <span t-esc="pick.route_optimizer_products_summary"/>
+                                        </td>
+                                        <td style="border:1px solid #ddd; padding:4px 3px; white-space:nowrap; font-size:10px; vertical-align:top;">
+                                            <span t-esc="pick.route_optimizer_time_window"/>
+                                        </td>
+                                        <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
+                                            <span t-field="pick.state"/>
+                                        </td>
+                                    </tr>
+                                    <!-- Fila de notas (solo si existe) -->
+                                    <tr t-if="pick.note">
+                                        <td style="border:1px solid #ddd; padding:2px 3px;"/>
+                                        <td colspan="6" style="border:1px solid #ddd; padding:2px 6px; font-size:10px; color:#555;">
+                                            <i><span t-field="pick.note" t-options='{"widget": "text"}'/></i>
+                                        </td>
                                     </tr>
                                 </t>
                             </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="2" style="border-top:2px solid #555; padding:4px 3px; font-weight:bold;">
+                                        Total: <span t-esc="len(visit_pickings)"/> paradas
+                                    </td>
+                                    <td colspan="2" style="border-top:2px solid #555; padding:4px 3px;"/>
+                                    <td colspan="3" style="border-top:2px solid #555; padding:4px 3px; font-weight:bold;" t-if="total_weight">
+                                        Peso: <span t-esc="'%.1f kg' % total_weight"/>
+                                    </td>
+                                    <td colspan="3" style="border-top:2px solid #555; padding:4px 3px;" t-if="not total_weight"/>
+                                </tr>
+                            </tfoot>
                         </table>
+
+                        <!-- Bloque de firma — espacio amplio para escribir -->
+                        <div class="row" style="margin-top:50px;">
+                            <div class="col-5">
+                                <div style="font-size:10px; color:#555; margin-bottom:60px;">Firma del transportista</div>
+                                <div style="border-top:1px solid #333; padding-top:4px; font-size:10px;">Aclaración</div>
+                            </div>
+                            <div class="col-2"/>
+                            <div class="col-5">
+                                <div style="font-size:10px; color:#555; margin-bottom:60px;">Fecha / Hora de entrega</div>
+                                <div style="border-top:1px solid #333; padding-top:4px; font-size:10px;">Sello / Recibido conforme</div>
+                            </div>
+                        </div>
+
                     </div>
                 </t>
             </t>

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_delivery_zone_list" model="ir.ui.view">
+        <field name="name">delivery.zone.list</field>
+        <field name="model">delivery.zone</field>
+        <field name="arch" type="xml">
+            <list string="Zonas de entrega">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code" optional="show"/>
+                <field name="source"/>
+                <field name="partner_count" string="Contactos"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_delivery_zone_form" model="ir.ui.view">
+        <field name="name">delivery.zone.form</field>
+        <field name="model">delivery.zone</field>
+        <field name="arch" type="xml">
+            <form string="Zona de entrega">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="action_view_partners"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-users"
+                        >
+                            <field name="partner_count" widget="statinfo" string="Contactos"/>
+                        </button>
+                    </div>
+                    <widget
+                        name="web_ribbon"
+                        title="Archivada"
+                        bg_color="text-bg-danger"
+                        invisible="active"
+                    />
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="Zona Norte"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="source"/>
+                            <field name="color" widget="color_picker"/>
+                        </group>
+                        <group>
+                            <field name="sequence"/>
+                            <field name="active" invisible="1"/>
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
+                                options="{'no_create': True}"
+                            />
+                        </group>
+                    </group>
+                    <div invisible="source != 'mymaps'" class="alert alert-info" role="alert">
+                        Esta zona proviene de Google My Maps. Sus polígonos se actualizan al
+                        sincronizar desde Ajustes → Inventario → Zonas de entrega.
+                    </div>
+                    <group string="Notas">
+                        <field name="note" nolabel="1" placeholder="Observaciones internas…"/>
+                    </group>
+                    <field name="kml_polygons" invisible="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_delivery_zone_search" model="ir.ui.view">
+        <field name="name">delivery.zone.search</field>
+        <field name="model">delivery.zone</field>
+        <field name="arch" type="xml">
+            <search string="Zonas de entrega">
+                <field name="name"/>
+                <field name="code"/>
+                <filter name="filter_manual" string="Manuales" domain="[('source', '=', 'manual')]"/>
+                <filter name="filter_mymaps" string="Desde My Maps" domain="[('source', '=', 'mymaps')]"/>
+                <separator/>
+                <filter name="filter_inactive" string="Archivadas" domain="[('active', '=', False)]"/>
+                <!-- El RNG de Odoo no permite expand/string en <group> dentro de search -->
+                <group name="group_by">
+                    <filter name="group_source" string="Origen" context="{'group_by': 'source'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_delivery_zone" model="ir.actions.act_window">
+        <field name="name">Zonas de entrega</field>
+        <field name="res_model">delivery.zone</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Creá tu primera zona de entrega</p>
+            <p>
+                Definí las zonas a mano, o sincronizalas desde un mapa de Google My Maps
+                en Ajustes → Inventario → Zonas de entrega para detectarlas automáticamente
+                según la geolocalización de cada contacto.
+            </p>
+        </field>
+    </record>
+
+    <menuitem
+        id="menu_delivery_zone"
+        name="Zonas de entrega"
+        parent="stock.menu_stock_config_settings"
+        action="action_delivery_zone"
+        sequence="95"
+        groups="stock.group_stock_manager"
+    />
+
+</odoo>
