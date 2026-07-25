@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Acción masiva: aparece en el menú Acciones de la lista de contactos -->
+    <record id="action_partner_detect_delivery_zone" model="ir.actions.server">
+        <field name="name">Detectar zona de entrega</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="binding_model_id" ref="base.model_res_partner"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="groups_id" eval="[(4, ref('stock.group_stock_manager'))]"/>
+        <field name="code">action = records.action_delivery_zone_detect()</field>
+    </record>
+</odoo>

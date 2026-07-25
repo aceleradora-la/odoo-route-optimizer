@@ -15,6 +15,7 @@ Instalá el código desde la rama que coincida con tu versión de Odoo.
 
 - **`route_optimizer`**: configuración (URLs OSRM / OR-Tools), asistente desde el batch, clientes HTTP, aplicación de orden (`batch_sequence`) y reparto multi-vehículo opcional. En la rama **19.0** integra ventanas horarias del contacto vía OCA **`stock_partner_delivery_window`**.
 - **`route_optimizer_fleet`** (opcional): campo `fleet.vehicle` en el asistente; requiere el módulo `fleet`.
+- **`delivery_zone`** (independiente): zonas de entrega por contacto, con autodetección desde un **Google My Maps** público (sin API key), filtro/agrupación por zona en las órdenes de entrega y **agrupación automática de lotes por zona** en el Tipo de Operación. No requiere `route_optimizer`. Ver [Zonas de entrega](#zonas-de-entrega).
 
 ## Proveedores: self-hosted vs. Google (pago)
 
@@ -78,6 +79,44 @@ Tras optimizar, el orden queda en:
 1. **Visit order (last run)** en el formulario del lote (lista numerada: transferencia + contacto).
 2. Pestaña **Traslados**: filas ordenadas por **Visit order** (`batch_sequence`): arriba = primera descarga. Columna opcional **Address**.
 3. **Imprimir ruta** en la cabecera del lote: PDF **Delivery route (visit order)** con secuencia, cliente, dirección y referencia de cada transferencia (mismo orden que la ruta).
+
+## Zonas de entrega
+
+Módulo **`delivery_zone`**, independiente del optimizador (no lo requiere). Agrega el
+concepto de *zona de entrega* al contacto, a la orden de entrega y a la agrupación
+automática de lotes.
+
+### Definir las zonas
+
+Dos formas, combinables:
+
+1. **Manual**: Inventario → Configuración → *Zonas de entrega* → crear.
+2. **Desde Google My Maps** (autodetección por geolocalización):
+   - Creá un mapa en [Google My Maps](https://www.google.com/mymaps) y dibujá cada zona
+     con la herramienta de **polígono** (los marcadores de punto se ignoran).
+   - Compartilo como **«cualquiera con el enlace»**.
+   - Pegá la URL (o el `mid`) en *Ajustes → Inventario → Zonas de entrega* y usá
+     **Probar mapa** para verificar, luego **Sincronizar zonas**.
+   - No requiere API key, cuenta de Google ni OAuth: se lee el KML público del mapa.
+
+Si los polígonos se superponen, el desempate configurable decide si gana la zona más
+chica (default) o la primera coincidencia.
+
+### Asignar la zona a los contactos
+
+- Botón **Detectar zona** en el formulario del contacto (requiere que esté geolocalizado
+  con `base_geolocalize`).
+- Acción masiva **Detectar zona de entrega** desde la lista de contactos.
+- O asignarla a mano en el campo *Zona de entrega*.
+
+Una **dirección de entrega** sin zona propia hereda la del contacto principal.
+
+### Usarla en las entregas
+
+- **Filtro y agrupación** por zona en la lista de órdenes de entrega.
+- **Lotes automáticos por zona**: en el Tipo de Operación de entregas, dentro de
+  *Traslados por lote y olas → Agrupación por lotes*, tildá **Zona de entrega** (junto a
+  Contacto, País de destino, etc.). Los traslados de la misma zona caen en el mismo lote.
 
 ## Contrato del servicio OR-Tools
 
