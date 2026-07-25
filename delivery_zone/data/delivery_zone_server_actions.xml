@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Acción masiva: aparece en el menú Acciones de la lista de contactos -->
+    <!-- Acción masiva: aparece en el menú Acciones de la lista de contactos.
+
+         No se restringe por grupo desde acá a propósito: el campo cambió de nombre
+         entre versiones (groups_id en 17/18, group_ids en 19) y eso obligaría a
+         divergir este archivo por rama. El acceso real ya está acotado por el
+         permiso de escritura sobre res.partner, y el botón del formulario sí lleva
+         groups="stock.group_stock_manager". Si se quiere ocultar del menú, se puede
+         agregar el grupo desde Ajustes → Técnico → Acciones de servidor. -->
     <record id="action_partner_detect_delivery_zone" model="ir.actions.server">
         <field name="name">Detectar zona de entrega</field>
         <field name="model_id" ref="base.model_res_partner"/>
         <field name="binding_model_id" ref="base.model_res_partner"/>
         <field name="binding_view_types">list,form</field>
         <field name="state">code</field>
-        <!-- Odoo 19 renombró groups_id -> group_ids en ir.actions.server -->
-        <field name="group_ids" eval="[(4, ref('stock.group_stock_manager'))]"/>
         <field name="code">action = records.action_delivery_zone_detect()</field>
     </record>
 </odoo>

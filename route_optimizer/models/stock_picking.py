@@ -10,6 +10,26 @@ def _safe_float(val):
         return 0.0
 
 
+def _move_packaging(move):
+    """Cantidad y UdM de embalaje de un movimiento, según la versión de Odoo.
+
+    Odoo 19 renombró los campos de stock.move:
+        17.0 / 18.0 -> product_packaging_qty / product_packaging_id
+        19.0        -> packaging_uom_qty     / packaging_uom_id
+    Devuelve (cantidad, registro_uom) o (0.0, None) si no aplica.
+    """
+    for qty_field, uom_field in (
+        ("packaging_uom_qty", "packaging_uom_id"),
+        ("product_packaging_qty", "product_packaging_id"),
+    ):
+        if qty_field in move._fields and uom_field in move._fields:
+            qty = _safe_float(getattr(move, qty_field, None))
+            uom = getattr(move, uom_field, None)
+            if qty > 0 and uom:
+                return qty, uom
+    return 0.0, None
+
+
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
@@ -87,17 +107,12 @@ class StockPicking(models.Model):
             moves = pick.move_ids.filtered(lambda m: m.state != "cancel")
 
             # Decidir si usar packaging o UdM estándar
-            use_packaging = any(
-                _safe_float(getattr(m, "packaging_uom_qty", None)) > 0
-                and getattr(m, "packaging_uom_id", None)
-                for m in moves
-            )
+            use_packaging = any(_move_packaging(m)[0] > 0 for m in moves)
 
             totals = {}  # {uom_id: (total_qty, uom_name)}
             for move in moves:
                 if use_packaging:
-                    pkg_qty = _safe_float(getattr(move, "packaging_uom_qty", None))
-                    pkg_uom = getattr(move, "packaging_uom_id", None)
+                    pkg_qty, pkg_uom = _move_packaging(move)
                     if pkg_qty > 0 and pkg_uom:
                         key = pkg_uom.id
                         name = pkg_uom.name if hasattr(pkg_uom, "name") else str(pkg_uom)

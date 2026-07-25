@@ -1,9 +1,18 @@
 # -*- coding: utf-8 -*-
-import logging
-
 from odoo import api, fields, models
 
-_logger = logging.getLogger(__name__)
+
+def _extend_domain(domain, leaves):
+    """Suma condiciones a un dominio devuelto por Odoo.
+
+    Odoo 17/18 devuelven una lista; Odoo 19 devuelve un objeto Domain.
+    Se reconstruye con el mismo tipo para no romper en ninguna versión.
+    """
+    if not leaves:
+        return domain
+    if isinstance(domain, list):
+        return domain + leaves
+    return domain & type(domain)(leaves)
 
 
 class StockPicking(models.Model):
@@ -43,18 +52,54 @@ class StockPicking(models.Model):
             return self._route_optimizer_delivery_partner()
         return self.partner_id
 
-    def _get_auto_batch_domain(self):
-        """Agrega la zona como criterio de agrupación automática de lotes.
+    # ------------------------------------------------------------------
+    # Agrupación automática de lotes por zona
+    #
+    # stock_picking_batch arma dos dominios para juntar traslados: uno busca
+    # lotes compatibles ya existentes y otro traslados sueltos compatibles.
+    # Se agrega la zona a ambos cuando el tipo de operación lo pide.
+    # ------------------------------------------------------------------
 
-        El nombre del método y del campo del tipo de operación vienen de
-        stock_picking_batch; se accede defensivamente para no romper si cambian.
-        """
-        domain = super()._get_auto_batch_domain()
+    def _dz_group_by_zone(self):
+        self.ensure_one()
         picking_type = self.picking_type_id
-        if "batch_group_by_geo_delivery_zone" not in picking_type._fields:
-            return domain
-        if picking_type.batch_group_by_geo_delivery_zone:
-            domain = list(domain or []) + [
-                ("geo_delivery_zone_id", "=", self.geo_delivery_zone_id.id or False)
-            ]
+        return "batch_group_by_geo_delivery_zone" in picking_type._fields and (
+            picking_type.batch_group_by_geo_delivery_zone
+        )
+
+    def _get_possible_pickings_domain(self):
+        domain = super()._get_possible_pickings_domain()
+        if self._dz_group_by_zone():
+            domain = _extend_domain(
+                domain,
+                [("geo_delivery_zone_id", "=", self.geo_delivery_zone_id.id or False)],
+            )
         return domain
+
+    def _get_possible_batches_domain(self):
+        domain = super()._get_possible_batches_domain()
+        if self._dz_group_by_zone():
+            domain = _extend_domain(
+                domain,
+                [
+                    (
+                        "picking_ids.geo_delivery_zone_id",
+                        "=",
+                        self.geo_delivery_zone_id.id or False,
+                    )
+                ],
+            )
+        return domain
+
+    def _get_auto_batch_description(self):
+        """Suma la zona al nombre del lote autogenerado.
+
+        El método no existe en Odoo 17, por eso el super() se resuelve de forma
+        defensiva en lugar de llamarse directamente.
+        """
+        parent = getattr(super(), "_get_auto_batch_description", None)
+        description = parent() if parent else ""
+        if self._dz_group_by_zone() and self.geo_delivery_zone_id:
+            zone_name = self.geo_delivery_zone_id.name
+            return f"{description}, {zone_name}" if description else zone_name
+        return description
