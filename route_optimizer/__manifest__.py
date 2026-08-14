@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer (OSRM + OR-Tools)",
-    "version": "18.0.1.3.1",
+    "version": "18.0.1.3.2",
     "category": "Inventory/Delivery",
     "summary": "Optimización de rutas de entrega para traslados por lote usando OSRM y OR-Tools",
     "description": """
