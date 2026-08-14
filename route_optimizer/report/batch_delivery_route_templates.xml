@@ -30,7 +30,9 @@
                         <!-- Encabezado -->
                         <div class="row mb-1">
                             <div class="col-9">
-                                <h2 style="margin-bottom:4px;">
+                                <!-- margin-top en 0: el h2 trae margen propio del tema y
+                                     sumaba espacio en blanco bajo el encabezado. -->
+                                <h2 style="margin-top:0; margin-bottom:4px;">
                                     Hoja de Ruta — <span t-field="o.name"/>
                                 </h2>
                                 <t t-set="visit_pickings" t-value="o._route_optimizer_pickings_visit_order().filtered(lambda p: p.state != 'cancel')"/>
