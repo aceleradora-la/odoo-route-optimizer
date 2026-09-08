@@ -38,22 +38,27 @@
                                 <t t-set="visit_pickings" t-value="o._route_optimizer_pickings_visit_order().filtered(lambda p: p.state != 'cancel')"/>
                                 <t t-set="total_weight" t-value="sum(p.shipping_weight or 0 for p in visit_pickings)"/>
                                 <span style="font-size:12px;">
+                                    <!-- Primera linea: responsable y vehiculo.
+                                         Paradas y peso total no van aca: ya estan
+                                         en el pie de la grilla. -->
                                     <t t-if="o.user_id">
                                         <strong>Responsable:</strong>
                                         <span t-field="o.user_id"/>
-                                        &amp;nbsp;·&amp;nbsp;
+                                    </t>
+                                    <!-- vehicle_id lo aporta route_optimizer_fleet, que es
+                                         opcional: se consulta _fields antes de leerlo. -->
+                                    <t t-if="'vehicle_id' in o._fields and o.vehicle_id">
+                                        <t t-if="o.user_id">&amp;nbsp;·&amp;nbsp;</t>
+                                        <strong>Vehículo:</strong>
+                                        <span t-field="o.vehicle_id"/>
                                     </t>
                                     <t t-if="o.scheduled_date">
+                                        <br/>
                                         <strong>Fecha:</strong>
-                                        <span t-field="o.scheduled_date"/>
+                                        <span t-field="o.scheduled_date" t-options='{"widget": "date"}'/>
                                         &amp;nbsp;·&amp;nbsp;
-                                    </t>
-                                    <strong>Paradas:</strong>
-                                    <span t-esc="len(visit_pickings)"/>
-                                    <t t-if="total_weight">
-                                        &amp;nbsp;·&amp;nbsp;
-                                        <strong>Peso total:</strong>
-                                        <span t-esc="'%.1f kg' % total_weight"/>
+                                        <strong>Hora:</strong>
+                                        <span t-esc="o.route_optimizer_scheduled_time"/>
                                     </t>
                                 </span>
                             </div>
@@ -90,6 +95,14 @@
                                         </td>
                                         <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
                                             <span t-field="pick.partner_id"/>
+                                            <!-- Si el pedido va por transporte, la parada es el
+                                                 depósito del transportista: la columna Dirección
+                                                 muestra la de él, así que se aclara acá de quién
+                                                 es la mercadería y por dónde va. -->
+                                            <div t-if="pick.route_optimizer_carrier_name"
+                                                 style="font-size:9px; color:#B25A00; margin-top:2px;">
+                                                vía <span t-esc="pick.route_optimizer_carrier_name"/>
+                                            </div>
                                         </td>
                                         <td style="border:1px solid #ddd; padding:4px 3px; white-space:nowrap; vertical-align:top;">
                                             <span t-esc="pick.route_optimizer_partner_phone"/>
@@ -107,11 +120,14 @@
                                             <span t-field="pick.state"/>
                                         </td>
                                     </tr>
-                                    <!-- Fila de notas (solo si existe) -->
-                                    <tr t-if="pick.note">
-                                        <td style="border:1px solid #ddd; padding:2px 3px;"/>
-                                        <td colspan="6" style="border:1px solid #ddd; padding:2px 6px; font-size:10px; color:#555;">
-                                            <i><span t-field="pick.note" t-options='{"widget": "text"}'/></i>
+                                    <!-- Fila de notas a todo el ancho, solo si hay texto.
+                                         Se usa route_optimizer_note_text y no el campo note:
+                                         note es html y un valor "vacio" (<p><br></p>) daria
+                                         verdadero, dejando una fila en blanco. -->
+                                    <tr t-if="pick.route_optimizer_note_text">
+                                        <td colspan="7" style="border:1px solid #ddd; padding:3px 6px; font-size:10px; color:#555;">
+                                            <strong>Nota:</strong>
+                                            <i><span t-esc="pick.route_optimizer_note_text"/></i>
                                         </td>
                                     </tr>
                                 </t>

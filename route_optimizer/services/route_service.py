@@ -189,13 +189,29 @@ def optimize_batch(
         partner = picking._route_optimizer_delivery_partner()
         coords = _partner_coords(partner)
         if not coords:
-            missing.append(picking.name or str(picking.id))
+            # Distinguir el caso del transporte: es el que no resulta obvio, porque
+            # el cliente puede estar geolocalizado y aun así fallar la parada.
+            ref = picking.name or str(picking.id)
+            via_carrier = False
+            if hasattr(picking, "_route_optimizer_carrier_partner"):
+                via_carrier = bool(picking._route_optimizer_carrier_partner())
+            if via_carrier:
+                ref = _("%(picking)s → transporte %(carrier)s") % {
+                    "picking": ref,
+                    "carrier": partner.display_name,
+                }
+            missing.append(ref)
             continue
         stops.append({"picking": picking, "partner": partner, "coords": coords})
 
     if missing:
         raise UserError(
-            _("Faltan coordenadas en los partners de entrega de los traslados: %s")
+            _(
+                "Faltan coordenadas de entrega en: %s\n\n"
+                "Geolocalizá esos contactos desde su ficha (pestaña Asignación de "
+                "socio → Geolocalización). Los marcados con «transporte» son "
+                "transportistas: la parada es su depósito, no el domicilio del cliente."
+            )
             % (", ".join(missing))
         )
 
