@@ -83,7 +83,10 @@
                                 <t t-foreach="visit_pickings" t-as="pick">
                                     <tr>
                                         <td style="border:1px solid #ddd; padding:4px 3px; font-weight:bold; color:#1565C0; vertical-align:top;">
-                                            <span t-field="pick.batch_sequence"/>
+                                            <!-- Posición en la ruta, no el valor crudo de
+                                                 batch_sequence: al reordenar a mano varias
+                                                 filas quedan en 0 y se imprimían "0 0 0 3". -->
+                                            <span t-esc="pick_index + 1"/>
                                         </td>
                                         <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
                                             <span t-field="pick.partner_id"/>
