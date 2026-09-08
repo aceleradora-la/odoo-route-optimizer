@@ -35,13 +35,18 @@
                     type="object"
                     string="Optimizar ruta"
                     class="btn-secondary"
-                    invisible="state in ('done', 'cancel')"
+                    invisible="state == 'cancel'"
                     groups="stock.group_stock_manager"
                 />
             </xpath>
             <!-- many2many widget ignores list default_order; use one2many list so batch_sequence = visit order -->
             <xpath expr="//page[@name='page_transfers']//field[@name='picking_ids']" position="attributes">
                 <attribute name="widget" remove="1"/>
+                <!-- Odoo bloquea la lista con readonly="state not in ['draft','in_progress']".
+                     Al sumar traslados ya validados, _compute_state pasa el lote a Hecho
+                     apenas todos lo están, y la lista quedaba de solo lectura: no se podía
+                     agregar el siguiente. Solo se bloquea en lotes cancelados. -->
+                <attribute name="readonly">state == 'cancel'</attribute>
             </xpath>
             <xpath expr="//sheet" position="inside">
                 <group

@@ -40,6 +40,14 @@
                             </div>
                         </div>
                     </setting>
+                    <setting id="route_optimizer_batch_setting" string="Traslados por lote" help="Por defecto Odoo solo permite agregar traslados pendientes a un lote. Activá esta opción si el reparto físico ocurre después de validar el traslado y necesitás armar la hoja de ruta con traslados ya en estado Hecho.">
+                        <div class="content-group">
+                            <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_allow_done_in_batch"/>
+                                <field name="route_optimizer_allow_done_in_batch"/>
+                            </div>
+                        </div>
+                    </setting>
                     <setting id="route_optimizer_osrm_setting" string="Servidor OSRM" help="Solo la URL raíz del servidor OSRM (ej. http://IP:5000). No agregar /table/v1/ — Odoo arma esa ruta automáticamente." invisible="route_optimizer_matrix_provider == 'google' or route_optimizer_solver_provider == 'google'">
                         <div class="content-group">
                             <div class="row mt16">

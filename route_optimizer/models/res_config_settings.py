@@ -101,6 +101,13 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer.max_route_duration_minutes",
         help="Límite duro opcional de duración por ruta de vehículo (requiere optimizar por duración).",
     )
+    route_optimizer_allow_done_in_batch = fields.Boolean(
+        string="Permitir traslados validados en los lotes",
+        config_parameter="route_optimizer.allow_done_in_batch",
+        help="Habilita agregar traslados en estado Hecho a un traslado por lote, "
+        "para armar la hoja de ruta cuando el reparto físico ocurre después de "
+        "validar. Odoo por defecto solo admite traslados pendientes.",
+    )
     route_optimizer_use_delivery_windows = fields.Boolean(
         string="Respetar ventanas horarias del cliente",
         config_parameter="route_optimizer.use_delivery_windows",
