@@ -182,6 +182,44 @@ class StockPicking(models.Model):
             mobile = getattr(p, "mobile", "") or ""
             pick.route_optimizer_partner_phone = phone or mobile
 
+    # ------------------------------------------------------------------
+    # Secuencia de visita al entrar a un lote
+    # ------------------------------------------------------------------
+
+    def _route_optimizer_assign_batch_sequence(self):
+        """Da una secuencia propia a cada traslado que entra a un lote sin una.
+
+        Odoo deja batch_sequence en 0 al agregar traslados, y su drag & drop
+        solo numera las filas que movés: el resto queda empatado en 0. Con
+        empates, el orden de visita lo termina definiendo el _order de
+        stock.picking (priority, scheduled_date, id), que puede cambiar si se
+        edita una fecha o una prioridad.
+
+        Asignando valores distintos desde el principio, arrastrar filas funciona
+        como se espera y el orden queda estable y coincide con la impresión.
+        """
+        pending = self.filtered(lambda p: p.batch_id and not p.batch_sequence)
+        for batch in pending.batch_id:
+            sequences = batch.picking_ids.mapped("batch_sequence")
+            next_seq = max(sequences) if sequences else 0
+            for picking in pending.filtered(lambda p: p.batch_id == batch):
+                next_seq += 10
+                picking.batch_sequence = next_seq
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        pickings = super().create(vals_list)
+        pickings._route_optimizer_assign_batch_sequence()
+        return pickings
+
+    def write(self, vals):
+        res = super().write(vals)
+        # Si el propio write trae batch_sequence (ej. el drag & drop de Odoo),
+        # se respeta ese valor y no se toca nada.
+        if vals.get("batch_id") and "batch_sequence" not in vals:
+            self._route_optimizer_assign_batch_sequence()
+        return res
+
     def _route_optimizer_delivery_partner(self):
         """Partner used for stop coordinates (outgoing customer deliveries)."""
         self.ensure_one()
