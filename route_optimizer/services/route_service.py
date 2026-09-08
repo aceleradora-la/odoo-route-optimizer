@@ -154,8 +154,11 @@ def optimize_batch(
     :param max_route_duration_minutes: optional int hard limit
     """
     batch.ensure_one()
-    if batch.state in ("done", "cancel"):
-        raise UserError(_("No se puede optimizar un lote que está finalizado o cancelado."))
+    # Optimizar solo reescribe batch_sequence, que es el orden de visita: no toca
+    # movimientos ni stock. Por eso un lote finalizado se puede reordenar para
+    # reimprimir la hoja de ruta. Solo se bloquean los cancelados.
+    if batch.state == "cancel":
+        raise UserError(_("No se puede optimizar un lote cancelado."))
 
     pickings = batch.picking_ids.filtered(lambda p: p.state != "cancel")
     if not pickings:
