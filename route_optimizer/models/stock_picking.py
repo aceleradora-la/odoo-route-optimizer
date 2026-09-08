@@ -30,24 +30,24 @@ def _safe_float(val):
         return 0.0
 
 
-def _move_packaging(move):
-    """Cantidad y UdM de embalaje de un movimiento, según la versión de Odoo.
+def _move_effective_qty(move):
+    """Cantidad a informar en la hoja de ruta, en la UdM de la linea.
 
-    Odoo 19 renombró los campos de stock.move:
-        17.0 / 18.0 -> product_packaging_qty / product_packaging_id
-        19.0        -> packaging_uom_qty     / packaging_uom_id
-    Devuelve (cantidad, registro_uom) o (0.0, None) si no aplica.
+    Se informa lo que realmente sube al camion, no la demanda: si se pidieron
+    10 y se entregaron 7, la hoja tiene que decir 7. En un traslado ya hecho
+    `quantity` es lo entregado; antes de validar es lo reservado/preparado, que
+    es igualmente lo que se carga. Solo si todavia no hay nada asignado se cae
+    a la demanda, para que una hoja impresa temprano no salga en cero.
+
+    No se usan los campos de embalaje (packaging_uom_qty / packaging_uom_id):
+    en Odoo 19 vienen seteados en TODOS los movimientos, con la propia UdM de
+    la linea, asi que no distinguian nada y duplicaban la logica. La UdM de la
+    linea ya es la de embalaje cuando se vende asi (ej: "Tira x 2").
     """
-    for qty_field, uom_field in (
-        ("packaging_uom_qty", "packaging_uom_id"),
-        ("product_packaging_qty", "product_packaging_id"),
-    ):
-        if qty_field in move._fields and uom_field in move._fields:
-            qty = _safe_float(getattr(move, qty_field, None))
-            uom = getattr(move, uom_field, None)
-            if qty > 0 and uom:
-                return qty, uom
-    return 0.0, None
+    qty = _safe_float(getattr(move, "quantity", None))
+    if move.state == "done":
+        return qty
+    return qty or _safe_float(move.product_uom_qty)
 
 
 class StockPicking(models.Model):
@@ -126,6 +126,7 @@ class StockPicking(models.Model):
     @api.depends(
         "move_ids.product_id",
         "move_ids.product_uom_qty",
+        "move_ids.quantity",
         "move_ids.product_uom",
         "move_ids.state",
     )
@@ -143,22 +144,12 @@ class StockPicking(models.Model):
         for pick in self:
             moves = pick.move_ids.filtered(lambda m: m.state != "cancel")
 
-            # Decidir si usar packaging o UdM estándar
-            use_packaging = any(_move_packaging(m)[0] > 0 for m in moves)
-
             totals = {}  # {uom_id: (total_qty, uom_name)}
             for move in moves:
-                if use_packaging:
-                    pkg_qty, pkg_uom = _move_packaging(move)
-                    if pkg_qty > 0 and pkg_uom:
-                        key = pkg_uom.id
-                        name = pkg_uom.name if hasattr(pkg_uom, "name") else str(pkg_uom)
-                        totals[key] = (totals.get(key, (0.0, name))[0] + pkg_qty, name)
-                else:
-                    qty = _safe_float(move.product_uom_qty)
-                    uom = move.product_uom
-                    if qty > 0 and uom:
-                        totals[uom.id] = (totals.get(uom.id, (0.0, uom.name))[0] + qty, uom.name)
+                qty = _move_effective_qty(move)
+                uom = move.product_uom
+                if qty > 0 and uom:
+                    totals[uom.id] = (totals.get(uom.id, (0.0, uom.name))[0] + qty, uom.name)
 
             parts = []
             for total_qty, uom_name in totals.values():
