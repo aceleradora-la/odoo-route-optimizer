@@ -56,6 +56,9 @@
                                         <br/>
                                         <strong>Fecha:</strong>
                                         <span t-field="o.scheduled_date" t-options='{"widget": "date"}'/>
+                                        &amp;nbsp;·&amp;nbsp;
+                                        <strong>Hora:</strong>
+                                        <span t-esc="o.route_optimizer_scheduled_time"/>
                                     </t>
                                 </span>
                             </div>
@@ -109,11 +112,14 @@
                                             <span t-field="pick.state"/>
                                         </td>
                                     </tr>
-                                    <!-- Fila de notas (solo si existe) -->
-                                    <tr t-if="pick.note">
-                                        <td style="border:1px solid #ddd; padding:2px 3px;"/>
-                                        <td colspan="6" style="border:1px solid #ddd; padding:2px 6px; font-size:10px; color:#555;">
-                                            <i><span t-field="pick.note" t-options='{"widget": "text"}'/></i>
+                                    <!-- Fila de notas a todo el ancho, solo si hay texto.
+                                         Se usa route_optimizer_note_text y no el campo note:
+                                         note es html y un valor "vacio" (<p><br></p>) daria
+                                         verdadero, dejando una fila en blanco. -->
+                                    <tr t-if="pick.route_optimizer_note_text">
+                                        <td colspan="7" style="border:1px solid #ddd; padding:3px 6px; font-size:10px; color:#555;">
+                                            <strong>Nota:</strong>
+                                            <i><span t-esc="pick.route_optimizer_note_text"/></i>
                                         </td>
                                     </tr>
                                 </t>

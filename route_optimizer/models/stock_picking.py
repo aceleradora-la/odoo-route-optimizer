@@ -1,6 +1,26 @@
 # -*- coding: utf-8 -*-
+import html as html_lib
+import re
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _html_to_text(value):
+    """Texto plano de un campo html.
+
+    No se usa html2plaintext de odoo.tools a propósito: un import que cambie de
+    lugar entre versiones tumba la carga del módulo entero, y esto son cuatro
+    líneas sin dependencias.
+    """
+    if not value:
+        return ""
+    text = re.sub(r"<br\s*/?>|</p>|</div>|</li>", " ", value, flags=re.IGNORECASE)
+    text = _HTML_TAG_RE.sub("", text)
+    text = html_lib.unescape(text).replace("\xa0", " ")
+    return " ".join(text.split())
 
 
 def _safe_float(val):
@@ -44,6 +64,14 @@ class StockPicking(models.Model):
     route_optimizer_time_window = fields.Char(
         string="Ventana horaria",
         compute="_compute_route_optimizer_time_window",
+    )
+    route_optimizer_note_text = fields.Char(
+        string="Notas internas (texto)",
+        compute="_compute_route_optimizer_note_text",
+        help="Notas internas del traslado en texto plano, vacío si no hay nada "
+        "escrito. Se usa en la hoja de ruta: el campo note es html y un valor "
+        "'vacío' suele ser <p><br></p>, que en una condición da verdadero e "
+        "imprimiría una fila en blanco.",
     )
     route_optimizer_partner_phone = fields.Char(
         string="Teléfono de contacto",
@@ -92,16 +120,15 @@ class StockPicking(models.Model):
         "move_ids.state",
     )
     def _compute_route_optimizer_products_summary(self):
-        # Etiqueta traducida del campo (respeta el idioma del usuario). `number_of_packages`
-        # lo aporta el módulo `delivery`, por eso el acceso es defensivo. No se puede
-        # declarar en @api.depends porque el campo puede no existir en la instalación.
+        # Etiqueta fija en castellano, como el resto de los títulos del reporte.
+        # Antes salía de fields_get, que devuelve el nombre del campo en el idioma
+        # del render, y en el PDF aparecía "Number of Packages".
+        #
+        # `number_of_packages` lo aporta el módulo `delivery`, por eso el acceso
+        # sigue siendo defensivo. No se puede declarar en @api.depends porque el
+        # campo puede no existir en la instalación.
         picking_fields = self.env["stock.picking"]._fields
-        pkg_label = ""
-        if "number_of_packages" in picking_fields:
-            pkg_label = (
-                self.env["stock.picking"]
-                .fields_get(["number_of_packages"], ["string"])["number_of_packages"]["string"]
-            )
+        pkg_label = "Bultos" if "number_of_packages" in picking_fields else ""
 
         for pick in self:
             moves = pick.move_ids.filtered(lambda m: m.state != "cancel")
@@ -141,6 +168,17 @@ class StockPicking(models.Model):
                     parts.append(f"{pkg_label}: {n_packages}")
 
             pick.route_optimizer_products_summary = " | ".join(parts)
+
+    @api.depends("note")
+    def _compute_route_optimizer_note_text(self):
+        """Pasa las notas internas de html a texto plano.
+
+        Se descartan las etiquetas y los espacios no separables: así un campo
+        que quedó con <p><br></p> —lo que deja el editor al borrar el texto—
+        se resuelve como vacío y la hoja de ruta no imprime una fila en blanco.
+        """
+        for pick in self:
+            pick.route_optimizer_note_text = _html_to_text(pick.note)
 
     @api.depends("partner_id")
     def _compute_route_optimizer_time_window(self):
