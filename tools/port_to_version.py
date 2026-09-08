@@ -17,8 +17,8 @@ volver a correr el script. Verificado contra el fuente de cada versión:
   stock_partner_delivery_window   no existe en OCA 17.0 (la integración es
                            opcional: el código ya degrada solo si falta)
 
-El resto del código es tolerante a versión por diseño (ver _move_packaging en
-route_optimizer y _extend_domain en delivery_zone), por eso no aparece acá.
+El resto del código es tolerante a versión por diseño (ver _extend_domain en
+delivery_zone), por eso no aparece acá.
 """
 import re
 import sys
