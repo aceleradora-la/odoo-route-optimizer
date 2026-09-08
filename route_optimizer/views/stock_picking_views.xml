@@ -11,7 +11,7 @@
                     type="object"
                     string="Optimizar ruta del lote"
                     class="btn-secondary"
-                    invisible="not batch_id or state in ('done', 'cancel')"
+                    invisible="not batch_id or state == 'cancel'"
                 />
             </xpath>
         </field>
