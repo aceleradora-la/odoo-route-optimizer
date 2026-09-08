@@ -95,6 +95,14 @@
                                         </td>
                                         <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
                                             <span t-field="pick.partner_id"/>
+                                            <!-- Si el pedido va por transporte, la parada es el
+                                                 depósito del transportista: la columna Dirección
+                                                 muestra la de él, así que se aclara acá de quién
+                                                 es la mercadería y por dónde va. -->
+                                            <div t-if="pick.route_optimizer_carrier_name"
+                                                 style="font-size:9px; color:#B25A00; margin-top:2px;">
+                                                vía <span t-esc="pick.route_optimizer_carrier_name"/>
+                                            </div>
                                         </td>
                                         <td style="border:1px solid #ddd; padding:4px 3px; white-space:nowrap; vertical-align:top;">
                                             <span t-esc="pick.route_optimizer_partner_phone"/>
