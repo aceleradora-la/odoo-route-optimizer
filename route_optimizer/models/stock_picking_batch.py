@@ -50,6 +50,23 @@ class StockPickingBatch(models.Model):
         compute="_compute_route_optimizer_gmaps_url",
         help="URL del QR code para el PDF de la hoja de ruta.",
     )
+    route_optimizer_scheduled_time = fields.Char(
+        string="Hora programada",
+        compute="_compute_route_optimizer_scheduled_time",
+        help="Hora de la fecha programada en la zona horaria del usuario, para "
+        "imprimirla separada de la fecha en la hoja de ruta.",
+    )
+
+    @api.depends("scheduled_date")
+    def _compute_route_optimizer_scheduled_time(self):
+        # scheduled_date se guarda en UTC: context_timestamp la pasa a la zona
+        # horaria del usuario, igual que hace t-field en el PDF.
+        for batch in self:
+            if not batch.scheduled_date:
+                batch.route_optimizer_scheduled_time = ""
+                continue
+            local = fields.Datetime.context_timestamp(batch, batch.scheduled_date)
+            batch.route_optimizer_scheduled_time = local.strftime("%H:%M")
 
     @api.depends(
         "picking_ids.batch_sequence",
