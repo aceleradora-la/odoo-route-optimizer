@@ -217,9 +217,19 @@ class StockPickingBatch(models.Model):
         return "\n".join(lines)
 
     def _route_optimizer_pickings_visit_order(self):
-        """Pickings sorted for UI/report: first unload = lowest batch_sequence."""
+        """Traslados en orden de visita, igual que la pestaña Traslados del lote.
+
+        La lista del formulario usa default_order="batch_sequence", y picking_ids
+        ya viene ordenado por el _order de stock.picking. Como sorted() de Python
+        es estable, ordenar SOLO por batch_sequence conserva ese orden para los
+        empates: exactamente lo que muestra la pantalla.
+
+        No desempatar por id: al reordenar a mano, Odoo numera solo las filas que
+        movés y el resto queda en 0. Con varios empatados en 0, un desempate por
+        id daba un orden distinto al de la pantalla.
+        """
         self.ensure_one()
-        return self.picking_ids.sorted(lambda p: (p.batch_sequence or 0, p.id))
+        return self.picking_ids.sorted(key=lambda p: p.batch_sequence or 0)
 
     def action_print_delivery_route(self):
         self.ensure_one()
