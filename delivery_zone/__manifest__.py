@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Zonas de Entrega",
-    "version": "18.0.1.0.0",
+    "version": "18.0.1.0.1",
     "category": "Inventory/Delivery",
     "summary": "Zonas de entrega por contacto, con autodetección desde Google My Maps "
     "y agrupación automática de lotes por zona",
