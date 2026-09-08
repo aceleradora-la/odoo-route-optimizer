@@ -77,6 +77,12 @@ class StockPicking(models.Model):
         string="Teléfono de contacto",
         compute="_compute_route_optimizer_partner_phone",
     )
+    route_optimizer_carrier_name = fields.Char(
+        string="Transporte",
+        compute="_compute_route_optimizer_carrier_name",
+        help="Nombre del transportista cuando la parada es su depósito y no el "
+        "domicilio del cliente. Vacío en las entregas directas.",
+    )
 
     @api.depends(
         "partner_id",
@@ -94,9 +100,13 @@ class StockPicking(models.Model):
             )
 
     def _route_optimizer_format_delivery_address(self):
-        """Single line for lists / PDF (street, city, etc.)."""
+        """Dirección de la parada en una línea, para listas y PDF.
+
+        Usa el partner efectivo: si el pedido va por transporte, la dirección
+        que se imprime es la del transportista, que es adonde va el camión.
+        """
         self.ensure_one()
-        p = self.partner_id
+        p = self._route_optimizer_delivery_partner()
         if not p:
             return ""
         parts = []
@@ -184,15 +194,18 @@ class StockPicking(models.Model):
     def _compute_route_optimizer_time_window(self):
         has_pref = "delivery_time_preference" in self.env["res.partner"]._fields
         for pick in self:
-            if not has_pref or not pick.partner_id:
+            # La ventana que importa es la de quien recibe: si va por transporte,
+            # la del transportista, no la del cliente final.
+            partner = pick._route_optimizer_delivery_partner()
+            if not has_pref or not partner:
                 pick.route_optimizer_time_window = ""
                 continue
-            pref = getattr(pick.partner_id, "delivery_time_preference", "anytime")
+            pref = getattr(partner, "delivery_time_preference", "anytime")
             if pref == "workdays":
                 pick.route_optimizer_time_window = _("Días hábiles")
             elif pref == "time_windows":
                 windows = []
-                for w in getattr(pick.partner_id, "delivery_time_window_ids", []):
+                for w in getattr(partner, "delivery_time_window_ids", []):
                     st = getattr(w, "time_window_start", None)
                     en = getattr(w, "time_window_end", None)
                     if st is not None and en is not None:
@@ -208,6 +221,16 @@ class StockPicking(models.Model):
                 pick.route_optimizer_time_window = ", ".join(windows)
             else:
                 pick.route_optimizer_time_window = ""
+
+    # Sin @api.depends sobre carrier_id: ese campo lo aporta stock_delivery y
+    # declararlo tumbaría la carga del módulo donde no esté instalado. El campo
+    # no se almacena, así que se recalcula en cada lectura.
+    def _compute_route_optimizer_carrier_name(self):
+        for pick in self:
+            carrier_partner = pick._route_optimizer_carrier_partner()
+            pick.route_optimizer_carrier_name = (
+                carrier_partner.display_name if carrier_partner else ""
+            )
 
     @api.depends("partner_id")
     def _compute_route_optimizer_partner_phone(self):
@@ -258,10 +281,36 @@ class StockPicking(models.Model):
             self._route_optimizer_assign_batch_sequence()
         return res
 
-    def _route_optimizer_delivery_partner(self):
-        """Partner used for stop coordinates (outgoing customer deliveries)."""
+    def _route_optimizer_carrier_partner(self):
+        """Contacto del transporte, si el pedido va por un método de entrega con dirección.
+
+        En Odoo el campo carrier_id lo aporta el módulo stock_delivery, y la
+        dirección del transportista la agrega delivery_carrier_partner (OCA) como
+        delivery.carrier.partner_id. Ambos son opcionales, por eso el acceso es
+        defensivo: sin esos módulos, el método devuelve vacío y todo sigue
+        funcionando contra el cliente.
+        """
         self.ensure_one()
-        return self.partner_id
+        empty = self.env["res.partner"].browse()
+        if "carrier_id" not in self._fields or not self.carrier_id:
+            return empty
+        partner = getattr(self.carrier_id, "partner_id", empty)
+        if not partner:
+            return empty
+        # Sin dirección no sirve como parada: se sigue usando la del cliente.
+        if not (partner.street or partner.street2 or partner.city):
+            return empty
+        return partner
+
+    def _route_optimizer_delivery_partner(self):
+        """Contacto que define la parada de la ruta.
+
+        Si el pedido tiene método de entrega con dirección, el camión va al
+        depósito del transportista, no al domicilio del cliente. Mismo criterio
+        que ya usa el remito al imprimir el transporte.
+        """
+        self.ensure_one()
+        return self._route_optimizer_carrier_partner() or self.partner_id
 
     def action_route_optimizer_from_picking(self):
         """Secondary entry: open the optimizer wizard for the batch of this transfer."""
