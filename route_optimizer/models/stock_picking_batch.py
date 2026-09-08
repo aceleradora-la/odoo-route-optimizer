@@ -6,6 +6,8 @@ from urllib.parse import quote as url_quote
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from ..services.route_service import _param_bool
+
 
 def _build_qr_data_uri(text):
     """Generate a PNG QR code as a base64 data URI (works in wkhtmltopdf without HTTP)."""
@@ -118,6 +120,37 @@ class StockPickingBatch(models.Model):
         if parts:
             return url_quote(", ".join(parts))
         return None
+
+    # Se repiten los depends del core (idénticos en Odoo 17/18/19): al sobrescribir
+    # un compute, Odoo toma las dependencias del método más derivado, así que sin
+    # esto el campo dejaría de recalcularse al cambiar de tipo de operación o estado.
+    @api.depends("company_id", "picking_type_id", "state")
+    def _compute_allowed_picking_ids(self):
+        """Permite sumar traslados ya validados cuando el ajuste está activo.
+
+        Odoo limita los traslados de un lote a los estados pendientes
+        (waiting/confirmed/assigned, más draft si el lote está en borrador). Ese
+        cálculo alimenta dos cosas a la vez: el dominio del campo picking_ids y
+        el _sanity_check() que corre al asignar el lote. Ampliándolo acá se
+        destraban las dos, sin tocar el core.
+
+        Sirve para operaciones donde el traslado se valida al salir del depósito
+        y el reparto físico ocurre después: la hoja de ruta se arma con traslados
+        que ya están en Hecho.
+        """
+        super()._compute_allowed_picking_ids()
+        icp = self.env["ir.config_parameter"].sudo()
+        if not _param_bool(icp.get_param("route_optimizer.allow_done_in_batch", "False")):
+            return
+        for batch in self:
+            domain = [
+                ("company_id", "=", batch.company_id.id),
+                ("state", "=", "done"),
+            ]
+            if batch.picking_type_id:
+                domain.append(("picking_type_id", "=", batch.picking_type_id.id))
+            done_pickings = self.env["stock.picking"].search(domain)
+            batch.allowed_picking_ids |= done_pickings
 
     def action_route_optimizer_wizard(self):
         self.ensure_one()
