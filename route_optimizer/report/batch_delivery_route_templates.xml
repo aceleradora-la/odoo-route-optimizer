@@ -74,26 +74,26 @@
                         <!-- Tabla de paradas — border-collapse para bordes limpios en wkhtmltopdf -->
                         <table style="width:100%; border-collapse:collapse; font-size:11px; margin-top:6px;">
                             <thead>
-                                <tr style="background-color:#f0f0f0;">
-                                    <th style="width:4%;  border:1px solid #bbb; padding:4px 3px;">#</th>
-                                    <th style="width:18%; border:1px solid #bbb; padding:4px 3px;">Cliente</th>
-                                    <th style="width:9%;  border:1px solid #bbb; padding:4px 3px;">Teléfono</th>
-                                    <th style="width:25%; border:1px solid #bbb; padding:4px 3px;">Dirección</th>
-                                    <th style="width:29%; border:1px solid #bbb; padding:4px 3px;">Productos</th>
-                                    <th style="width:9%;  border:1px solid #bbb; padding:4px 3px;">Ventana</th>
-                                    <th style="width:6%;  border:1px solid #bbb; padding:4px 3px;">Estado</th>
+                                <tr style="background-color:#e0e0e0;">
+                                    <th style="width:4%;  border:1px solid #333; padding:4px 3px;">#</th>
+                                    <th style="width:18%; border:1px solid #333; padding:4px 3px;">Cliente</th>
+                                    <th style="width:9%;  border:1px solid #333; padding:4px 3px;">Teléfono</th>
+                                    <th style="width:25%; border:1px solid #333; padding:4px 3px;">Dirección</th>
+                                    <th style="width:29%; border:1px solid #333; padding:4px 3px;">Productos</th>
+                                    <th style="width:9%;  border:1px solid #333; padding:4px 3px;">Ventana</th>
+                                    <th style="width:6%;  border:1px solid #333; padding:4px 3px;">Estado</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <t t-foreach="visit_pickings" t-as="pick">
                                     <tr>
-                                        <td style="border:1px solid #ddd; padding:4px 3px; font-weight:bold; color:#1565C0; vertical-align:top;">
+                                        <td style="border:1px solid #333; padding:4px 3px; font-weight:bold; color:#1565C0; vertical-align:top;">
                                             <!-- Posición en la ruta, no el valor crudo de
                                                  batch_sequence: al reordenar a mano varias
                                                  filas quedan en 0 y se imprimían "0 0 0 3". -->
                                             <span t-esc="pick_index + 1"/>
                                         </td>
-                                        <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
+                                        <td style="border:1px solid #333; padding:4px 3px; vertical-align:top;">
                                             <span t-field="pick.partner_id"/>
                                             <!-- Si el pedido va por transporte, la parada es el
                                                  depósito del transportista: la columna Dirección
@@ -104,19 +104,19 @@
                                                 vía <span t-esc="pick.route_optimizer_carrier_name"/>
                                             </div>
                                         </td>
-                                        <td style="border:1px solid #ddd; padding:4px 3px; white-space:nowrap; vertical-align:top;">
+                                        <td style="border:1px solid #333; padding:4px 3px; white-space:nowrap; vertical-align:top;">
                                             <span t-esc="pick.route_optimizer_partner_phone"/>
                                         </td>
-                                        <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
+                                        <td style="border:1px solid #333; padding:4px 3px; vertical-align:top;">
                                             <span t-esc="pick.route_optimizer_delivery_address"/>
                                         </td>
-                                        <td style="border:1px solid #ddd; padding:4px 3px; font-size:10px; vertical-align:top;">
+                                        <td style="border:1px solid #333; padding:4px 3px; font-size:10px; vertical-align:top;">
                                             <span t-esc="pick.route_optimizer_products_summary"/>
                                         </td>
-                                        <td style="border:1px solid #ddd; padding:4px 3px; white-space:nowrap; font-size:10px; vertical-align:top;">
+                                        <td style="border:1px solid #333; padding:4px 3px; white-space:nowrap; font-size:10px; vertical-align:top;">
                                             <span t-esc="pick.route_optimizer_time_window"/>
                                         </td>
-                                        <td style="border:1px solid #ddd; padding:4px 3px; vertical-align:top;">
+                                        <td style="border:1px solid #333; padding:4px 3px; vertical-align:top;">
                                             <span t-field="pick.state"/>
                                         </td>
                                     </tr>
@@ -125,7 +125,7 @@
                                          note es html y un valor "vacio" (<p><br></p>) daria
                                          verdadero, dejando una fila en blanco. -->
                                     <tr t-if="pick.route_optimizer_note_text">
-                                        <td colspan="7" style="border:1px solid #ddd; padding:3px 6px; font-size:10px; color:#555;">
+                                        <td colspan="7" style="border:1px solid #333; padding:3px 6px; font-size:10px; color:#555;">
                                             <strong>Nota:</strong>
                                             <i><span t-esc="pick.route_optimizer_note_text"/></i>
                                         </td>
