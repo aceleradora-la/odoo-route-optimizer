@@ -49,3 +49,11 @@ class ResConfigSettings(models.TransientModel):
         help="Clave de Maps JavaScript API. Va al navegador de quien usa el tablero: "
         "creá una clave aparte de la de Routes API y restringila por dominio.",
     )
+    route_delivery_eta_refresh_minutes = fields.Integer(
+        string="Actualizar horas con el GPS cada (min)",
+        config_parameter="route_optimizer_delivery.eta_refresh_minutes",
+        default=5,
+        help="Con la ruta en la calle, las horas estimadas se recalculan desde la posición "
+        "real del chofer con esta frecuencia. 0 = solo al completar cada parada. Con "
+        "Google como motor, cada recálculo es un pedido a Routes API.",
+    )

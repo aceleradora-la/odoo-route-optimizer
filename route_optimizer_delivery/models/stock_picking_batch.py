@@ -53,6 +53,7 @@ class StockPickingBatch(models.Model):
         string="Minutos pendientes", copy=False, readonly=True
     )
     route_delivery_routing_source = fields.Char(copy=False, readonly=True)
+    route_delivery_eta_refreshed_at = fields.Datetime(copy=False, readonly=True)
     route_delivery_stop_count = fields.Integer(
         string="Paradas", compute="_compute_route_delivery_progress"
     )
@@ -255,6 +256,7 @@ class StockPickingBatch(models.Model):
                     "route_delivery_remaining_km": sum(m or 0.0 for m in path["meters"]) / 1000.0,
                     "route_delivery_remaining_minutes": round((clock - departure).total_seconds() / 60.0),
                     "route_delivery_routing_source": path["source"],
+                    "route_delivery_eta_refreshed_at": fields.Datetime.now(),
                 }
             )
         return True
@@ -424,7 +426,32 @@ class StockPickingBatch(models.Model):
     def route_delivery_app_ping(self, batch_id, lat, lon):
         """Posición del chofer; liviano porque corre cada minuto."""
         batch = self._route_delivery_app_batch(batch_id)
-        return batch._route_delivery_set_position(lat, lon)
+        moved = batch._route_delivery_set_position(lat, lon)
+        if moved and batch.route_delivery_started_at and not batch.route_delivery_finished_at:
+            batch._route_delivery_refresh_etas_if_stale()
+        return moved
+
+    def _route_delivery_refresh_etas_if_stale(self):
+        """Recalcula las horas con la posición real del chofer, como mucho cada N minutos.
+
+        Sin esto las horas solo se corregían al completar una parada: un chofer
+        parado en el tráfico seguía mostrando la hora vieja al cliente. El intervalo
+        es configurable (0 lo apaga) porque con Google cada recálculo es un pedido pago.
+        """
+        self.ensure_one()
+        icp = self.env["ir.config_parameter"].sudo()
+        try:
+            minutes = int(icp.get_param("route_optimizer_delivery.eta_refresh_minutes", "5") or 0)
+        except ValueError:
+            minutes = 5
+        if minutes <= 0:
+            return False
+        last = self.route_delivery_eta_refreshed_at
+        if last and fields.Datetime.now() - last < timedelta(minutes=minutes):
+            return False
+        self._route_delivery_update_etas()
+        self._route_delivery_notify_next()
+        return True
 
     @api.model
     def route_delivery_app_scan(self, code, batch_id=None):

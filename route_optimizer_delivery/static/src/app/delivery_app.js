@@ -69,6 +69,7 @@ export class RouteDeliveryApp extends Component {
             manualCode: "",
             form: this.emptyForm(),
             fail: { reasonId: null, note: "", photos: [] },
+            gps: "wait", // wait | on | off: si el celular está informando la ubicación
             checked: {}, // códigos de bultos y productos ya controlados
         });
         this.scannerSupported = isBarcodeScannerSupported();
@@ -107,12 +108,35 @@ export class RouteDeliveryApp extends Component {
         }
         this.watchId = navigator.geolocation.watchPosition(
             (pos) => {
+                const first = !this.position;
                 this.position = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+                this.state.gps = "on";
+                if (first) {
+                    this.ping();
+                }
             },
-            () => {},
+            () => {
+                this.state.gps = "off";
+            },
             { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 }
         );
         this.pingTimer = setInterval(() => this.ping(), PING_MS);
+        this.keepAwake();
+        this.onVisible = () => document.visibilityState === "visible" && this.keepAwake();
+        document.addEventListener("visibilitychange", this.onVisible);
+    }
+
+    /** Pantalla encendida mientras se reparte: con la pantalla apagada el navegador deja
+     * de informar la ubicación. El sistema suelta el bloqueo al salir de la app, por eso
+     * se vuelve a pedir cada vez que la app vuelve a estar a la vista. */
+    async keepAwake() {
+        try {
+            if (navigator.wakeLock && this.watchId !== undefined) {
+                this.wakeLock = await navigator.wakeLock.request("screen");
+            }
+        } catch {
+            // batería baja o navegador sin soporte: se sigue sin bloqueo
+        }
     }
 
     stopTracking() {
@@ -122,6 +146,9 @@ export class RouteDeliveryApp extends Component {
         }
         clearInterval(this.pingTimer);
         this.pingTimer = null;
+        document.removeEventListener("visibilitychange", this.onVisible);
+        this.wakeLock?.release?.().catch(() => {});
+        this.wakeLock = null;
     }
 
     /** Silencioso: sin señal no tiene que molestar al chofer. */

@@ -40,6 +40,10 @@
                                 <field name="route_delivery_google_maps_key" class="col-lg-7" password="True"/>
                             </div>
                             <div class="row mt8">
+                                <label for="route_delivery_eta_refresh_minutes" class="col-lg-5"/>
+                                <field name="route_delivery_eta_refresh_minutes" class="col-lg-3"/>
+                            </div>
+                            <div class="row">
                                 <label for="route_delivery_eta_window_minutes" class="col-lg-5"/>
                                 <field name="route_delivery_eta_window_minutes" class="col-lg-3"/>
                             </div>

@@ -128,6 +128,12 @@
                     </div>
                 </form>
 
+                <div t-if="this.state.route.started and !this.state.route.finished" t-attf-class="o_rd_gps o_rd_gps_{{ this.state.gps }}">
+                    <span class="o_rd_gps_dot" aria-hidden="true"/>
+                    <t t-if="this.state.gps === 'on'">Compartiendo tu ubicación. Dejá la app abierta mientras repartís.</t>
+                    <t t-elif="this.state.gps === 'off'">Sin ubicación: activá el GPS y el permiso de ubicación.</t>
+                    <t t-else="">Buscando tu ubicación…</t>
+                </div>
                 <div t-if="this.state.route.finished" class="o_rd_card o_rd_card_done">
                     <div class="o_rd_card_title"><i class="o_rdi o_rdi-check-circle me-2"/>Ruta terminada</div>
                     <div class="o_rd_muted">

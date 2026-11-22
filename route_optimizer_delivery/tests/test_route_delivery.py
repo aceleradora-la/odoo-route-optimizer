@@ -370,6 +370,27 @@ class TestRouteDelivery(RouteDeliveryCommon):
         self.assertEqual(second.route_delivery_state, "pending")
         self.assertEqual((second.scheduled_date - before).days, 1)
 
+    def test_live_position_refreshes_etas(self):
+        """Con la ruta en la calle, el GPS corrige las horas sin esperar a la próxima parada."""
+        self.app().route_delivery_app_start(self.batch.id, -34.60, -58.38)
+        first = self.batch._route_delivery_stops()[0]
+        before = first.route_delivery_eta
+        # Recién calculadas: un aviso de posición no recalcula.
+        self.app().route_delivery_app_ping(self.batch.id, -34.90, -58.90)
+        self.assertEqual(first.route_delivery_eta, before)
+        self.assertEqual(self.batch.route_delivery_last_latitude, -34.90)
+        # Pasado el intervalo, el chofer lejos de la parada atrasa la hora y se ve el atraso.
+        self.batch.route_delivery_eta_refreshed_at = fields.Datetime.subtract(fields.Datetime.now(), minutes=6)
+        self.app().route_delivery_app_ping(self.batch.id, -34.90, -58.90)
+        self.assertGreater(first.route_delivery_eta, before)
+        self.assertGreater(self.batch._route_dispatch_route_data()["delay_minutes"], 30)
+        # Con 0 se apaga.
+        self.icp.set_param("route_optimizer_delivery.eta_refresh_minutes", "0")
+        self.batch.route_delivery_eta_refreshed_at = False
+        late = first.route_delivery_eta
+        self.app().route_delivery_app_ping(self.batch.id, -34.60, -58.38)
+        self.assertEqual(first.route_delivery_eta, late)
+
     def test_google_road_path(self):
         """Con Google como proveedor, un pedido por ruta trae tramos con tráfico y el dibujo."""
         self.icp.set_param("route_optimizer.matrix_provider", "google")

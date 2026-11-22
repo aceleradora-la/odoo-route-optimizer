@@ -36,7 +36,7 @@ Con Google como motor, las horas estimadas y el dibujo de cada ruta salen de Rou
 
 - **Optimizar**: en un traslado por lote, botón *Optimizar ruta*.
 - **Repartir**: el chofer es el *Responsable* del lote y entra por el menú *Reparto* (`/odoo/reparto`); desde ahí instala la app en su celular. Alcanza con el grupo *Chofer de reparto*.
-- **Seguir**: cada entrega tiene un link público de seguimiento, en la pestaña *Entrega* del traslado.
+- **Seguir**: cada entrega tiene un link público de seguimiento, en la pestaña *Entrega* del traslado. Con la ruta en la calle, la app informa la ubicación del chofer cada minuto y las horas estimadas se corrigen solas; si la app queda cerrada, se estiman desde la última entrega.
 - **Despachar**: *Inventario → Operaciones → Tablero de despacho* (`/odoo/despacho`). Elegí entregas en la lista, en el mapa o con el lazo; el panel ordena las rutas por lo que cuesta sumarlas. *Publicar a choferes* confirma las rutas en borrador. *En vivo* muestra camiones, atrasos e incidencias.
 - **Zonas**: pegá la URL de tu Google My Maps en *Ajustes → Inventario → Zonas de entrega* y sincronizá.
 

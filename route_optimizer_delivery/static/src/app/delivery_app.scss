@@ -83,6 +83,21 @@
     }
     .o_rd_install { display: flex; flex-direction: column; gap: 6px; margin-top: auto; padding-top: 12px; }
 
+    // Estado de la ubicación mientras se reparte
+    .o_rd_gps {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: #eceef1;
+        color: #374151;
+        font-size: 13px;
+    }
+    .o_rd_gps_dot { flex: 0 0 10px; height: 10px; border-radius: 50%; background: #9ca3af; }
+    .o_rd_gps_on { background: #dcfce7; color: $rd-ok; .o_rd_gps_dot { background: #16a34a; } }
+    .o_rd_gps_off { background: #fee2e2; color: #991b1b; .o_rd_gps_dot { background: $rd-bad; } }
+
     // Tarjetas
     .o_rd_card {
         display: flex;
