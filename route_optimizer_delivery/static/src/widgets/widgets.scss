@@ -1,0 +1,173 @@
+// Widgets de los formularios de Odoo (traslado y lote): mismo lenguaje que la app y el despacho.
+.o_rdw {
+    $ink: #111827;
+    $muted: #4b5563;
+    $line: #d9dce1;
+    $brand: #714b67;
+
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 100%;
+    color: $ink;
+    font-size: 13px;
+
+    .o_rdw_muted { color: $muted; font-size: 12px; }
+    .o_rdw_alert { color: #b91c1c; font-size: 12px; font-weight: 600; }
+    .o_rdw_label { display: block; color: $muted; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    .o_rdw_pre { white-space: pre-line; }
+    .o_rdw_btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 34px;
+        padding: 0 12px;
+        border: 1px solid $line;
+        border-radius: 8px;
+        background: #fff;
+        color: $ink;
+        font-weight: 600;
+        &:hover { background: #f9fafb; }
+    }
+    .o_rdw_btn_quiet { border-color: transparent; color: $muted; }
+    .o_rdw_bar {
+        height: 8px;
+        border-radius: 4px;
+        background: #e5e7eb;
+        overflow: hidden;
+        > div { height: 100%; background: #1d4ed8; }
+    }
+
+    // ------------------------------------------------ Tarjeta de entrega (traslado)
+    &.o_rdw_pod {
+        max-width: 860px;
+        padding: 18px;
+        border: 1px solid $line;
+        border-left: 5px solid #9ca3af;
+        border-radius: 12px;
+        background: #fff;
+    }
+    &.o_rdw_tone_ok { border-left-color: #16a34a; }
+    &.o_rdw_tone_bad { border-left-color: #b91c1c; }
+    &.o_rdw_tone_live { border-left-color: $brand; }
+    .o_rdw_head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .o_rdw_title { font-size: 20px; font-weight: 700; line-height: 1.2; }
+    .o_rdw_when {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        white-space: nowrap;
+        strong { font-size: 22px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    }
+    .o_rdw_steps {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        span { height: 6px; border-radius: 3px; background: #e5e7eb; }
+        .o_rdw_on { background: $brand; }
+    }
+    &.o_rdw_tone_ok .o_rdw_steps .o_rdw_on { background: #16a34a; }
+    .o_rdw_step_labels {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        margin-top: -8px;
+        color: $muted;
+        font-size: 11px;
+    }
+    .o_rdw_reason { padding: 10px 12px; border-radius: 8px; background: #fee2e2; color: #991b1b; }
+    .o_rdw_grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px 20px;
+        strong { display: block; font-size: 15px; }
+    }
+    .o_rdw_partial { padding: 10px 12px; border-radius: 8px; background: #fff7ed; }
+    .o_rdw_note { padding: 10px 12px; border-radius: 8px; background: #f3f4f6; }
+    .o_rdw_media { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+    .o_rdw_photo {
+        width: 110px;
+        height: 110px;
+        padding: 0;
+        border: 1px solid $line;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #f3f4f6;
+        img { width: 100%; height: 100%; object-fit: cover; }
+    }
+    .o_rdw_signature {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        padding: 6px 10px;
+        border: 1px solid $line;
+        border-radius: 10px;
+        background: #fff;
+        img { height: 86px; max-width: 240px; object-fit: contain; }
+    }
+    .o_rdw_actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; border-top: 1px solid #eceef1; }
+
+    // ------------------------------------------------ Recorrido (lote)
+    // Reusa los pines del despacho, pero no su caja a pantalla completa.
+    &.o_rdw_route { height: auto; background: transparent; }
+    .o_rdw_route_head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+    .o_rdw_kpis {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 22px;
+        > div { display: flex; flex-direction: column; }
+        strong { font-size: 20px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+        span { color: $muted; font-size: 12px; }
+        .o_rdw_kpi_bad strong { color: #b91c1c; }
+    }
+    .o_rdw_route_status { display: flex; align-items: center; gap: 12px; color: $muted; font-weight: 600; }
+    .o_rdw_route_body { display: flex; gap: 14px; min-height: 420px; }
+    .o_rdw_map {
+        position: relative;
+        flex: 1 1 55%;
+        min-height: 420px;
+        border: 1px solid $line;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #e6ebee;
+        z-index: 0;
+    }
+    .o_rdw_stops { display: flex; flex-direction: column; flex: 1 1 45%; gap: 6px; max-height: 520px; overflow-y: auto; }
+    .o_rdw_stop {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid $line;
+        border-radius: 10px;
+        background: #fff;
+        color: $ink;
+        text-align: left;
+        &:hover { border-color: #9ca3af; }
+    }
+    .o_rdw_stop_delivered, .o_rdw_stop_partial, .o_rdw_stop_failed { background: #f9fafb; }
+    .o_rdw_num {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: #1d4ed8;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .o_rdw_stop_delivered .o_rdw_num, .o_rdw_stop_partial .o_rdw_num { background: #16a34a; }
+    .o_rdw_stop_failed .o_rdw_num { background: #b91c1c; }
+    .o_rdw_stop_main { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; strong { overflow-wrap: anywhere; } }
+    .o_rdw_stop_side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; strong { font-size: 14px; font-variant-numeric: tabular-nums; } }
+
+    @media (max-width: 900px) {
+        .o_rdw_route_body { flex-direction: column; }
+        .o_rdw_map { flex: 0 0 300px; min-height: 300px; }
+        .o_rdw_stops { max-height: none; }
+    }
+}

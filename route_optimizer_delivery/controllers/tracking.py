@@ -34,24 +34,7 @@ class RouteDeliveryTracking(http.Controller):
 
         state = picking.route_delivery_state or "pending"
         started = bool(batch.route_delivery_started_at)
-        ahead = 0
-        if batch and state == "pending":
-            pending = batch._route_delivery_stops().filtered(
-                lambda p: p.route_delivery_state == "pending"
-            )
-            ahead = list(pending).index(picking) if picking in pending else 0
-        if picking.state == "cancel":
-            step = "cancel"
-        elif state in ("delivered", "partial"):
-            step = "delivered"
-        elif state == "failed":
-            step = "failed"
-        elif started and ahead == 0:
-            step = "next"
-        elif started:
-            step = "on_the_way"
-        else:
-            step = "scheduled"
+        step, ahead = picking._route_delivery_step()
         eta = local(picking.route_delivery_eta) if state == "pending" else None
         company = picking.company_id
         return {

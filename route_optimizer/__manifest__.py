@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer",
-    "version": "19.0.1.6.0",
+    "version": "19.0.1.6.1",
     "category": "Inventory/Delivery",
     "summary": "Optimiza las rutas de entrega de tus lotes: vehículos, capacidades y ventanas horarias",
     "description": """Ordena las entregas de un lote con OSRM + OR-Tools (o Google): varios vehículos,

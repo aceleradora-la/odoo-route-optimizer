@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer — Flota",
-    "version": "19.0.1.0.6",
+    "version": "19.0.1.0.7",
     "category": "Inventory/Delivery",
     "summary": "Elegí el vehículo de Flota al optimizar y precargá su capacidad",
     "description": """Agrega el vehículo de Flota al optimizador de rutas y precarga su capacidad de

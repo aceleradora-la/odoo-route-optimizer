@@ -122,6 +122,52 @@ class StockPicking(models.Model):
             else:
                 picking.route_delivery_tracking_url = False
 
+    def _route_delivery_step(self):
+        """En qué punto del reparto está la entrega: (paso, paradas que faltan antes).
+
+        scheduled → on_the_way → next → delivered, o failed / cancel.
+        """
+        self.ensure_one()
+        state = self.route_delivery_state or "pending"
+        if self.state == "cancel":
+            return "cancel", 0
+        if state in ("delivered", "partial"):
+            return "delivered", 0
+        if state == "failed":
+            return "failed", 0
+        batch = self.batch_id
+        ahead = 0
+        if batch:
+            pending = batch._route_delivery_stops().filtered(
+                lambda p: p.route_delivery_state == "pending"
+            )
+            ahead = list(pending).index(self) if self in pending else 0
+        if batch.route_delivery_started_at:
+            return ("next" if ahead == 0 else "on_the_way"), ahead
+        return "scheduled", ahead
+
+    def route_delivery_pod_data(self):
+        """Datos de la tarjeta de entrega del formulario del traslado."""
+        self.ensure_one()
+        step, ahead = self._route_delivery_step()
+        partner = self._route_delivery_customer()
+        return {
+            "step": step,
+            "ahead": ahead,
+            "in_route": bool(self.batch_id),
+            "route": self.batch_id.name or "",
+            "route_id": self.batch_id.id or False,
+            "driver": self.batch_id.user_id.name or "",
+            "has_phone": bool(partner.phone),
+            "photos": [{"id": att.id, "name": att.name} for att in self.route_delivery_photo_ids],
+            "has_signature": bool(self.route_delivery_signature),
+            "late_minutes": round(
+                (self.route_delivery_eta - self.route_delivery_planned_eta).total_seconds() / 60.0
+            )
+            if self.route_delivery_eta and self.route_delivery_planned_eta
+            else 0,
+        }
+
     def _route_delivery_ensure_token(self):
         for picking in self.filtered(lambda p: not p.route_delivery_token):
             picking.sudo().route_delivery_token = uuid.uuid4().hex
