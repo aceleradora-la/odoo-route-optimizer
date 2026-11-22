@@ -41,6 +41,7 @@ class TestOptimizerPayload(TransactionCase):
                     "location_dest_id": customers.id,
                     "move_ids": [(0, 0, {
                         "product_id": product.id,
+                        **({"name": product.name} if "name" in cls.env["stock.move"]._fields else {}),
                         "product_uom_qty": 1,
                         "location_id": cls.warehouse.lot_stock_id.id,
                         "location_dest_id": customers.id,
