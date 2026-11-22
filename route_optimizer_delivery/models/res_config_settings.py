@@ -37,3 +37,15 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer_delivery.tile_url",
         help="Vacío usa OpenStreetMap. Formato: https://servidor/{z}/{x}/{y}.png",
     )
+    route_delivery_map_provider = fields.Selection(
+        [("osm", "OpenStreetMap"), ("google", "Google Maps")],
+        string="Mapa del tablero",
+        config_parameter="route_optimizer_delivery.map_provider",
+        default="osm",
+    )
+    route_delivery_google_maps_key = fields.Char(
+        string="Clave de Google Maps (navegador)",
+        config_parameter="route_optimizer_delivery.google_maps_key",
+        help="Clave de Maps JavaScript API. Va al navegador de quien usa el tablero: "
+        "creá una clave aparte de la de Routes API y restringila por dominio.",
+    )

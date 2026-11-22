@@ -29,13 +29,21 @@
                         </div>
                     </setting>
                     <setting string="Seguimiento y mapa"
-                             help="Margen de la franja horaria que ve el cliente y mapa base del tablero.">
+                             help="Margen de la franja horaria que ve el cliente y mapa del tablero. Con Google Maps se suman tráfico en vivo y vista satelital.">
                         <div class="content-group">
+                            <div class="row mt8">
+                                <label for="route_delivery_map_provider" class="col-lg-5"/>
+                                <field name="route_delivery_map_provider" class="col-lg-7"/>
+                            </div>
+                            <div class="row" invisible="route_delivery_map_provider != 'google'">
+                                <label for="route_delivery_google_maps_key" class="col-lg-5"/>
+                                <field name="route_delivery_google_maps_key" class="col-lg-7" password="True"/>
+                            </div>
                             <div class="row mt8">
                                 <label for="route_delivery_eta_window_minutes" class="col-lg-5"/>
                                 <field name="route_delivery_eta_window_minutes" class="col-lg-3"/>
                             </div>
-                            <div class="row">
+                            <div class="row" invisible="route_delivery_map_provider == 'google'">
                                 <label for="route_delivery_tile_url" class="col-lg-5"/>
                                 <field name="route_delivery_tile_url" class="col-lg-7"
                                        placeholder="https://tile.openstreetmap.org/{z}/{x}/{y}.png"/>

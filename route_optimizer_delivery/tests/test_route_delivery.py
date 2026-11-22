@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import base64
 
+from unittest.mock import patch
+
 from odoo import fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import HttpCase, TransactionCase, new_test_user, tagged
@@ -66,7 +68,6 @@ class RouteDeliveryCommon(TransactionCase):
                             {
                                 "product_id": cls.product.id,
                                 "product_uom_qty": 5,
-                                "product_uom": cls.product.uom_id.id,
                                 "location_id": cls.warehouse.lot_stock_id.id,
                                 "location_dest_id": cls.env.ref("stock.stock_location_customers").id,
                             },
@@ -257,6 +258,173 @@ class TestRouteDelivery(RouteDeliveryCommon):
         third.route_delivery_state = "delivered"
         with self.assertRaises(UserError):
             board.route_dispatch_move(third.id, new_batch.id, 0)
+
+
+    def _extra_picking(self, name, lat, lon, qty=4):
+        partner = self.env["res.partner"].create(
+            {"name": name, "partner_latitude": lat, "partner_longitude": lon}
+        )
+        customers = self.env.ref("stock.stock_location_customers")
+        picking = self.env["stock.picking"].create(
+            {
+                "partner_id": partner.id,
+                "picking_type_id": self.warehouse.out_type_id.id,
+                "location_id": self.warehouse.lot_stock_id.id,
+                "location_dest_id": customers.id,
+                "scheduled_date": self.batch.scheduled_date,
+                "move_ids": [
+                    (0, 0, {
+                        "product_id": self.product.id,
+                        "product_uom_qty": qty,
+                        "location_id": self.warehouse.lot_stock_id.id,
+                        "location_dest_id": customers.id,
+                    })
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.action_assign()
+        return picking
+
+    def test_dispatch_suggest_and_assign(self):
+        user = new_test_user(self.env, login="despacho_plan", groups="stock.group_stock_user")
+        board = self.Batch.with_user(user)
+        day = fields.Date.to_string(
+            fields.Datetime.context_timestamp(board, self.batch.scheduled_date).date()
+        )
+        first, second, third = self.batch._route_delivery_stops()
+        # Una ruta lejana: la entrega nueva queda entre la 1 y la 2 de la ruta cercana.
+        far = self._extra_picking("Lejano", -34.90, -58.90)
+        far_route = self.Batch.browse(board.route_dispatch_new_route(day, [far.id]))
+        near = self._extra_picking("Entre 1 y 2", -34.63, -58.41)
+
+        # Puede haber otras rutas ese día en la base: se miran solo las de la prueba.
+        options = [
+            o for o in board.route_dispatch_suggest([near.id], day)
+            if o["batch_id"] in (self.batch.id, far_route.id)
+        ]
+        self.assertEqual([o["batch_id"] for o in options], [self.batch.id, far_route.id])
+        best = options[0]
+        self.assertEqual(best["position"], 2)
+        self.assertEqual(best["stop_count"], 4)
+        self.assertEqual(best["before"], first.partner_id.display_name)
+        self.assertEqual(best["after"], second.partner_id.display_name)
+        self.assertLess(best["extra_km"], options[1]["extra_km"])
+        self.assertFalse(best["over_capacity"])
+
+        board.route_dispatch_assign([near.id], self.batch.id)
+        self.assertEqual(self.batch._route_delivery_stops(), first | near | second | third)
+        self.assertTrue(near.route_delivery_eta)
+        self.assertTrue(near.route_delivery_token, "Al entrar a una ruta ya tiene link de seguimiento")
+        self.assertGreater(self.batch.route_delivery_remaining_km, 0)
+        self.assertEqual(self.batch.route_delivery_routing_source, "estimate")
+
+        # Varias a la vez a una ruta nueva; lo ya visitado no se mueve.
+        new_id = board.route_dispatch_new_route(day, [near.id, third.id])
+        self.assertEqual(self.Batch.browse(new_id).route_delivery_stop_count, 2)
+        first.route_delivery_state = "delivered"
+        with self.assertRaises(UserError):
+            board.route_dispatch_assign([first.id], new_id)
+        board.route_dispatch_unassign([near.id, first.id])
+        self.assertFalse(near.batch_id)
+        self.assertEqual(first.batch_id, self.batch)
+
+    def test_dispatch_publish_and_driver(self):
+        user = new_test_user(self.env, login="despacho_pub", groups="stock.group_stock_user")
+        board = self.Batch.with_user(user)
+        day = fields.Date.to_string(
+            fields.Datetime.context_timestamp(board, self.batch.scheduled_date).date()
+        )
+        extra = self._extra_picking("Nuevo", -34.70, -58.50)
+        draft = self.Batch.browse(board.route_dispatch_new_route(day, [extra.id]))
+        self.assertEqual(draft.state, "draft")
+        # Un borrador no aparece en la app del chofer.
+        result = board.route_dispatch_publish(day)
+        self.assertIn(draft.name, result["without_driver"])
+        self.assertEqual(draft.state, "draft")
+        board.route_dispatch_set_driver(draft.id, self.other_driver.id)
+        self.assertFalse(self.app(self.other_driver).route_delivery_app_routes()["routes"])
+        self.assertEqual(board.route_dispatch_publish(day)["published"], 1)
+        self.assertEqual(draft.state, "in_progress")
+        routes = self.app(self.other_driver).route_delivery_app_routes()["routes"]
+        self.assertEqual([r["id"] for r in routes], [draft.id])
+        data = board.route_dispatch_data(day)
+        self.assertIn(self.driver.id, [d["id"] for d in data["drivers"]])
+        self.assertEqual(data["map"]["provider"], "osm")
+
+    def test_incidents_retry_and_postpone(self):
+        board = self.Batch
+        first, second, third = self.batch._route_delivery_stops()
+        self.app().route_delivery_app_start(self.batch.id)
+        self.assertEqual(first.route_delivery_planned_eta, first.route_delivery_eta)
+        reason = self.env.ref("route_optimizer_delivery.fail_reason_closed")
+        self.app().route_delivery_app_fail(first.id, {"reason_id": reason.id})
+        board.route_dispatch_retry(first.id)
+        self.assertEqual(first.route_delivery_state, "pending")
+        self.assertEqual(self.batch._route_delivery_stops(), second | third | first, "Vuelve al final")
+
+        self.app().route_delivery_app_fail(second.id, {"reason_id": reason.id})
+        before = second.scheduled_date
+        board.route_dispatch_postpone(second.id)
+        self.assertFalse(second.batch_id)
+        self.assertEqual(second.route_delivery_state, "pending")
+        self.assertEqual((second.scheduled_date - before).days, 1)
+
+    def test_google_road_path(self):
+        """Con Google como proveedor, un pedido por ruta trae tramos con tráfico y el dibujo."""
+        self.icp.set_param("route_optimizer.matrix_provider", "google")
+        self.icp.set_param("route_optimizer.google_api_key", "clave-de-prueba")
+        calls = []
+
+        def fake_http(url, payload, headers, timeout):
+            calls.append((url, payload, headers))
+            legs = len(payload["intermediates"]) + 1
+            return {"routes": [{
+                "legs": [{"duration": "600s", "distanceMeters": 4000}] * legs,
+                "polyline": {"encodedPolyline": "_p~iF~ps|U_ulLnnqC_mqNvxq`@"},
+            }]}
+
+        target = "odoo.addons.route_optimizer.services.google_client._http_json"
+        with patch(target, side_effect=fake_http):
+            self.batch._route_delivery_update_etas()
+        self.assertEqual(len(calls), 1, "Un solo pedido computeRoutes para toda la ruta")
+        url, payload, headers = calls[0]
+        self.assertIn("directions/v2:computeRoutes", url)
+        self.assertEqual(headers["X-Goog-Api-Key"], "clave-de-prueba")
+        self.assertEqual(payload["routingPreference"], "TRAFFIC_AWARE")
+        self.assertEqual(len(payload["intermediates"]), 2)
+        self.assertEqual(payload["origin"]["location"]["latLng"]["latitude"], -34.60)
+        self.assertEqual(self.batch.route_delivery_routing_source, "google")
+        self.assertEqual(self.batch.route_delivery_polyline, "_p~iF~ps|U_ulLnnqC_mqNvxq`@")
+        self.assertAlmostEqual(self.batch.route_delivery_remaining_km, 12.0)
+        etas = self.batch._route_delivery_stops().mapped("route_delivery_eta")
+        # 10 min de viaje + 5 de atención entre paradas.
+        self.assertEqual([(b - a).total_seconds() for a, b in zip(etas, etas[1:])], [900.0, 900.0])
+        data = self.batch._route_dispatch_route_data()
+        self.assertEqual(data["polylines"], ["_p~iF~ps|U_ulLnnqC_mqNvxq`@"])
+
+        # Si Google falla, se estima y nadie queda frenado.
+        from odoo.addons.route_optimizer.services import google_client
+        with patch(target, side_effect=google_client.GoogleApiError("sin cuota")):
+            self.batch._route_delivery_update_etas()
+        self.assertEqual(self.batch.route_delivery_routing_source, "estimate")
+        self.assertFalse(self.batch.route_delivery_polyline)
+
+    def test_google_route_chunks(self):
+        from odoo.addons.route_optimizer.services import google_client
+        points = [(-58.0 - i / 100, -34.0 - i / 100) for i in range(60)]
+        sizes = []
+
+        def fake_http(url, payload, headers, timeout):
+            sizes.append(len(payload["intermediates"]))
+            return {"routes": [{"legs": [{"duration": "60s", "distanceMeters": 500}] * (sizes[-1] + 1),
+                                "polyline": {"encodedPolyline": "abc"}}]}
+
+        with patch.object(google_client, "_http_json", side_effect=fake_http):
+            result = google_client.compute_route("k", points)
+        self.assertEqual(sizes, [25, 25, 6])
+        self.assertEqual(len(result["durations"]), 59)
+        self.assertEqual(len(result["polylines"]), 3)
 
 
 @tagged("post_install", "-at_install")

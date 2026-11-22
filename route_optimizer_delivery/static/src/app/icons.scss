@@ -1,0 +1,50 @@
+// Íconos propios del módulo. La app y el tablero corren desde Odoo 17 hasta 20, y en
+// el camino Odoo cambió de fuente de íconos (Font Awesome ya no está en la 20): con
+// estos SVG embebidos se ven igual en todas las versiones. Toman el color del texto.
+$rd-icons: (
+    "times": "M6 6l12 12M18 6L6 18",
+    "check": "M5 12.5l4.5 4.5L19 7.5",
+    "chevron-left": "M15 5l-7 7 7 7",
+    "chevron-right": "M9 5l7 7-7 7",
+    "chevron-up": "M5 15l7-7 7 7",
+    "chevron-down": "M5 9l7 7 7-7",
+    "truck": "M2 6h11v10H2zM13 9h4l4 4v3h-8zM8 18.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0zM19 18.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z",
+    "whatsapp": "M4 20l1.4-4.2A8 8 0 1 1 8.2 18.6zM9.5 9.5c0 2.8 2.2 5 5 5",
+    "refresh": "M20 11a8 8 0 0 0-14.3-4M4 4v4h4M4 13a8 8 0 0 0 14.3 4M20 20v-4h-4",
+    "qrcode": "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM18 14h2M14 18v2",
+    "home": "M4 11l8-7 8 7M6 10v10h12V10",
+    "clock-o": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2",
+    "camera": "M4 8h3l2-3h6l2 3h3v11H4zM12 10.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+    "plus": "M12 5v14M5 12h14",
+    "play": "M8 5l11 7-11 7z",
+    "phone": "M6 3h4l1.5 5-2.5 1.5a11 11 0 0 0 5.5 5.5L16 12.5l5 1.5v4a2 2 0 0 1-2 2A16 16 0 0 1 4 5a2 2 0 0 1 2-2z",
+    "pencil": "M4 20l1-4L16 5l3 3L8 19z",
+    "mobile": "M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM11 18h2",
+    "map-o": "M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14",
+    "location-arrow": "M20 4L4 11l7 2 2 7z",
+    "keyboard-o": "M3 7h18v10H3zM7 11h1M11 11h1M15 11h1M8 14h8",
+    "hand-paper-o": "M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3",
+    "ellipsis-v": "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01",
+    "dot-circle-o": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
+    "circle-o": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
+    "check-circle": "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12.5l3 3 5-6",
+    "car": "M5 16v-5l2-5h10l2 5v5M3 16h18v2H3zM7 13h.01M17 13h.01",
+    "barcode": "M4 5v14M7 5v14M10.5 5v14M13 5v14M16.5 5v14M20 5v14",
+);
+
+.o_rdi {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 1.15em;
+    height: 1.15em;
+    vertical-align: -0.2em;
+    background-color: currentColor;
+    -webkit-mask: var(--rd-icon) center / contain no-repeat;
+    mask: var(--rd-icon) center / contain no-repeat;
+}
+
+@each $name, $path in $rd-icons {
+    .o_rdi-#{$name} {
+        --rd-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='#{$path}'/%3E%3C/svg%3E");
+    }
+}

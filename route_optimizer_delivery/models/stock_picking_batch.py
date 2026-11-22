@@ -8,7 +8,7 @@ import pytz
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
 
-from odoo.addons.route_optimizer.services import delivery_windows, osrm_client, route_service
+from odoo.addons.route_optimizer.services import delivery_windows, google_client, osrm_client, route_service
 
 _logger = logging.getLogger(__name__)
 
@@ -19,7 +19,10 @@ URBAN_SPEED_KMH = 28.0
 DEFAULT_SERVICE_SECONDS = 300
 # Pasado este tiempo, la última posición del chofer ya no sirve como origen.
 POSITION_FRESH_MINUTES = 15
-OSRM_ETA_TIMEOUT = 6
+ROUTING_TIMEOUT = 8
+# Polilíneas de una ruta partida en varios pedidos, guardadas en un solo campo de texto
+# (los caracteres de una polilínea codificada nunca incluyen el salto de línea).
+POLYLINE_SEPARATOR = "\n"
 
 
 def _haversine_m(a, b):
@@ -39,6 +42,17 @@ class StockPickingBatch(models.Model):
     route_delivery_last_position_at = fields.Datetime(
         string="Última posición", copy=False, readonly=True
     )
+    route_delivery_polyline = fields.Text(
+        string="Recorrido por calles",
+        copy=False,
+        readonly=True,
+        help="Polilíneas codificadas del recorrido pendiente, una por línea.",
+    )
+    route_delivery_remaining_km = fields.Float(string="Km pendientes", copy=False, readonly=True)
+    route_delivery_remaining_minutes = fields.Integer(
+        string="Minutos pendientes", copy=False, readonly=True
+    )
+    route_delivery_routing_source = fields.Char(copy=False, readonly=True)
     route_delivery_stop_count = fields.Integer(
         string="Paradas", compute="_compute_route_delivery_progress"
     )
@@ -132,43 +146,75 @@ class StockPickingBatch(models.Model):
         planned = local.astimezone(pytz.utc).replace(tzinfo=None)
         return max(planned, now) if planned.date() <= now.date() else planned
 
-    def _route_delivery_leg_seconds(self, points):
-        """Segundos de viaje entre puntos consecutivos; None donde falta la coordenada.
+    @api.model
+    def _route_delivery_routing_provider(self):
+        """Quién calcula el recorrido por calles: 'google', 'osrm' o False (línea recta).
 
-        Usa OSRM si es el proveedor configurado (Google cobra por elemento de la
-        matriz, y esto corre en cada parada). Si no responde, estima en línea recta.
+        Google se usa cuando ya es el proveedor elegido para optimizar: un pedido
+        computeRoutes por ruta, con tráfico. OSRM, cuando hay servidor configurado.
         """
-        legs = [None] * (len(points) - 1)
-        known = [i for i, pt in enumerate(points) if pt]
         icp = self.env["ir.config_parameter"].sudo()
-        provider = (icp.get_param("route_optimizer.matrix_provider") or "osrm").strip()
-        base_url = (icp.get_param("route_optimizer.osrm_url") or "").strip()
-        durations = None
-        if provider == "osrm" and base_url and 2 <= len(known) <= 100:
+        matrix = (icp.get_param("route_optimizer.matrix_provider") or "osrm").strip()
+        solver = (icp.get_param("route_optimizer.solver_provider") or "ortools").strip()
+        if "google" in (matrix, solver) and (icp.get_param("route_optimizer.google_api_key") or "").strip():
+            return "google"
+        if (icp.get_param("route_optimizer.osrm_url") or "").strip():
+            return "osrm"
+        return False
+
+    def _route_delivery_path(self, points, departure=None):
+        """Tramos entre puntos consecutivos y dibujo del recorrido.
+
+        :param points: lista de (lon, lat) o None donde falta la coordenada
+        :return: {"seconds": [..], "meters": [..], "polylines": [..], "source": str}
+                 con None en los tramos que tocan un punto sin coordenadas.
+        Si el servicio de ruteo no responde, estima en línea recta: el chofer y el
+        tablero no pueden quedar frenados por un servicio externo.
+        """
+        count = len(points) - 1
+        seconds, meters = [None] * count, [None] * count
+        known = [i for i, pt in enumerate(points) if pt]
+        coords = [points[i] for i in known]
+        icp = self.env["ir.config_parameter"].sudo()
+        provider = self._route_delivery_routing_provider()
+        result = None
+        if len(coords) >= 2 and provider and not self.env.context.get("route_delivery_no_routing"):
             try:
-                table = osrm_client.fetch_table(
-                    base_url,
-                    icp.get_param("route_optimizer.osrm_profile") or "driving",
-                    [points[i] for i in known],
-                    timeout=OSRM_ETA_TIMEOUT,
-                )
-                durations = table.get("durations")
+                if provider == "google":
+                    stamp = None
+                    if departure and departure > fields.Datetime.now() + timedelta(minutes=1):
+                        stamp = departure.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    result = google_client.compute_route(
+                        icp.get_param("route_optimizer.google_api_key"),
+                        coords,
+                        departure_rfc3339=stamp,
+                        timeout=ROUTING_TIMEOUT,
+                    )
+                elif len(coords) <= 100:
+                    result = osrm_client.fetch_route(
+                        icp.get_param("route_optimizer.osrm_url"),
+                        icp.get_param("route_optimizer.osrm_profile") or "driving",
+                        coords,
+                        timeout=ROUTING_TIMEOUT,
+                    )
             except Exception as error:  # noqa: BLE001 - cualquier falla cae a la estimación
-                _logger.info("OSRM no respondió para las horas estimadas: %s", error)
+                _logger.info("El ruteo (%s) no respondió, se estima en línea recta: %s", provider, error)
+                result = None
         for pos in range(len(known) - 1):
             a, b = known[pos], known[pos + 1]
-            seconds = None
-            if durations:
-                try:
-                    seconds = float(durations[pos][pos + 1])
-                except (IndexError, TypeError, ValueError):
-                    seconds = None
-            if seconds is None:
-                meters = _haversine_m(points[a], points[b]) * DETOUR_FACTOR
-                seconds = meters / (URBAN_SPEED_KMH / 3.6)
+            if result:
+                leg_s, leg_m = result["durations"][pos], result["distances"][pos]
+            else:
+                leg_m = _haversine_m(points[a], points[b]) * DETOUR_FACTOR
+                leg_s = leg_m / (URBAN_SPEED_KMH / 3.6)
             # El tramo se imputa a la llegada al punto b.
-            legs[b - 1] = seconds
-        return legs
+            seconds[b - 1], meters[b - 1] = leg_s, leg_m
+        return {
+            "seconds": seconds,
+            "meters": meters,
+            "polylines": (result or {}).get("polylines") or [],
+            "source": provider if result else "estimate",
+        }
 
     def _route_delivery_update_etas(self):
         icp = self.env["ir.config_parameter"].sudo()
@@ -182,18 +228,35 @@ class StockPickingBatch(models.Model):
                 lambda p: p.route_delivery_state == "pending"
             )
             if not pending:
+                batch.write(
+                    {
+                        "route_delivery_polyline": False,
+                        "route_delivery_remaining_km": 0.0,
+                        "route_delivery_remaining_minutes": 0,
+                    }
+                )
                 continue
             points = [batch._route_delivery_origin()] + [
                 route_service._partner_coords(p._route_optimizer_delivery_partner()) for p in pending
             ]
-            legs = batch._route_delivery_leg_seconds(points)
-            clock = batch._route_delivery_departure()
-            for picking, leg in zip(pending, legs):
+            departure = batch._route_delivery_departure()
+            path = batch._route_delivery_path(points, departure=departure)
+            clock = departure
+            for picking, leg in zip(pending, path["seconds"]):
                 # Sin coordenadas se asume un tramo corto para no cortar la cadena.
                 clock += timedelta(seconds=leg if leg is not None else 600)
-                if picking.route_delivery_eta != clock:
-                    picking.route_delivery_eta = clock.replace(microsecond=0)
+                eta = clock.replace(microsecond=0)
+                if picking.route_delivery_eta != eta:
+                    picking.route_delivery_eta = eta
                 clock += timedelta(seconds=service)
+            batch.write(
+                {
+                    "route_delivery_polyline": POLYLINE_SEPARATOR.join(path["polylines"]) or False,
+                    "route_delivery_remaining_km": sum(m or 0.0 for m in path["meters"]) / 1000.0,
+                    "route_delivery_remaining_minutes": round((clock - departure).total_seconds() / 60.0),
+                    "route_delivery_routing_source": path["source"],
+                }
+            )
         return True
 
     # ------------------------------------------------------------------
@@ -265,6 +328,8 @@ class StockPickingBatch(models.Model):
             if self.route_delivery_last_position_at
             else False,
             "gmaps_url": self.route_optimizer_gmaps_url or False,
+            "remaining_km": round(self.route_delivery_remaining_km, 1),
+            "remaining_minutes": self.route_delivery_remaining_minutes,
         }
 
     def _route_delivery_app_payload(self):
@@ -347,6 +412,9 @@ class StockPickingBatch(models.Model):
             pending = batch._route_delivery_stops().filtered(
                 lambda p: p.route_delivery_state == "pending"
             )
+            for picking in pending:
+                # Foto de lo prometido: contra esto se mide el atraso.
+                picking.route_delivery_planned_eta = picking.route_delivery_eta
             pending._route_delivery_ensure_token()
             pending._route_delivery_notify("on_the_way")
             batch._route_delivery_notify_next()
@@ -454,6 +522,46 @@ class StockPickingBatch(models.Model):
         start = tz.localize(datetime.combine(local_day, time.min)).astimezone(pytz.utc)
         return local_day, start.replace(tzinfo=None), (start + timedelta(days=1)).replace(tzinfo=None)
 
+    def _route_dispatch_capacity(self):
+        """Capacidad de peso del vehículo de la ruta (kg), o 0 si no se conoce.
+
+        Solo hay dato con Flota instalado y un vehículo en el lote; se reutiliza la
+        misma búsqueda de campos que el asistente de optimización.
+        """
+        self.ensure_one()
+        if "vehicle_id" not in self._fields or not self.vehicle_id:
+            return 0.0
+        wizard = self.env["route.optimizer.wizard"]
+        if not hasattr(wizard, "_fleet_capacity_candidates"):
+            return 0.0
+        category = getattr(getattr(self.vehicle_id, "model_id", None), "category_id", None)
+        capacity = 0.0
+        if category and "weight_capacity" in category._fields:
+            capacity = category.weight_capacity or 0.0
+        return float(capacity or wizard._fleet_capacity_candidates(self.vehicle_id) or 0.0)
+
+    def _route_dispatch_route_data(self):
+        self.ensure_one()
+        data = self._route_delivery_summary()
+        stops = self._route_delivery_stops()
+        delays = [
+            (p.route_delivery_eta - p.route_delivery_planned_eta).total_seconds() / 60.0
+            for p in stops
+            if p.route_delivery_state == "pending" and p.route_delivery_eta and p.route_delivery_planned_eta
+        ]
+        data.update(
+            {
+                "stops": [p._route_delivery_stop_data() for p in stops],
+                "polylines": (self.route_delivery_polyline or "").split(POLYLINE_SEPARATOR)
+                if self.route_delivery_polyline
+                else [],
+                "capacity": self._route_dispatch_capacity(),
+                "delay_minutes": round(max(delays)) if delays else 0,
+                "routing_source": self.route_delivery_routing_source or "",
+            }
+        )
+        return data
+
     @api.model
     def route_dispatch_data(self, day=None):
         local_day, start, end = self._route_dispatch_day_bounds(day)
@@ -485,19 +593,157 @@ class StockPickingBatch(models.Model):
         coords = route_service._partner_coords(warehouse.partner_id or company_partner)
         if coords:
             depot = {"lon": coords[0], "lat": coords[1], "name": (warehouse.partner_id or company_partner).display_name}
-        routes = []
-        for batch in batches:
-            data = batch._route_delivery_summary()
-            data["stops"] = [p._route_delivery_stop_data() for p in batch._route_delivery_stops()]
-            routes.append(data)
+        driver_group = self.env.ref("route_optimizer_delivery.group_route_delivery_driver")
+        drivers = self.env["res.users"].sudo().search(
+            [("all_group_ids", "in", driver_group.ids), ("share", "=", False)]
+            if "all_group_ids" in self.env["res.users"]._fields
+            else [("groups_id", "in", driver_group.ids), ("share", "=", False)],
+            order="name",
+        )
+        map_provider = (icp.get_param("route_optimizer_delivery.map_provider") or "osm").strip()
+        google_key = (icp.get_param("route_optimizer_delivery.google_maps_key") or "").strip()
         return {
             "day": fields.Date.to_string(local_day),
-            "routes": routes,
+            "routes": [batch._route_dispatch_route_data() for batch in batches],
             "unassigned": [p._route_delivery_stop_data() for p in unassigned],
             "depot": depot,
-            "tile_url": (icp.get_param("route_optimizer_delivery.tile_url") or "").strip()
-            or "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+            "drivers": [{"id": user.id, "name": user.name} for user in drivers],
+            "map": {
+                "provider": "google" if map_provider == "google" and google_key else "osm",
+                "google_key": google_key if map_provider == "google" else "",
+                "tile_url": (icp.get_param("route_optimizer_delivery.tile_url") or "").strip()
+                or "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+            },
+            "routing": self._route_delivery_routing_provider() or "estimate",
         }
+
+    # --- Inserción más barata ---------------------------------------------
+
+    def _route_dispatch_chain(self):
+        """Puntos (lon, lat) del recorrido pendiente: origen + paradas pendientes."""
+        self.ensure_one()
+        pending = self._route_delivery_stops().filtered(lambda p: p.route_delivery_state == "pending")
+        coords = [route_service._partner_coords(p._route_optimizer_delivery_partner()) for p in pending]
+        return pending, [self._route_delivery_origin()] + coords
+
+    @staticmethod
+    def _route_dispatch_insertion(chain, point):
+        """Mejor lugar para meter `point` en la cadena: (índice entre pendientes, metros extra).
+
+        El costo de cada lugar es el desvío en línea recta corregido por el factor de
+        calles: alcanza para comparar rutas entre sí sin pedirle nada al ruteo.
+        """
+        known = [(i, pt) for i, pt in enumerate(chain) if pt]
+        if not point or not known:
+            return len(chain) - 1, 0.0
+        best_index, best_cost = len(chain) - 1, None
+        for pos, (i, a) in enumerate(known):
+            if pos + 1 < len(known):
+                b = known[pos + 1][1]
+                cost = _haversine_m(a, point) + _haversine_m(point, b) - _haversine_m(a, b)
+            else:
+                cost = _haversine_m(a, point)  # al final de la ruta
+            if best_cost is None or cost < best_cost:
+                best_index, best_cost = i, cost
+        return best_index, max(best_cost or 0.0, 0.0) * DETOUR_FACTOR
+
+    def _route_dispatch_plan(self, pickings):
+        """Dónde entraría cada entrega de `pickings` en esta ruta, una tras otra.
+
+        :return: (posiciones [(picking, índice entre pendientes)], metros extra totales)
+        """
+        self.ensure_one()
+        pending, chain = self._route_dispatch_chain()
+        chain = list(chain)
+        order = list(pending)
+        placements, extra = [], 0.0
+        for picking in pickings:
+            point = route_service._partner_coords(picking._route_optimizer_delivery_partner())
+            index, cost = self._route_dispatch_insertion(chain, point)
+            chain.insert(index + 1, point)
+            order.insert(index, picking)
+            extra += cost
+        for picking in pickings:
+            placements.append((picking, order.index(picking)))
+        return placements, extra, order
+
+    @api.model
+    def route_dispatch_suggest(self, picking_ids, day=None):
+        """Rutas del día ordenadas por lo que cuesta sumarles estas entregas."""
+        pickings = self.env["stock.picking"].browse([int(i) for i in picking_ids or []]).exists()
+        pickings = pickings.filtered(lambda p: p.route_delivery_state == "pending")
+        if not pickings:
+            return []
+        _local_day, start, end = self._route_dispatch_day_bounds(day)
+        batches = self.search(
+            [
+                ("state", "!=", "cancel"),
+                ("scheduled_date", ">=", start),
+                ("scheduled_date", "<", end),
+                ("route_delivery_finished_at", "=", False),
+            ],
+            order="id",
+        )
+        icp = self.env["ir.config_parameter"].sudo()
+        try:
+            service = int(icp.get_param("route_optimizer.service_time_seconds") or 0) or DEFAULT_SERVICE_SECONDS
+        except ValueError:
+            service = DEFAULT_SERVICE_SECONDS
+        options = []
+        for batch in batches:
+            moving = pickings.filtered(lambda p: p.batch_id != batch)
+            if not moving:
+                continue
+            placements, extra_m, order = batch._route_dispatch_plan(moving)
+            extra_min = extra_m / (URBAN_SPEED_KMH / 3.6) / 60.0 + len(moving) * service / 60.0
+            load = sum(batch._route_delivery_stops().mapped("shipping_weight")) + sum(moving.mapped("shipping_weight"))
+            capacity = batch._route_dispatch_capacity()
+            first = placements[0][1]
+            before = order[first - 1] if first > 0 else False
+            after = order[first + 1] if first + 1 < len(order) else False
+            options.append(
+                {
+                    "batch_id": batch.id,
+                    "name": batch.name,
+                    "driver": batch.user_id.name or "",
+                    "extra_minutes": round(extra_min),
+                    "extra_km": round(extra_m / 1000.0, 1),
+                    "position": first + 1,
+                    "stop_count": len(order),
+                    "before": (before._route_optimizer_delivery_partner().display_name or before.name) if before else "",
+                    "after": (after._route_optimizer_delivery_partner().display_name or after.name) if after else "",
+                    "load": round(load, 1),
+                    "capacity": capacity,
+                    "over_capacity": bool(capacity and load > capacity + 0.001),
+                    "started": bool(batch.route_delivery_started_at),
+                }
+            )
+        # Primero las que entran; entre ellas, la que menos se desvía.
+        options.sort(key=lambda o: (o["over_capacity"], o["extra_minutes"], o["extra_km"]))
+        return options
+
+    @api.model
+    def route_dispatch_assign(self, picking_ids, batch_id):
+        """Suma las entregas a la ruta, cada una en su lugar más barato."""
+        target = self.browse(int(batch_id or 0)).exists()
+        if not target or target.state == "cancel":
+            raise UserError(_("La ruta ya no está disponible."))
+        pickings = self.env["stock.picking"].browse([int(i) for i in picking_ids or []]).exists()
+        visited = pickings.filtered(lambda p: p.route_delivery_state != "pending")
+        if visited:
+            raise UserError(_("%s ya fue visitada: no se puede mover.") % visited[0].name)
+        pickings = pickings.filtered(lambda p: p.batch_id != target)
+        if not pickings:
+            return True
+        sources = pickings.batch_id
+        _placements, _extra, order = target._route_dispatch_plan(pickings)
+        visited_stops = target._route_delivery_stops().filtered(lambda p: p.route_delivery_state != "pending")
+        pickings.write({"batch_id": target.id})
+        for position, stop in enumerate(list(visited_stops) + order, 1):
+            if stop.batch_sequence != position * 10:
+                stop.batch_sequence = position * 10
+        (sources | target)._route_delivery_update_etas()
+        return True
 
     @api.model
     def route_dispatch_move(self, picking_id, batch_id, index=None):
@@ -527,20 +773,109 @@ class StockPickingBatch(models.Model):
         return True
 
     @api.model
-    def route_dispatch_new_route(self, day, picking_id):
-        """Crea una ruta nueva a partir de una entrega (toma su tipo de operación)."""
+    def route_dispatch_unassign(self, picking_ids):
+        pickings = self.env["stock.picking"].browse([int(i) for i in picking_ids or []]).exists()
+        pickings = pickings.filtered(lambda p: p.batch_id and p.route_delivery_state == "pending")
+        sources = pickings.batch_id
+        pickings.write({"batch_id": False, "batch_sequence": 0, "route_delivery_eta": False})
+        sources._route_delivery_update_etas()
+        return True
+
+    @api.model
+    def route_dispatch_new_route(self, day, picking_ids):
+        """Abre una ruta nueva con estas entregas (toma el tipo de operación de la primera)."""
+        if isinstance(picking_ids, int):
+            picking_ids = [picking_ids]
+        pickings = self.env["stock.picking"].browse([int(i) for i in picking_ids or []]).exists()
+        pickings = pickings.filtered(lambda p: p.route_delivery_state == "pending")
+        if not pickings:
+            raise UserError(_("Elegí al menos una entrega pendiente."))
+        sources = pickings.batch_id
+        batch = self.create(
+            {"picking_type_id": pickings[0].picking_type_id.id, "company_id": pickings[0].company_id.id}
+        )
+        # Vecino más cercano desde el depósito: un orden razonable hasta que se optimice.
+        _placements, _extra, order = batch._route_dispatch_plan(pickings)
+        pickings.write({"batch_id": batch.id})
+        for position, stop in enumerate(order, 1):
+            stop.batch_sequence = position * 10
+        if not batch.scheduled_date:
+            batch.scheduled_date = self._route_dispatch_day_bounds(day)[1] + timedelta(hours=12)
+        (sources | batch)._route_delivery_update_etas()
+        return batch.id
+
+    @api.model
+    def route_dispatch_set_driver(self, batch_id, user_id):
+        batch = self.browse(int(batch_id)).exists()
+        if not batch:
+            raise UserError(_("La ruta ya no existe."))
+        batch.user_id = int(user_id) if user_id else False
+        return True
+
+    @api.model
+    def route_dispatch_publish(self, day=None):
+        """Confirma las rutas en borrador del día: recién ahí las ve el chofer."""
+        _local_day, start, end = self._route_dispatch_day_bounds(day)
+        drafts = self.search(
+            [("state", "=", "draft"), ("scheduled_date", ">=", start), ("scheduled_date", "<", end)]
+        ).filtered("picking_ids")
+        without_driver = drafts.filtered(lambda b: not b.user_id)
+        for batch in drafts - without_driver:
+            batch.action_confirm()
+        return {
+            "published": len(drafts - without_driver),
+            "without_driver": without_driver.mapped("name"),
+        }
+
+    @api.model
+    def route_dispatch_optimize(self, batch_ids):
+        """Optimiza el orden de cada ruta con el motor configurado (un vehículo por ruta)."""
+        done, errors = [], []
+        for batch in self.browse([int(i) for i in batch_ids or []]).exists():
+            if batch.route_delivery_started_at:
+                continue  # una ruta en la calle no se reordena sola
+            try:
+                with self.env.cr.savepoint():
+                    route_service.optimize_batch(self.env, batch, num_vehicles=1, use_duration=True)
+                    batch._route_delivery_update_etas()
+                done.append(batch.name)
+            except UserError as error:
+                errors.append("%s: %s" % (batch.name, str(error).split("\n")[0]))
+        return {"optimized": done, "errors": errors}
+
+    @api.model
+    def route_dispatch_retry(self, picking_id):
+        """Una entrega fallida vuelve a pendiente, al final de su ruta."""
+        picking = self.env["stock.picking"].browse(int(picking_id)).exists()
+        if not picking or not picking.batch_id:
+            raise UserError(_("La entrega ya no está en una ruta."))
+        batch = picking.batch_id
+        last = max(batch.picking_ids.mapped("batch_sequence") or [0])
+        picking.batch_sequence = last + 10
+        picking.action_route_delivery_reset()
+        return True
+
+    @api.model
+    def route_dispatch_postpone(self, picking_id):
+        """Saca la entrega de la ruta y la deja pendiente para el día siguiente."""
         picking = self.env["stock.picking"].browse(int(picking_id)).exists()
         if not picking:
             raise UserError(_("La entrega ya no existe."))
-        source = picking.batch_id
-        batch = self.create(
-            {"picking_type_id": picking.picking_type_id.id, "company_id": picking.company_id.id}
-        )
-        picking.write({"batch_id": batch.id, "batch_sequence": 10})
-        if not batch.scheduled_date:
-            batch.scheduled_date = self._route_dispatch_day_bounds(day)[1] + timedelta(hours=12)
-        (source | batch)._route_delivery_update_etas()
-        return batch.id
+        batch = picking.batch_id
+        values = {
+            "batch_id": False,
+            "batch_sequence": 0,
+            "route_delivery_state": "pending",
+            "route_delivery_done_at": False,
+            "route_delivery_eta": False,
+            "route_delivery_planned_eta": False,
+            "route_delivery_next_notified": False,
+        }
+        if picking.state not in ("done", "cancel"):
+            values["scheduled_date"] = (picking.scheduled_date or fields.Datetime.now()) + timedelta(days=1)
+        picking.write(values)
+        batch._route_delivery_after_stop()
+        return True
 
     def action_route_delivery_update_etas(self):
         self._route_delivery_update_etas()

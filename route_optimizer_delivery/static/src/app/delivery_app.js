@@ -1,11 +1,11 @@
-import { Component, useState, onWillStart, onWillUnmount } from "@odoo/owl";
+import { Component, onWillStart, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { BarcodeDialog } from "@web/core/barcode/barcode_dialog";
 import { isBarcodeScannerSupported } from "@web/core/barcode/barcode_video_scanner";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { parseNum, formatNum, normalizeNum, selectOnFocus } from "./number_input";
-import { RouteDeliverySignaturePad } from "./signature_pad";
+import { reactive } from "./owl_compat";
 
 const MODEL = "stock.picking.batch";
 const PING_MS = 60000;
@@ -51,15 +51,13 @@ function shrinkPhoto(file) {
  */
 export class RouteDeliveryApp extends Component {
     static template = "route_optimizer_delivery.RouteDeliveryApp";
-    static components = { RouteDeliverySignaturePad };
-    static props = ["*"];
 
     setup() {
         this.orm = useService("orm");
         this.dialog = useService("dialog");
         this.notification = useService("notification");
         this.pwa = useService("pwa");
-        this.state = useState({
+        this.state = reactive({
             screen: "home", // home | route | stop | fail
             user: "",
             dispatcher: false,
@@ -442,8 +440,68 @@ export class RouteDeliveryApp extends Component {
         target.photos.splice(index, 1);
     }
 
-    onSignature(dataUrl) {
-        this.state.form.signature = dataUrl;
+    /** Valor de un campo de texto al estado (reemplaza a t-model, que cambió en OWL 3). */
+    setValue(target, key, ev) {
+        target[key] = ev.target.value;
+    }
+
+    // Firma con el dedo sobre un <canvas>.
+    signaturePoint(ev) {
+        const rect = ev.currentTarget.getBoundingClientRect();
+        return [ev.clientX - rect.left, ev.clientY - rect.top];
+    }
+
+    onSignatureDown(ev) {
+        ev.preventDefault();
+        const canvas = ev.currentTarget;
+        canvas.setPointerCapture?.(ev.pointerId);
+        const ctx = canvas.getContext("2d");
+        if (!this.state.form.signature && !this.signing) {
+            // Primer trazo: el lienzo se dimensiona en píxeles reales para que no salga pixelado.
+            const ratio = Math.min(window.devicePixelRatio || 1, 2);
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = Math.max(1, Math.round(rect.width * ratio));
+            canvas.height = Math.max(1, Math.round(rect.height * ratio));
+            ctx.scale(ratio, ratio);
+            ctx.lineWidth = 2.2;
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.strokeStyle = "#111827";
+        }
+        this.signing = true;
+        const [x, y] = this.signaturePoint(ev);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        // Un toque sin arrastre también deja marca.
+        ctx.lineTo(x + 0.1, y + 0.1);
+        ctx.stroke();
+    }
+
+    onSignatureMove(ev) {
+        if (!this.signing) {
+            return;
+        }
+        ev.preventDefault();
+        const [x, y] = this.signaturePoint(ev);
+        const ctx = ev.currentTarget.getContext("2d");
+        ctx.lineTo(x, y);
+        ctx.stroke();
+    }
+
+    onSignatureUp(ev) {
+        if (!this.signing) {
+            return;
+        }
+        this.signing = false;
+        this.state.form.signature = ev.currentTarget.toDataURL("image/png");
+    }
+
+    clearSignature() {
+        const canvas = document.querySelector(".o_route_delivery_app .o_rd_signature_canvas");
+        if (canvas) {
+            canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+        }
+        this.state.form.signature = null;
     }
 
     async deliver() {

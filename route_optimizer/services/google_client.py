@@ -239,3 +239,64 @@ def optimize_tours(project_id, sa_json_str, model_payload, timeout=120):
     if result.get("error"):
         raise GoogleApiError(str(result["error"])[:500])
     return result
+
+
+COMPUTE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
+# computeRoutes admite hasta 25 puntos intermedios por pedido.
+MAX_ROUTE_INTERMEDIATES = 25
+
+
+def compute_route(api_key, coordinates_lonlat, departure_rfc3339=None, traffic=True, timeout=20):
+    """
+    Recorrido por calles que pasa por los puntos EN EL ORDEN DADO (no optimiza).
+
+    Devuelve {"durations": [s por tramo], "distances": [m por tramo],
+    "polylines": [polilínea codificada por pedido]} — el mismo contrato que
+    osrm_client.fetch_route. Con ``traffic`` usa el tráfico previsto para la hora
+    de salida, que es lo que hace realista la hora estimada de cada parada.
+
+    Las rutas largas se parten en pedidos de hasta 25 puntos intermedios.
+    """
+    key = (api_key or "").strip()
+    if not key:
+        raise GoogleApiError("Google API key is not configured.")
+    points = list(coordinates_lonlat)
+    if len(points) < 2:
+        raise GoogleApiError("At least two coordinates are required.")
+
+    def waypoint(lon, lat):
+        return {"location": {"latLng": {"latitude": lat, "longitude": lon}}}
+
+    headers = {
+        "X-Goog-Api-Key": key,
+        "X-Goog-FieldMask": "routes.legs.duration,routes.legs.distanceMeters,routes.polyline.encodedPolyline",
+    }
+    durations, distances, polylines = [], [], []
+    step = MAX_ROUTE_INTERMEDIATES + 1
+    for start in range(0, len(points) - 1, step):
+        chunk = points[start:start + step + 1]
+        payload = {
+            "origin": waypoint(*chunk[0]),
+            "destination": waypoint(*chunk[-1]),
+            "intermediates": [waypoint(*pt) for pt in chunk[1:-1]],
+            "travelMode": "DRIVE",
+            "routingPreference": "TRAFFIC_AWARE" if traffic else "TRAFFIC_UNAWARE",
+            "polylineEncoding": "ENCODED_POLYLINE",
+        }
+        # Google rechaza una hora de salida en el pasado.
+        if traffic and departure_rfc3339 and start == 0:
+            payload["departureTime"] = departure_rfc3339
+        data = _http_json(COMPUTE_ROUTES_URL, payload, headers, timeout)
+        routes = data.get("routes") if isinstance(data, dict) else None
+        if not routes:
+            raise GoogleApiError("computeRoutes returned no route for these points.")
+        legs = routes[0].get("legs") or []
+        if len(legs) != len(chunk) - 1:
+            raise GoogleApiError("computeRoutes returned an unexpected number of legs.")
+        for leg in legs:
+            durations.append(_duration_to_seconds(leg.get("duration")) or 0.0)
+            distances.append(float(leg.get("distanceMeters") or 0.0))
+        encoded = (routes[0].get("polyline") or {}).get("encodedPolyline")
+        if encoded:
+            polylines.append(encoded)
+    return {"durations": durations, "distances": distances, "polylines": polylines}

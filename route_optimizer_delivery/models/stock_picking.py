@@ -11,6 +11,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import float_compare
 
+from odoo.addons.route_optimizer.models.stock_picking import _move_uom
+
 _logger = logging.getLogger(__name__)
 
 MAX_PHOTOS = 6
@@ -24,7 +26,11 @@ DELIVERY_STATES = [
 
 
 def _b64_payload(data):
-    """Acepta un data URL o base64 pelado y devuelve base64 válido (bytes) o False."""
+    """Acepta un data URL o base64 pelado y devuelve base64 válido (texto) o False.
+
+    Se devuelve como texto: es lo que aceptan los campos binarios en todas las
+    versiones (Odoo 20 rechaza `bytes`, que ya no sabe si vienen codificados).
+    """
     if not data:
         return False
     if isinstance(data, str) and data.startswith("data:"):
@@ -33,7 +39,7 @@ def _b64_payload(data):
         base64.b64decode(data, validate=True)
     except (binascii.Error, ValueError, TypeError):
         raise UserError(_("La imagen recibida no es válida. Probá sacarla de nuevo."))
-    return data.encode() if isinstance(data, str) else data
+    return data.decode() if isinstance(data, bytes) else data
 
 
 class StockPicking(models.Model):
@@ -85,6 +91,13 @@ class StockPicking(models.Model):
         readonly=True,
         help="Hora estimada de llegada a esta parada. Se recalcula al optimizar, al "
         "salir la ruta y cada vez que se completa una parada.",
+    )
+    route_delivery_planned_eta = fields.Datetime(
+        string="Hora prevista al salir",
+        copy=False,
+        readonly=True,
+        help="Hora estimada que tenía la parada cuando salió la ruta. La diferencia con "
+        "la hora estimada actual es el atraso.",
     )
     route_delivery_token = fields.Char(
         string="Token de seguimiento", copy=False, index=True, readonly=True
@@ -260,12 +273,19 @@ class StockPicking(models.Model):
             "lon": lon or False,
             "maps_url": ("https://www.google.com/maps/dir/?api=1&destination=%s" % point) if point else False,
             "weight": self.shipping_weight or 0.0,
+            "zone": self.geo_delivery_zone_id.name or "" if "geo_delivery_zone_id" in self._fields else "",
+            "late_minutes": round(
+                (self.route_delivery_eta - self.route_delivery_planned_eta).total_seconds() / 60.0
+            )
+            if self.route_delivery_eta and self.route_delivery_planned_eta
+            else 0,
+            "scheduled": fields.Datetime.to_string(self.scheduled_date) if self.scheduled_date else False,
         }
         if not detail:
             return data
         lines = []
         for move in self._route_delivery_moves():
-            uom = move.product_uom
+            uom = _move_uom(move)
             lines.append(
                 {
                     "id": move.id,
@@ -310,7 +330,8 @@ class StockPicking(models.Model):
             attachments |= self.env["ir.attachment"].create(
                 {
                     "name": _("Entrega %(ref)s - foto %(n)s.jpg") % {"ref": self.name, "n": index},
-                    "datas": _b64_payload(photo),
+                    # `raw` (bytes) existe en todas las versiones; `datas` se fue en Odoo 20.
+                    "raw": base64.b64decode(_b64_payload(photo)),
                     "res_model": "stock.picking",
                     "res_id": self.id,
                     "mimetype": "image/jpeg",
@@ -370,7 +391,7 @@ class StockPicking(models.Model):
             if float_compare(qty, planned, precision_rounding=0.0001) < 0:
                 partial_lines.append(
                     "%s: %g / %g %s"
-                    % (move.product_id.display_name, qty, planned, move.product_uom.name or "")
+                    % (move.product_id.display_name, qty, planned, _move_uom(move).name or "")
                 )
         if moves and not total:
             raise UserError(_("No se entregó nada: usá «No entregado» y elegí el motivo."))

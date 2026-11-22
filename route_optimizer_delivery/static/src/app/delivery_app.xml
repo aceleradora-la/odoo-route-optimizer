@@ -1,100 +1,83 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-<!-- Fotos: botón que abre directo la cámara trasera + miniaturas -->
-<t t-name="route_optimizer_delivery.Photos">
-    <div class="o_rd_photos">
-        <div t-foreach="target.photos" t-as="photo" t-key="photo_index" class="o_rd_photo">
-            <img t-att-src="photo" alt="Foto de la entrega"/>
-            <button type="button" aria-label="Quitar foto" t-on-click="() => this.removePhoto(target, photo_index)">
-                <i class="fa fa-times"/>
-            </button>
-        </div>
-        <label class="o_rd_photo_add">
-            <i class="fa fa-camera" aria-hidden="true"/>
-            <span>Sacar foto</span>
-            <input type="file" accept="image/*" capture="environment" class="d-none"
-                   t-on-change="(ev) => this.addPhoto(target, ev)"/>
-        </label>
-    </div>
-</t>
-
+<!-- Sin t-call con parámetros: OWL 2 los pasa con t-set y OWL 3 como atributos. -->
 <t t-name="route_optimizer_delivery.RouteDeliveryApp">
     <div class="o_route_delivery_app">
 
         <!-- Inicio: mis rutas -->
-        <t t-if="state.screen === 'home'">
+        <t t-if="this.state.screen === 'home'">
             <div class="o_rd_header o_rd_header_home">
-                <div class="o_rd_app_icon" aria-hidden="true"><i class="fa fa-truck"/></div>
+                <div class="o_rd_app_icon" aria-hidden="true"><i class="o_rdi o_rdi-truck"/></div>
                 <div class="flex-grow-1">
                     <div class="o_rd_title">Reparto</div>
-                    <div class="o_rd_sub"><t t-esc="todayLabel"/> · <t t-esc="state.user"/></div>
+                    <div class="o_rd_sub"><t t-out="this.todayLabel"/> · <t t-out="this.state.user"/></div>
                 </div>
-                <button type="button" class="o_rd_back" aria-label="Actualizar" t-on-click="loadRoutes" t-att-disabled="state.busy">
-                    <i class="fa fa-refresh"/>
+                <button type="button" class="o_rd_back" aria-label="Actualizar" t-on-click="this.loadRoutes" t-att-disabled="this.state.busy">
+                    <i class="o_rdi o_rdi-refresh"/>
                 </button>
             </div>
             <div class="o_rd_body">
-                <button t-if="scannerSupported" type="button" class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="scan" t-att-disabled="state.busy">
-                    <i class="fa fa-qrcode me-2"/> Escanear remito
+                <button t-if="this.scannerSupported" type="button" class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="this.scan" t-att-disabled="this.state.busy">
+                    <i class="o_rdi o_rdi-qrcode me-2"/> Escanear remito
                 </button>
-                <button t-if="scannerSupported and !state.showManual" type="button" class="o_rd_link" t-on-click="toggleManual">
+                <button t-if="this.scannerSupported and !this.state.showManual" type="button" class="o_rd_link" t-on-click="this.toggleManual">
                     No puedo escanear: escribir el número
                 </button>
-                <form t-if="state.showManual or !scannerSupported" class="o_rd_manual" t-on-submit="submitManual">
+                <form t-if="this.state.showManual or !this.scannerSupported" class="o_rd_manual" t-on-submit="this.submitManual">
                     <label class="o_rd_field_label" for="rd_manual_home">Número de remito o de ruta</label>
                     <div class="d-flex gap-2">
                         <input id="rd_manual_home" type="text" class="o_rd_input" autocapitalize="characters"
-                               autocomplete="off" enterkeyhint="search" t-model="state.manualCode"/>
-                        <button type="submit" class="o_rd_btn o_rd_btn_secondary o_rd_btn_inline" t-att-disabled="state.busy">Abrir</button>
+                               autocomplete="off" enterkeyhint="search" t-att-value="this.state.manualCode" t-on-input="(ev) => this.setValue(this.state, 'manualCode', ev)"/>
+                        <button type="submit" class="o_rd_btn o_rd_btn_secondary o_rd_btn_inline" t-att-disabled="this.state.busy">Abrir</button>
                     </div>
                 </form>
 
-                <div t-if="!state.routes.length" class="o_rd_empty">
+                <div t-if="!this.state.routes.length" class="o_rd_empty">
                     No tenés rutas asignadas para estos días. Cuando el depósito te asigne una como
                     responsable, aparece acá.
                 </div>
 
-                <div t-if="openRoutes.length" class="o_rd_section_title">Mis rutas</div>
-                <t t-foreach="openRoutes" t-as="route" t-key="route.id">
+                <div t-if="this.openRoutes.length" class="o_rd_section_title">Mis rutas</div>
+                <t t-foreach="this.openRoutes" t-as="route" t-key="route.id">
                     <button type="button" t-attf-class="o_rd_card o_rd_card_button {{ route.started ? 'o_rd_card_active' : '' }}"
                             t-on-click="() => this.openRoute(route.id)">
                         <div class="d-flex justify-content-between align-items-start gap-2">
                             <div>
-                                <div class="o_rd_card_title" t-esc="route.name"/>
-                                <div class="o_rd_muted" t-esc="routeSubtitle(route)"/>
+                                <div class="o_rd_card_title" t-out="route.name"/>
+                                <div class="o_rd_muted" t-out="this.routeSubtitle(route)"/>
                             </div>
                             <span t-if="route.started" class="o_rd_badge o_rd_badge_active">En curso</span>
                             <span t-else="" class="o_rd_badge o_rd_badge_idle">Sin salir</span>
                         </div>
                         <div class="d-flex justify-content-between o_rd_muted">
-                            <span><t t-esc="route.done_count + route.failed_count"/> de <t t-esc="route.stop_count"/> paradas</span>
-                            <span t-if="route.failed_count" class="o_rd_alert"><t t-esc="route.failed_count"/> no entregadas</span>
+                            <span><t t-out="route.done_count + route.failed_count"/> de <t t-out="route.stop_count"/> paradas</span>
+                            <span t-if="route.failed_count" class="o_rd_alert"><t t-out="route.failed_count"/> no entregadas</span>
                         </div>
                         <div class="o_rd_progress"><div t-attf-style="width: {{ route.progress }}%"/></div>
-                        <div t-if="route.next_stop" class="o_rd_muted">Próxima: <strong t-esc="route.next_stop"/></div>
+                        <div t-if="route.next_stop" class="o_rd_muted">Próxima: <strong t-out="route.next_stop"/></div>
                     </button>
                 </t>
 
-                <div t-if="finishedRoutes.length" class="o_rd_section_title">Terminadas</div>
-                <t t-foreach="finishedRoutes" t-as="route" t-key="route.id">
+                <div t-if="this.finishedRoutes.length" class="o_rd_section_title">Terminadas</div>
+                <t t-foreach="this.finishedRoutes" t-as="route" t-key="route.id">
                     <button type="button" class="o_rd_card o_rd_card_button" t-on-click="() => this.openRoute(route.id)">
                         <div class="d-flex justify-content-between align-items-start gap-2">
                             <div>
-                                <div class="o_rd_card_title" t-esc="route.name"/>
-                                <div class="o_rd_muted" t-esc="routeSubtitle(route)"/>
+                                <div class="o_rd_card_title" t-out="route.name"/>
+                                <div class="o_rd_muted" t-out="this.routeSubtitle(route)"/>
                             </div>
                             <span class="o_rd_badge o_rd_badge_done">Terminada</span>
                         </div>
                         <div class="o_rd_muted">
-                            <t t-esc="route.done_count"/> entregadas<t t-if="route.failed_count"> · <t t-esc="route.failed_count"/> no entregadas</t>
+                            <t t-out="route.done_count"/> entregadas<t t-if="route.failed_count"> · <t t-out="route.failed_count"/> no entregadas</t>
                         </div>
                     </button>
                 </t>
 
-                <div t-if="canInstall" class="o_rd_install">
-                    <button type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="installApp">
-                        <i class="fa fa-mobile me-2"/> Instalar en el celular
+                <div t-if="this.canInstall" class="o_rd_install">
+                    <button type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="this.installApp">
+                        <i class="o_rdi o_rdi-mobile me-2"/> Instalar en el celular
                     </button>
                     <div class="o_rd_hint">Queda con su ícono en la pantalla de inicio y abre directo acá.</div>
                 </div>
@@ -102,78 +85,78 @@
         </t>
 
         <!-- Ruta: paradas en orden de visita -->
-        <t t-if="state.screen === 'route'">
+        <t t-if="this.state.screen === 'route'">
             <div class="o_rd_header">
-                <button type="button" class="o_rd_back" aria-label="Volver a mis rutas" t-on-click="goHome">
-                    <i class="fa fa-chevron-left"/>
+                <button type="button" class="o_rd_back" aria-label="Volver a mis rutas" t-on-click="this.goHome">
+                    <i class="o_rdi o_rdi-chevron-left"/>
                 </button>
                 <div class="flex-grow-1">
-                    <div class="o_rd_title" t-esc="state.route.name"/>
-                    <div class="o_rd_sub" t-esc="routeSubtitle(state.route)"/>
+                    <div class="o_rd_title" t-out="this.state.route.name"/>
+                    <div class="o_rd_sub" t-out="this.routeSubtitle(this.state.route)"/>
                 </div>
                 <div class="o_rd_header_stats">
-                    <div><strong t-esc="state.route.done_count + state.route.failed_count"/> / <t t-esc="state.route.stop_count"/></div>
+                    <div><strong t-out="this.state.route.done_count + this.state.route.failed_count"/> / <t t-out="this.state.route.stop_count"/></div>
                     <div>paradas</div>
                 </div>
             </div>
             <div class="o_rd_body">
-                <button t-if="!state.route.started and pendingStops.length" type="button"
-                        class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="startRoute" t-att-disabled="state.busy">
-                    <i class="fa fa-play me-2"/> Salir a repartir
+                <button t-if="!this.state.route.started and this.pendingStops.length" type="button"
+                        class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="this.startRoute" t-att-disabled="this.state.busy">
+                    <i class="o_rdi o_rdi-play me-2"/> Salir a repartir
                 </button>
                 <div class="o_rd_actions o_rd_actions_2">
-                    <button t-if="scannerSupported" type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="scan" t-att-disabled="state.busy">
-                        <i class="fa fa-qrcode me-2"/> Escanear remito
+                    <button t-if="this.scannerSupported" type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="this.scan" t-att-disabled="this.state.busy">
+                        <i class="o_rdi o_rdi-qrcode me-2"/> Escanear remito
                     </button>
-                    <button t-else="" type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="toggleManual">
-                        <i class="fa fa-keyboard-o me-2"/> Buscar remito
+                    <button t-else="" type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="this.toggleManual">
+                        <i class="o_rdi o_rdi-keyboard-o me-2"/> Buscar remito
                     </button>
-                    <button type="button" class="o_rd_btn o_rd_btn_secondary" t-att-disabled="!state.route.gmaps_url"
-                            t-on-click="() => this.openMaps(state.route.gmaps_url)">
-                        <i class="fa fa-map-o me-2"/> Ver recorrido
+                    <button type="button" class="o_rd_btn o_rd_btn_secondary" t-att-disabled="!this.state.route.gmaps_url"
+                            t-on-click="() => this.openMaps(this.state.route.gmaps_url)">
+                        <i class="o_rdi o_rdi-map-o me-2"/> Ver recorrido
                     </button>
                 </div>
-                <button t-if="scannerSupported and !state.showManual" type="button" class="o_rd_link" t-on-click="toggleManual">
+                <button t-if="this.scannerSupported and !this.state.showManual" type="button" class="o_rd_link" t-on-click="this.toggleManual">
                     No puedo escanear: escribir el número
                 </button>
-                <form t-if="state.showManual" class="o_rd_manual" t-on-submit="submitManual">
+                <form t-if="this.state.showManual" class="o_rd_manual" t-on-submit="this.submitManual">
                     <label class="o_rd_field_label" for="rd_manual_route">Número de remito</label>
                     <div class="d-flex gap-2">
                         <input id="rd_manual_route" type="text" class="o_rd_input" autocapitalize="characters"
-                               autocomplete="off" enterkeyhint="search" t-model="state.manualCode"/>
-                        <button type="submit" class="o_rd_btn o_rd_btn_secondary o_rd_btn_inline" t-att-disabled="state.busy">Abrir</button>
+                               autocomplete="off" enterkeyhint="search" t-att-value="this.state.manualCode" t-on-input="(ev) => this.setValue(this.state, 'manualCode', ev)"/>
+                        <button type="submit" class="o_rd_btn o_rd_btn_secondary o_rd_btn_inline" t-att-disabled="this.state.busy">Abrir</button>
                     </div>
                 </form>
 
-                <div t-if="state.route.finished" class="o_rd_card o_rd_card_done">
-                    <div class="o_rd_card_title"><i class="fa fa-check-circle me-2"/>Ruta terminada</div>
+                <div t-if="this.state.route.finished" class="o_rd_card o_rd_card_done">
+                    <div class="o_rd_card_title"><i class="o_rdi o_rdi-check-circle me-2"/>Ruta terminada</div>
                     <div class="o_rd_muted">
-                        <t t-esc="state.route.done_count"/> entregadas<t t-if="state.route.failed_count"> · <t t-esc="state.route.failed_count"/> no entregadas</t>
+                        <t t-out="this.state.route.done_count"/> entregadas<t t-if="this.state.route.failed_count"> · <t t-out="this.state.route.failed_count"/> no entregadas</t>
                     </div>
                 </div>
 
-                <t t-foreach="state.route.stops" t-as="stop" t-key="stop.id">
+                <t t-foreach="this.state.route.stops" t-as="stop" t-key="stop.id">
                     <button type="button" t-on-click="() => this.openStop(stop.id)"
-                            t-attf-class="o_rd_stop o_rd_stop_{{ stop.state }} {{ nextStop and nextStop.id === stop.id ? 'o_rd_stop_next' : '' }}">
+                            t-attf-class="o_rd_stop o_rd_stop_{{ stop.state }} {{ this.nextStop and this.nextStop.id === stop.id ? 'o_rd_stop_next' : '' }}">
                         <div class="o_rd_stop_num">
-                            <i t-if="stop.state === 'delivered' or stop.state === 'partial'" class="fa fa-check"/>
-                            <i t-elif="stop.state === 'failed'" class="fa fa-times"/>
-                            <t t-else="" t-esc="stopNumber(stop)"/>
+                            <i t-if="stop.state === 'delivered' or stop.state === 'partial'" class="o_rdi o_rdi-check"/>
+                            <i t-elif="stop.state === 'failed'" class="o_rdi o_rdi-times"/>
+                            <t t-else="" t-out="this.stopNumber(stop)"/>
                         </div>
                         <div class="o_rd_stop_main">
-                            <div class="o_rd_stop_name" t-esc="stop.partner"/>
-                            <div class="o_rd_muted" t-esc="stop.address or stop.name"/>
-                            <div t-if="stop.window" class="o_rd_muted"><i class="fa fa-clock-o me-1"/>Recibe <t t-esc="stop.window"/></div>
-                            <div t-if="stop.state === 'failed'" class="o_rd_alert" t-esc="stop.fail_reason"/>
+                            <div class="o_rd_stop_name" t-out="stop.partner"/>
+                            <div class="o_rd_muted" t-out="stop.address or stop.name"/>
+                            <div t-if="stop.window" class="o_rd_muted"><i class="o_rdi o_rdi-clock-o me-1"/>Recibe <t t-out="stop.window"/></div>
+                            <div t-if="stop.state === 'failed'" class="o_rd_alert" t-out="stop.fail_reason"/>
                         </div>
                         <div class="o_rd_stop_side">
                             <t t-if="stop.state === 'pending'">
-                                <span t-if="nextStop and nextStop.id === stop.id" class="o_rd_badge o_rd_badge_active">Próxima</span>
-                                <span t-if="stop.eta" class="o_rd_eta" t-esc="hour(stop.eta)"/>
+                                <span t-if="this.nextStop and this.nextStop.id === stop.id" class="o_rd_badge o_rd_badge_active">Próxima</span>
+                                <span t-if="stop.eta" class="o_rd_eta" t-out="this.hour(stop.eta)"/>
                             </t>
                             <t t-else="">
-                                <span t-attf-class="o_rd_badge o_rd_badge_{{ stop.state }}" t-esc="stateLabel(stop)"/>
-                                <span class="o_rd_muted" t-esc="hour(stop.done_at)"/>
+                                <span t-attf-class="o_rd_badge o_rd_badge_{{ stop.state }}" t-out="this.stateLabel(stop)"/>
+                                <span class="o_rd_muted" t-out="this.hour(stop.done_at)"/>
                             </t>
                         </div>
                     </button>
@@ -182,38 +165,38 @@
         </t>
 
         <!-- Parada -->
-        <t t-if="state.screen === 'stop'">
-            <t t-set="stop" t-value="currentStop"/>
+        <t t-if="this.state.screen === 'stop'">
+            <t t-set="stop" t-value="this.currentStop"/>
             <div class="o_rd_header">
-                <button type="button" class="o_rd_back" aria-label="Volver a la ruta" t-on-click="backToRoute">
-                    <i class="fa fa-chevron-left"/>
+                <button type="button" class="o_rd_back" aria-label="Volver a la ruta" t-on-click="this.backToRoute">
+                    <i class="o_rdi o_rdi-chevron-left"/>
                 </button>
                 <div class="flex-grow-1">
-                    <div class="o_rd_title" t-esc="stop.partner"/>
-                    <div class="o_rd_sub"><t t-esc="stop.name"/><t t-if="stop.origin"> · <t t-esc="stop.origin"/></t></div>
+                    <div class="o_rd_title" t-out="stop.partner"/>
+                    <div class="o_rd_sub"><t t-out="stop.name"/><t t-if="stop.origin"> · <t t-out="stop.origin"/></t></div>
                 </div>
                 <div t-if="stop.state === 'pending' and stop.eta" class="o_rd_header_stats">
-                    <div><strong t-esc="hour(stop.eta)"/></div>
+                    <div><strong t-out="this.hour(stop.eta)"/></div>
                     <div>estimado</div>
                 </div>
             </div>
             <div class="o_rd_body">
                 <div class="o_rd_card">
-                    <div t-if="stop.address" class="o_rd_address" t-esc="stop.address"/>
-                    <div t-if="stop.window" class="o_rd_muted"><i class="fa fa-clock-o me-1"/>Recibe <t t-esc="stop.window"/></div>
-                    <div t-if="stop.note" class="o_rd_note" t-esc="stop.note"/>
+                    <div t-if="stop.address" class="o_rd_address" t-out="stop.address"/>
+                    <div t-if="stop.window" class="o_rd_muted"><i class="o_rdi o_rdi-clock-o me-1"/>Recibe <t t-out="stop.window"/></div>
+                    <div t-if="stop.note" class="o_rd_note" t-out="stop.note"/>
                     <div class="o_rd_actions">
                         <a t-att-href="stop.maps_url or undefined" target="_blank" rel="noopener"
                            t-attf-class="o_rd_btn o_rd_btn_secondary o_rd_btn_link {{ stop.maps_url ? '' : 'disabled' }}">
-                            <i class="fa fa-location-arrow"/> Ir
+                            <i class="o_rdi o_rdi-location-arrow"/> Ir
                         </a>
                         <a t-att-href="stop.phone ? 'tel:' + stop.phone : undefined"
                            t-attf-class="o_rd_btn o_rd_btn_secondary o_rd_btn_link {{ stop.phone ? '' : 'disabled' }}">
-                            <i class="fa fa-phone"/> Llamar
+                            <i class="o_rdi o_rdi-phone"/> Llamar
                         </a>
                         <a t-att-href="stop.whatsapp_url or undefined" target="_blank" rel="noopener"
                            t-attf-class="o_rd_btn o_rd_btn_secondary o_rd_btn_link {{ stop.whatsapp_url ? '' : 'disabled' }}">
-                            <i class="fa fa-whatsapp"/> Avisar
+                            <i class="o_rdi o_rdi-whatsapp"/> Avisar
                         </a>
                     </div>
                 </div>
@@ -222,21 +205,21 @@
                 <t t-if="stop.state !== 'pending'">
                     <div t-attf-class="o_rd_card o_rd_result_{{ stop.state }}">
                         <div class="o_rd_card_title">
-                            <t t-esc="stateLabel(stop)"/> · <t t-esc="hour(stop.done_at)"/>
+                            <t t-out="this.stateLabel(stop)"/> · <t t-out="this.hour(stop.done_at)"/>
                         </div>
-                        <div t-if="stop.fail_reason" t-esc="stop.fail_reason"/>
-                        <div t-if="stop.receiver_name">Recibió <t t-esc="stop.receiver_name"/><t t-if="stop.receiver_doc"> · DNI <t t-esc="stop.receiver_doc"/></t></div>
-                        <div t-if="stop.delivered_packages"><t t-esc="stop.delivered_packages"/> bultos</div>
-                        <div t-if="stop.cod_amount">Cobrado $ <t t-esc="num(stop.cod_amount)"/></div>
-                        <div t-if="stop.partial_detail" class="o_rd_pre" t-esc="stop.partial_detail"/>
-                        <div t-if="stop.driver_note" class="o_rd_muted" t-esc="stop.driver_note"/>
+                        <div t-if="stop.fail_reason" t-out="stop.fail_reason"/>
+                        <div t-if="stop.receiver_name">Recibió <t t-out="stop.receiver_name"/><t t-if="stop.receiver_doc"> · DNI <t t-out="stop.receiver_doc"/></t></div>
+                        <div t-if="stop.delivered_packages"><t t-out="stop.delivered_packages"/> bultos</div>
+                        <div t-if="stop.cod_amount">Cobrado $ <t t-out="this.num(stop.cod_amount)"/></div>
+                        <div t-if="stop.partial_detail" class="o_rd_pre" t-out="stop.partial_detail"/>
+                        <div t-if="stop.driver_note" class="o_rd_muted" t-out="stop.driver_note"/>
                         <div class="o_rd_muted">
-                            <t t-if="stop.photo_count"><t t-esc="stop.photo_count"/> fotos</t>
+                            <t t-if="stop.photo_count"><t t-out="stop.photo_count"/> fotos</t>
                             <t t-if="stop.photo_count and stop.has_signature"> · </t>
                             <t t-if="stop.has_signature">con firma</t>
                         </div>
                     </div>
-                    <button type="button" class="o_rd_link" t-on-click="reopen" t-att-disabled="state.busy">
+                    <button type="button" class="o_rd_link" t-on-click="this.reopen" t-att-disabled="this.state.busy">
                         Me equivoqué: corregir esta parada
                     </button>
                 </t>
@@ -245,34 +228,34 @@
                 <t t-else="">
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="o_rd_section_title">Qué se entrega</div>
-                        <span t-if="scanTargets.length" class="o_rd_muted">
-                            <t t-esc="checkedCount"/> de <t t-esc="scanTargets.length"/> controlados
+                        <span t-if="this.scanTargets.length" class="o_rd_muted">
+                            <t t-out="this.checkedCount"/> de <t t-out="this.scanTargets.length"/> controlados
                         </span>
                     </div>
-                    <button t-if="scanTargets.length and scannerSupported" type="button"
-                            class="o_rd_btn o_rd_btn_secondary" t-on-click="scanItem">
-                        <i class="fa fa-barcode me-2"/> Escanear <t t-if="stop.packages.length">bultos</t><t t-else="">productos</t>
+                    <button t-if="this.scanTargets.length and this.scannerSupported" type="button"
+                            class="o_rd_btn o_rd_btn_secondary" t-on-click="this.scanItem">
+                        <i class="o_rdi o_rdi-barcode me-2"/> Escanear <t t-if="stop.packages.length">bultos</t><t t-else="">productos</t>
                     </button>
                     <div t-if="stop.packages.length" class="o_rd_chips">
                         <span t-foreach="stop.packages" t-as="pack" t-key="pack"
-                              t-attf-class="o_rd_chip {{ state.checked[pack] ? 'o_rd_chip_ok' : '' }}">
-                            <i t-if="state.checked[pack]" class="fa fa-check me-1"/><t t-esc="pack"/>
+                              t-attf-class="o_rd_chip {{ this.state.checked[pack] ? 'o_rd_chip_ok' : '' }}">
+                            <i t-if="this.state.checked[pack]" class="o_rdi o_rdi-check me-1"/><t t-out="pack"/>
                         </span>
                     </div>
                     <div t-foreach="stop.lines" t-as="line" t-key="line.id"
-                         t-attf-class="o_rd_line {{ lineShort(line) ? 'o_rd_line_short' : '' }}">
+                         t-attf-class="o_rd_line {{ this.lineShort(line) ? 'o_rd_line_short' : '' }}">
                         <label class="o_rd_line_label" t-attf-for="rd_qty_{{ line.id }}">
-                            <i t-if="line.barcode and state.checked[line.barcode]" class="fa fa-check o_rd_check me-1"/>
-                            <t t-esc="line.product"/>
+                            <i t-if="line.barcode and this.state.checked[line.barcode]" class="o_rdi o_rdi-check o_rd_check me-1"/>
+                            <t t-out="line.product"/>
                         </label>
                         <div class="o_rd_line_qty">
                             <input type="text" class="o_rd_number" autocomplete="off" enterkeyhint="next"
                                    t-attf-id="rd_qty_{{ line.id }}"
                                    t-att-inputmode="line.integer ? 'numeric' : 'decimal'"
-                                   t-model="state.form.qty[line.id]"
-                                   t-on-focus="selectOnFocus"
+                                   t-att-value="this.state.form.qty[line.id]" t-on-input="(ev) => this.setValue(this.state.form.qty, line.id, ev)"
+                                   t-on-focus="this.selectOnFocus"
                                    t-on-blur="(ev) => this.onQtyBlur(line, ev)"/>
-                            <span class="o_rd_muted">de <t t-esc="num(line.qty)"/> <t t-esc="line.uom"/></span>
+                            <span class="o_rd_muted">de <t t-out="this.num(line.qty)"/> <t t-out="line.uom"/></span>
                         </div>
                     </div>
                     <div t-if="!stop.lines.length" class="o_rd_empty">Este remito no tiene productos cargados.</div>
@@ -282,22 +265,22 @@
                         <div>
                             <label class="o_rd_field_label" for="rd_receiver">Nombre y apellido</label>
                             <input id="rd_receiver" type="text" class="o_rd_input" autocomplete="off"
-                                   autocapitalize="words" enterkeyhint="next" t-model="state.form.receiverName"/>
+                                   autocapitalize="words" enterkeyhint="next" t-att-value="this.state.form.receiverName" t-on-input="(ev) => this.setValue(this.state.form, 'receiverName', ev)"/>
                         </div>
                         <div class="o_rd_grid_2">
                             <div>
                                 <label class="o_rd_field_label" for="rd_doc">DNI</label>
                                 <input id="rd_doc" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="11"
                                        class="o_rd_input" autocomplete="off" enterkeyhint="next"
-                                       t-att-value="state.form.receiverDoc"
+                                       t-att-value="this.state.form.receiverDoc"
                                        t-on-input="(ev) => this.onDigitsInput('receiverDoc', ev)"/>
                             </div>
                             <div>
                                 <label class="o_rd_field_label" for="rd_packages">Bultos</label>
                                 <input id="rd_packages" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4"
                                        class="o_rd_input" autocomplete="off" enterkeyhint="next"
-                                       t-att-value="state.form.packages"
-                                       t-on-focus="selectOnFocus"
+                                       t-att-value="this.state.form.packages"
+                                       t-on-focus="this.selectOnFocus"
                                        t-on-input="(ev) => this.onDigitsInput('packages', ev)"/>
                             </div>
                         </div>
@@ -305,75 +288,103 @@
                             <label class="o_rd_field_label" for="rd_cod">Cobrado en la entrega ($)</label>
                             <input id="rd_cod" type="text" inputmode="decimal" class="o_rd_input" autocomplete="off"
                                    placeholder="0" enterkeyhint="done"
-                                   t-model="state.form.cod"
-                                   t-on-focus="selectOnFocus"
+                                   t-att-value="this.state.form.cod" t-on-input="(ev) => this.setValue(this.state.form, 'cod', ev)"
+                                   t-on-focus="this.selectOnFocus"
                                    t-on-blur="(ev) => this.onDecimalBlur('cod', ev)"/>
                         </div>
                     </div>
 
                     <div class="o_rd_section_title">
-                        Foto<t t-if="state.route.require_photo"> (obligatoria)</t>
+                        Foto<t t-if="this.state.route.require_photo"> (obligatoria)</t>
                     </div>
-                    <t t-call="route_optimizer_delivery.Photos">
-                        <t t-set="target" t-value="state.form"/>
-                    </t>
+                    <div class="o_rd_photos">
+                        <div t-foreach="this.state.form.photos" t-as="photo" t-key="photo_index" class="o_rd_photo">
+                            <img t-att-src="photo" alt="Foto de la entrega"/>
+                            <button type="button" aria-label="Quitar foto" t-on-click="() => this.removePhoto(this.state.form, photo_index)">
+                                <i class="o_rdi o_rdi-times"/>
+                            </button>
+                        </div>
+                        <label class="o_rd_photo_add">
+                            <i class="o_rdi o_rdi-camera" aria-hidden="true"/>
+                            <span>Sacar foto</span>
+                            <input type="file" accept="image/*" capture="environment" class="d-none"
+                                   t-on-change="(ev) => this.addPhoto(this.state.form, ev)"/>
+                        </label>
+                    </div>
 
                     <div class="o_rd_section_title">
-                        Firma<t t-if="state.route.require_signature"> (obligatoria)</t>
+                        Firma<t t-if="this.state.route.require_signature"> (obligatoria)</t>
                     </div>
-                    <RouteDeliverySignaturePad onChange.bind="onSignature"/>
+                    <div class="o_rd_signature">
+                        <canvas class="o_rd_signature_canvas"
+                                t-on-pointerdown="this.onSignatureDown" t-on-pointermove="this.onSignatureMove"
+                                t-on-pointerup="this.onSignatureUp" t-on-pointercancel="this.onSignatureUp" t-on-pointerleave="this.onSignatureUp"/>
+                        <div t-if="!this.state.form.signature" class="o_rd_signature_hint">Firmá acá con el dedo</div>
+                        <button t-if="this.state.form.signature" type="button" class="o_rd_signature_clear" t-on-click="this.clearSignature">Borrar</button>
+                    </div>
 
                     <div>
                         <label class="o_rd_field_label" for="rd_note">Comentario (opcional)</label>
-                        <textarea id="rd_note" class="o_rd_input o_rd_textarea" rows="2" t-model="state.form.note"/>
+                        <textarea id="rd_note" class="o_rd_input o_rd_textarea" rows="2" t-att-value="this.state.form.note" t-on-input="(ev) => this.setValue(this.state.form, 'note', ev)"/>
                     </div>
                 </t>
             </div>
             <div t-if="stop.state === 'pending'" class="o_rd_footer">
-                <button type="button" class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="deliver" t-att-disabled="state.busy">
-                    <i class="fa fa-check me-2"/>
-                    <t t-if="isPartial">Entrega parcial</t><t t-else="">Entregado</t>
+                <button type="button" class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="this.deliver" t-att-disabled="this.state.busy">
+                    <i class="o_rdi o_rdi-check me-2"/>
+                    <t t-if="this.isPartial">Entrega parcial</t><t t-else="">Entregado</t>
                 </button>
-                <button type="button" class="o_rd_btn o_rd_btn_danger" t-on-click="openFail" t-att-disabled="state.busy">
+                <button type="button" class="o_rd_btn o_rd_btn_danger" t-on-click="this.openFail" t-att-disabled="this.state.busy">
                     No entregado
                 </button>
             </div>
         </t>
 
         <!-- No entregado: motivo -->
-        <t t-if="state.screen === 'fail'">
-            <t t-set="stop" t-value="currentStop"/>
+        <t t-if="this.state.screen === 'fail'">
+            <t t-set="stop" t-value="this.currentStop"/>
             <div class="o_rd_header">
-                <button type="button" class="o_rd_back" aria-label="Volver a la parada" t-on-click="backToStop">
-                    <i class="fa fa-chevron-left"/>
+                <button type="button" class="o_rd_back" aria-label="Volver a la parada" t-on-click="this.backToStop">
+                    <i class="o_rdi o_rdi-chevron-left"/>
                 </button>
                 <div>
                     <div class="o_rd_title">No entregado</div>
-                    <div class="o_rd_sub" t-esc="stop.partner"/>
+                    <div class="o_rd_sub" t-out="stop.partner"/>
                 </div>
             </div>
             <div class="o_rd_body">
                 <div class="o_rd_section_title">¿Qué pasó?</div>
-                <button t-foreach="state.route.reasons" t-as="reason" t-key="reason.id" type="button"
-                        t-attf-class="o_rd_reason {{ state.fail.reasonId === reason.id ? 'o_rd_reason_on' : '' }}"
-                        t-att-aria-pressed="state.fail.reasonId === reason.id ? 'true' : 'false'"
+                <button t-foreach="this.state.route.reasons" t-as="reason" t-key="reason.id" type="button"
+                        t-attf-class="o_rd_reason {{ this.state.fail.reasonId === reason.id ? 'o_rd_reason_on' : '' }}"
+                        t-att-aria-pressed="this.state.fail.reasonId === reason.id ? 'true' : 'false'"
                         t-on-click="() => this.state.fail.reasonId = reason.id">
-                    <i t-attf-class="fa {{ state.fail.reasonId === reason.id ? 'fa-dot-circle-o' : 'fa-circle-o' }} me-2"/>
-                    <t t-esc="reason.name"/>
+                    <i t-attf-class="o_rdi {{ this.state.fail.reasonId === reason.id ? 'o_rdi-dot-circle-o' : 'o_rdi-circle-o' }} me-2"/>
+                    <t t-out="reason.name"/>
                 </button>
                 <div>
                     <label class="o_rd_field_label" for="rd_fail_note">
-                        Aclaración<t t-if="failReason and failReason.require_note"> (obligatoria)</t><t t-else=""> (opcional)</t>
+                        Aclaración<t t-if="this.failReason and this.failReason.require_note"> (obligatoria)</t><t t-else=""> (opcional)</t>
                     </label>
-                    <textarea id="rd_fail_note" class="o_rd_input o_rd_textarea" rows="3" t-model="state.fail.note"/>
+                    <textarea id="rd_fail_note" class="o_rd_input o_rd_textarea" rows="3" t-att-value="this.state.fail.note" t-on-input="(ev) => this.setValue(this.state.fail, 'note', ev)"/>
                 </div>
                 <div class="o_rd_section_title">Foto (opcional)</div>
-                <t t-call="route_optimizer_delivery.Photos">
-                    <t t-set="target" t-value="state.fail"/>
-                </t>
+                <div class="o_rd_photos">
+                    <div t-foreach="this.state.fail.photos" t-as="photo" t-key="photo_index" class="o_rd_photo">
+                        <img t-att-src="photo" alt="Foto de la entrega"/>
+                        <button type="button" aria-label="Quitar foto" t-on-click="() => this.removePhoto(this.state.fail, photo_index)">
+                            <i class="o_rdi o_rdi-times"/>
+                        </button>
+                    </div>
+                    <label class="o_rd_photo_add">
+                        <i class="o_rdi o_rdi-camera" aria-hidden="true"/>
+                        <span>Sacar foto</span>
+                        <input type="file" accept="image/*" capture="environment" class="d-none"
+                               t-on-change="(ev) => this.addPhoto(this.state.fail, ev)"/>
+                    </label>
+                </div>
             </div>
             <div class="o_rd_footer">
-                <button type="button" class="o_rd_btn o_rd_btn_danger_solid o_rd_btn_scan" t-on-click="confirmFail" t-att-disabled="state.busy">
+                <button type="button" class="o_rd_btn o_rd_btn_danger_solid o_rd_btn_scan" t-on-click="this.confirmFail" t-att-disabled="this.state.busy">
                     Confirmar no entregado
                 </button>
             </div>

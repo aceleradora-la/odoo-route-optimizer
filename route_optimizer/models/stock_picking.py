@@ -30,6 +30,16 @@ def _safe_float(val):
         return 0.0
 
 
+def _move_uom_field(moves):
+    """Nombre del campo de unidad en stock.move: `product_uom` hasta Odoo 19, `uom_id` en 20."""
+    return "uom_id" if "uom_id" in moves._fields else "product_uom"
+
+
+def _move_uom(move):
+    """Unidad de medida de un movimiento, en cualquier versión de Odoo."""
+    return move[_move_uom_field(move)]
+
+
 def _move_effective_qty(move):
     """Cantidad a informar en la hoja de ruta, en la UdM de la linea.
 
@@ -124,11 +134,13 @@ class StockPicking(models.Model):
         return ", ".join(parts)
 
     @api.depends(
-        "move_ids.product_id",
-        "move_ids.product_uom_qty",
-        "move_ids.quantity",
-        "move_ids.product_uom",
-        "move_ids.state",
+        lambda self: [
+            "move_ids.product_id",
+            "move_ids.product_uom_qty",
+            "move_ids.quantity",
+            "move_ids." + _move_uom_field(self.env["stock.move"]),
+            "move_ids.state",
+        ]
     )
     def _compute_route_optimizer_products_summary(self):
         # Etiqueta fija en castellano, como el resto de los títulos del reporte.
@@ -147,7 +159,7 @@ class StockPicking(models.Model):
             totals = {}  # {uom_id: (total_qty, uom_name)}
             for move in moves:
                 qty = _move_effective_qty(move)
-                uom = move.product_uom
+                uom = _move_uom(move)
                 if qty > 0 and uom:
                     totals[uom.id] = (totals.get(uom.id, (0.0, uom.name))[0] + qty, uom.name)
 
