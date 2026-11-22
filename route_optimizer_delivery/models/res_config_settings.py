@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models
+from odoo import _, fields, models
+from odoo.exceptions import UserError
+
+from ..services import sms_client, whatsapp_client
 
 
 class ResConfigSettings(models.TransientModel):
@@ -101,3 +104,101 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer_delivery.whatsapp_tpl_failed",
         default="reparto_no_entregado",
     )
+    route_delivery_sms_enabled = fields.Boolean(
+        string="Avisar al cliente por SMS",
+        config_parameter="route_optimizer_delivery.sms_enabled",
+    )
+    route_delivery_sms_provider = fields.Selection(
+        sms_client.PROVIDERS,
+        string="Proveedor de SMS",
+        config_parameter="route_optimizer_delivery.sms_provider",
+        default="twilio",
+    )
+    route_delivery_sms_mode = fields.Selection(
+        [
+            ("always", "Siempre"),
+            ("fallback", "Solo si no salió por WhatsApp"),
+        ],
+        string="Cuándo enviar",
+        config_parameter="route_optimizer_delivery.sms_mode",
+        default="fallback",
+        help="«Solo si no salió por WhatsApp» manda el SMS cuando WhatsApp está apagado, "
+        "el contacto no tiene WhatsApp válido o el envío falló: se paga un solo aviso.",
+    )
+    route_delivery_sms_account = fields.Char(
+        string="Usuario de la API",
+        config_parameter="route_optimizer_delivery.sms_account",
+        help="Twilio: Account SID · Vonage: API key · Plivo: Auth ID · ClickSend: usuario. "
+        "Telnyx, Infobip y Bird no lo usan.",
+    )
+    route_delivery_sms_secret = fields.Char(
+        string="Clave de la API",
+        config_parameter="route_optimizer_delivery.sms_secret",
+        help="Twilio: Auth Token · Vonage: API secret · Plivo: Auth Token · Telnyx: API key · "
+        "Infobip: API key · ClickSend: API key · Bird: API key.",
+    )
+    route_delivery_sms_sender = fields.Char(
+        string="Remitente",
+        config_parameter="route_optimizer_delivery.sms_sender",
+        help="Número propio con código de país o nombre corto, según lo que permita el "
+        "proveedor en cada país. En Twilio también puede ser un Messaging Service (MG...).",
+    )
+    route_delivery_sms_base_url = fields.Char(
+        string="URL de la cuenta",
+        help="Infobip: la URL propia de la cuenta. Bird: solo si la región no sale de la clave.",
+        config_parameter="route_optimizer_delivery.sms_base_url",
+    )
+    route_delivery_sms_text_on_the_way = fields.Char(
+        string="Texto: salió a reparto",
+        config_parameter="route_optimizer_delivery.sms_text_on_the_way",
+        default="{empresa}: tu pedido {pedido} salio a reparto. Seguilo aca: {link}",
+    )
+    route_delivery_sms_text_next = fields.Char(
+        string="Texto: sos el próximo",
+        config_parameter="route_optimizer_delivery.sms_text_next",
+        default="{empresa}: estamos yendo, sos la proxima parada. {link}",
+    )
+    route_delivery_sms_text_delivered = fields.Char(
+        string="Texto: entregado",
+        config_parameter="route_optimizer_delivery.sms_text_delivered",
+        default="{empresa}: entregamos tu pedido {pedido}. Gracias!",
+    )
+    route_delivery_sms_text_failed = fields.Char(
+        string="Texto: no entregado",
+        config_parameter="route_optimizer_delivery.sms_text_failed",
+        default="{empresa}: no pudimos entregar tu pedido {pedido}. Te contactamos para coordinar.",
+    )
+    route_delivery_sms_test_number = fields.Char(
+        string="Número de prueba",
+        help="Con código de país. No se guarda: es solo para el botón de prueba.",
+    )
+
+    def action_route_delivery_sms_test(self):
+        """Manda un SMS de prueba con lo que hay cargado en pantalla (guardalo antes)."""
+        self.ensure_one()
+        icp = self.env["ir.config_parameter"].sudo()
+        number = whatsapp_client.normalize_phone(
+            self.route_delivery_sms_test_number, self.route_delivery_whatsapp_country_code
+        )
+        if not number:
+            raise UserError(_("Cargá un número de prueba con código de país."))
+        credentials = {
+            key: icp.get_param("route_optimizer_delivery.sms_%s" % key) or ""
+            for key in ("account", "secret", "sender", "base_url")
+        }
+        provider = icp.get_param("route_optimizer_delivery.sms_provider") or "twilio"
+        text = _("Prueba de avisos de reparto de %s.") % (self.env.company.name or "")
+        try:
+            reference = sms_client.send(provider, credentials, number, text)
+        except sms_client.SmsError as error:
+            raise UserError(_("El proveedor rechazó el SMS: %s") % error) from error
+        return {
+            "type": "ir.actions.client",
+            "tag": "display_notification",
+            "params": {
+                "type": "success",
+                "title": _("SMS de prueba enviado"),
+                "message": _("Aceptado por el proveedor (referencia %s).") % (reference or "-"),
+                "sticky": False,
+            },
+        }

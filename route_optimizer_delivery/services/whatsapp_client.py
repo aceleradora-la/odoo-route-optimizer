@@ -63,7 +63,7 @@ def _post(url, payload, token, timeout):
         raise WhatsappError("WhatsApp devolvió una respuesta inválida.") from error
 
 
-def send_template(phone_id, token, to, template, language, parameters, version="v22.0", timeout=10):
+def send_template(phone_id, token, to, template, language, parameters, version="v26.0", timeout=10):
     """Envía una plantilla y devuelve el id del mensaje."""
     if not (phone_id and token):
         raise WhatsappError("Faltan el identificador del número o el token de WhatsApp.")

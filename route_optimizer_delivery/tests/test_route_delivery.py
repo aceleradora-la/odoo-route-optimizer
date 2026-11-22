@@ -447,6 +447,114 @@ class TestRouteDelivery(RouteDeliveryCommon):
         self.assertEqual(first.route_delivery_state, "delivered")
         self.assertTrue(first.message_ids.filtered(lambda m: "plantilla sin aprobar" in (m.body or "")))
 
+    def test_sms_providers(self):
+        """Cada proveedor recibe el pedido con su forma: URL, autenticación y campos."""
+        from odoo.addons.route_optimizer_delivery.services import sms_client as sms
+
+        calls = []
+        replies = {
+            "twilio": {"sid": "SM1"},
+            "vonage": {"messages": [{"status": "0", "message-id": "V1"}]},
+            "plivo": {"message_uuid": ["P1"]},
+            "telnyx": {"data": {"id": "T1"}},
+            "infobip": {"messages": [{"messageId": "I1", "status": {"groupName": "PENDING"}}]},
+            "clicksend": {"response_code": "SUCCESS", "data": {"messages": [{"status": "SUCCESS", "message_id": "C1"}]}},
+            "bird": {"id": "B1", "status": "accepted"},
+        }
+
+        def fake_request(url, headers, form=None, payload=None, timeout=10):
+            calls.append({"url": url, "headers": headers, "form": form, "payload": payload})
+            return replies[self.provider]
+
+        cred = {"account": "ACC", "secret": "bk_eu1_SEC", "sender": "+541100000000", "base_url": ""}
+        text = "Tu pedido salio a reparto"
+        with patch.object(sms, "_request", side_effect=fake_request):
+            ids = {}
+            for self.provider, _label in sms.PROVIDERS:
+                account = dict(cred, base_url="abc.api.infobip.com" if self.provider == "infobip" else "")
+                ids[self.provider] = sms.send(self.provider, account, "5491155550001", text)
+        self.assertEqual(ids, {"twilio": "SM1", "vonage": "V1", "plivo": "P1", "telnyx": "T1", "infobip": "I1", "clicksend": "C1", "bird": "B1"})
+        twilio, vonage, plivo, telnyx, infobip, clicksend, bird = calls
+        self.assertIn("/Accounts/ACC/Messages.json", twilio["url"])
+        self.assertEqual(twilio["form"], {"To": "+5491155550001", "Body": text, "From": "+541100000000"})
+        self.assertTrue(twilio["headers"]["Authorization"].startswith("Basic "))
+        self.assertTrue(vonage["headers"]["Authorization"].startswith("Basic "))
+        self.assertNotIn("api_secret", vonage["form"])
+        self.assertEqual(vonage["form"]["to"], "5491155550001")
+        self.assertNotIn("type", vonage["form"])
+        self.assertIn("/Account/ACC/Message/", plivo["url"])
+        self.assertEqual(plivo["payload"], {"src": "+541100000000", "dst": "5491155550001", "text": text})
+        self.assertEqual(telnyx["headers"]["Authorization"], "Bearer bk_eu1_SEC")
+        self.assertEqual(telnyx["payload"]["to"], "+5491155550001")
+        self.assertEqual(infobip["url"], "https://abc.api.infobip.com/sms/3/messages")
+        self.assertEqual(infobip["headers"]["Authorization"], "App bk_eu1_SEC")
+        self.assertEqual(
+            infobip["payload"]["messages"][0],
+            {"sender": "+541100000000", "destinations": [{"to": "5491155550001"}], "content": {"text": text}},
+        )
+        # Bird: la región sale de la clave.
+        self.assertEqual(bird["url"], "https://eu1.platform.bird.com/v1/sms/messages")
+        self.assertEqual(bird["payload"]["category"], "transactional")
+        self.assertEqual(bird["payload"]["to"], "+5491155550001")
+        self.assertEqual(clicksend["payload"]["messages"][0]["to"], "+5491155550001")
+
+        # Un rechazo dentro de una respuesta 200 también es un error.
+        self.provider = "vonage"
+        replies["vonage"] = {"messages": [{"status": "9", "error-text": "Quota exceeded"}]}
+        with patch.object(sms, "_request", side_effect=fake_request), self.assertRaises(sms.SmsError):
+            sms.send("vonage", cred, "5491155550001", "hola")
+        # Los acentos sacan al texto del alfabeto básico (y Vonage necesita saberlo).
+        self.assertTrue(sms.is_gsm7("Tu pedido salio a reparto: http://x.y/z?a=1"))
+        self.assertFalse(sms.is_gsm7("Tu pedido salió"))
+        with self.assertRaises(sms.SmsError):
+            sms.send("otro", cred, "5491155550001", "hola")
+        with self.assertRaises(sms.SmsError):
+            sms.send("twilio", dict(cred, secret=""), "5491155550001", "hola")
+
+    def test_sms_as_whatsapp_fallback(self):
+        from odoo.addons.route_optimizer_delivery.services import sms_client as sms
+        from odoo.addons.route_optimizer_delivery.services import whatsapp_client as wa
+
+        for key, value in {
+            "sms_enabled": "True", "sms_provider": "telnyx", "sms_secret": "KEY", "sms_sender": "+541100000000",
+            "sms_mode": "fallback", "sms_text_on_the_way": "{empresa}: {nombre}, tu pedido {pedido} salio. {link}",
+            "sms_text_next": "", "whatsapp_enabled": "True", "whatsapp_phone_id": "P", "whatsapp_token": "t",
+            "whatsapp_tpl_on_the_way": "reparto_en_camino", "whatsapp_tpl_next": "",
+        }.items():
+            self.icp.set_param("route_optimizer_delivery." + key, value)
+        first = self.batch._route_delivery_stops()[0]
+        texts = []
+
+        def fake_sms(provider, credentials, to, text, timeout=10):
+            texts.append((provider, to, text))
+            return "id"
+
+        def fake_whatsapp(phone_id, token, to, *args, **kwargs):
+            # WhatsApp falla solo para el primer cliente.
+            if to.endswith("0001"):
+                raise wa.WhatsappError("sin WhatsApp")
+            return "wamid"
+
+        with patch.object(sms, "send", side_effect=fake_sms), patch.object(wa, "send_template", side_effect=fake_whatsapp):
+            self.app().route_delivery_app_start(self.batch.id)
+        # Respaldo: el SMS sale solo para quien no recibió el WhatsApp.
+        self.assertEqual(len(texts), 1)
+        provider, number, text = texts[0]
+        self.assertEqual(provider, "telnyx")
+        self.assertTrue(number.endswith("0001"))
+        self.assertIn(first.partner_id.name, text)
+        self.assertIn("/reparto/t/", text)
+        self.assertNotIn("{", text)
+
+        # «Siempre»: SMS a todos; si el proveedor falla, queda la nota y la entrega se registra.
+        self.icp.set_param("route_optimizer_delivery.sms_mode", "always")
+        self.icp.set_param("route_optimizer_delivery.sms_text_delivered", "{empresa}: entregamos {pedido}")
+        self.icp.set_param("route_optimizer_delivery.whatsapp_enabled", "False")
+        with patch.object(sms, "send", side_effect=sms.SmsError("sin saldo")):
+            self.app().route_delivery_app_deliver(first.id, {"lines": self.line_vals(first, 5)})
+        self.assertEqual(first.route_delivery_state, "delivered")
+        self.assertTrue(first.message_ids.filtered(lambda m: "sin saldo" in (m.body or "")))
+
     def test_offline_retry_is_idempotent(self):
         """Lo cargado sin señal se manda después: no se duplica y conserva su hora."""
         picking = self.batch._route_delivery_stops()[0]

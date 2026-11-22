@@ -53,6 +53,57 @@
                             </div>
                         </div>
                     </setting>
+                    <setting string="Avisar al cliente por SMS"
+                             help="Para clientes sin WhatsApp o como respaldo. En los textos podés usar {empresa}, {nombre}, {pedido} y {link}. Sin acentos entran 160 caracteres por SMS; con acentos, 70.">
+                        <field name="route_delivery_sms_enabled"/>
+                        <div class="content-group" invisible="not route_delivery_sms_enabled">
+                            <div class="row mt8">
+                                <label for="route_delivery_sms_provider" class="col-lg-5"/>
+                                <field name="route_delivery_sms_provider" class="col-lg-7"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_sms_mode" class="col-lg-5"/>
+                                <field name="route_delivery_sms_mode" class="col-lg-7"/>
+                            </div>
+                            <div class="row" invisible="route_delivery_sms_provider in ('telnyx', 'infobip', 'bird')">
+                                <label for="route_delivery_sms_account" class="col-lg-5"/>
+                                <field name="route_delivery_sms_account" class="col-lg-7"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_sms_secret" class="col-lg-5"/>
+                                <field name="route_delivery_sms_secret" class="col-lg-7" password="True"/>
+                            </div>
+                            <div class="row" invisible="route_delivery_sms_provider not in ('infobip', 'bird')">
+                                <label for="route_delivery_sms_base_url" class="col-lg-5"/>
+                                <field name="route_delivery_sms_base_url" class="col-lg-7" placeholder="xxxxx.api.infobip.com"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_sms_sender" class="col-lg-5"/>
+                                <field name="route_delivery_sms_sender" class="col-lg-7"/>
+                            </div>
+                            <div class="row mt8">
+                                <label for="route_delivery_sms_text_on_the_way" class="col-lg-5"/>
+                                <field name="route_delivery_sms_text_on_the_way" class="col-lg-7"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_sms_text_next" class="col-lg-5"/>
+                                <field name="route_delivery_sms_text_next" class="col-lg-7"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_sms_text_delivered" class="col-lg-5"/>
+                                <field name="route_delivery_sms_text_delivered" class="col-lg-7"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_sms_text_failed" class="col-lg-5"/>
+                                <field name="route_delivery_sms_text_failed" class="col-lg-7"/>
+                            </div>
+                            <div class="row mt8">
+                                <label for="route_delivery_sms_test_number" class="col-lg-5"/>
+                                <field name="route_delivery_sms_test_number" class="col-lg-4" placeholder="+54 9 11 ..."/>
+                                <button name="action_route_delivery_sms_test" type="object" string="Enviar prueba" class="btn-link col-lg-3"/>
+                            </div>
+                        </div>
+                    </setting>
                     <setting string="Prueba de entrega obligatoria"
                              help="Qué tiene que cargar el chofer para marcar una parada como entregada.">
                         <div class="content-group">
