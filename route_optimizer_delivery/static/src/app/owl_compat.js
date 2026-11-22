@@ -1,3 +1,4 @@
+/** @odoo-module **/
 import * as owl from "@odoo/owl";
 
 /**
@@ -24,4 +25,19 @@ export function widgetProps(component) {
         return owl.useProps({ record: owl.t.object(), readonly: owl.t.boolean().optional() });
     }
     return component.props;
+}
+
+/**
+ * Lector de códigos con la cámara. El módulo cambió de lugar entre versiones (hasta
+ * Odoo 17 vive en webclient/barcode), así que se busca al usarlo en vez de importarlo:
+ * un import a una ruta que no existe rompería toda la app.
+ */
+export function barcodeApi() {
+    const modules = odoo.loader.modules;
+    const dialog = modules.get("@web/core/barcode/barcode_dialog");
+    const scanner = modules.get("@web/core/barcode/barcode_video_scanner");
+    const legacy = modules.get("@web/webclient/barcode/barcode_scanner");
+    const BarcodeDialog = (dialog && dialog.BarcodeDialog) || (legacy && legacy.BarcodeDialog);
+    const supported = (scanner && scanner.isBarcodeScannerSupported) || (legacy && legacy.isBarcodeScannerSupported);
+    return { BarcodeDialog, isSupported: () => Boolean(BarcodeDialog && supported && supported()) };
 }
