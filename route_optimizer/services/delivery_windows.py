@@ -130,7 +130,9 @@ def _intervals_for_partner(partner, weekday, local_dt, windows_by_partner):
         return [[0, DAY_SECONDS]]
 
     # time_windows
-    wset = windows_by_partner.get(partner.id)
+    # La API de OCA devuelve el mapa con el contacto como clave (registro) en las
+    # versiones nuevas y con su id en las viejas: se prueba con las dos.
+    wset = windows_by_partner.get(partner.id) or windows_by_partner.get(partner)
     if not wset:
         return [[0, DAY_SECONDS]]
 

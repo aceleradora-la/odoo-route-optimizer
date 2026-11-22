@@ -204,12 +204,12 @@
                         <div t-if="this.state.optionsLoading and !this.state.options.length" class="o_rdb_empty">Calculando…</div>
                         <div t-elif="!this.state.options.length" class="o_rdb_empty">No hay rutas abiertas este día. Abrí una nueva con lo elegido.</div>
                         <div t-foreach="this.state.options" t-as="option" t-key="option.batch_id"
-                             t-attf-class="o_rdb_option {{ option_index === 0 and !option.over_capacity ? 'o_rdb_option_best' : '' }} {{ this.isDrop(option.batch_id) ? 'o_rdb_dropzone_on' : '' }}"
+                             t-attf-class="o_rdb_option {{ option_index === 0 and !option.over_capacity and !option.outside_window ? 'o_rdb_option_best' : '' }} {{ this.isDrop(option.batch_id) ? 'o_rdb_dropzone_on' : '' }}"
                              t-attf-style="--rdb-route: {{ this.optionColor(option) }}"
                              t-on-dragover="(ev) => this.onDragOver(option.batch_id, null, ev)" t-on-drop="(ev) => this.onDrop(option.batch_id, null, ev)">
                             <div class="o_rdb_option_head">
                                 <strong><t t-out="option.name"/><t t-if="option.driver"> · <t t-out="option.driver"/></t></strong>
-                                <span t-if="option_index === 0 and !option.over_capacity" class="o_rdb_badge o_rdb_badge_best">Mejor opción</span>
+                                <span t-if="option_index === 0 and !option.over_capacity and !option.outside_window" class="o_rdb_badge o_rdb_badge_best">Mejor opción</span>
                                 <span t-elif="option.started" class="o_rdb_badge o_rdb_badge_idle">En la calle</span>
                             </div>
                             <div class="o_rdb_option_cost">
@@ -219,7 +219,8 @@
                             </div>
                             <div class="o_rdb_muted"><t t-out="this.optionPlace(option)"/> <t t-out="this.optionLoad(option)"/></div>
                             <div t-if="option.over_capacity" class="o_rdb_alert">No entra: excede la carga del vehículo.</div>
-                            <button type="button" t-attf-class="o_rdb_btn {{ option_index === 0 and !option.over_capacity ? 'o_rdb_btn_primary' : 'o_rdb_btn_ghost' }}"
+                            <div t-if="option.outside_window" class="o_rdb_alert" t-out="option.window_note"/>
+                            <button type="button" t-attf-class="o_rdb_btn {{ option_index === 0 and !option.over_capacity and !option.outside_window ? 'o_rdb_btn_primary' : 'o_rdb_btn_ghost' }}"
                                     t-on-click="() => this.assign(option.batch_id)" t-att-disabled="this.state.busy">
                                 Agregar a <t t-out="option.name"/>
                             </button>

@@ -27,6 +27,20 @@
                         <div class="o_row"><field name="max_route_duration_minutes" class="oe_inline"/> <span>minutos (0 = sin tope)</span></div>
                     </group>
                 </group>
+                <group string="Flota con capacidades distintas" name="fleet_lines">
+                    <field name="vehicle_line_ids" nolabel="1" colspan="2">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="name" placeholder="Patente o nombre"/>
+                            <field name="capacity"/>
+                            <field name="volume_capacity"/>
+                        </list>
+                    </field>
+                </group>
+                <div class="text-muted mb-2">
+                    Con renglones cargados, cada uno es un vehículo con su propia capacidad y se
+                    ignoran «Vehículos» y las capacidades de arriba.
+                </div>
                 <footer>
                     <button name="action_optimize" string="Optimizar" type="object" class="btn-primary" data-hotkey="q"/>
                     <button string="Cancelar" class="btn-secondary" special="cancel"/>

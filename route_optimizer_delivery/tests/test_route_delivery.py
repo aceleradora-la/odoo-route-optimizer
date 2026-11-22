@@ -370,6 +370,45 @@ class TestRouteDelivery(RouteDeliveryCommon):
         self.assertEqual(second.route_delivery_state, "pending")
         self.assertEqual((second.scheduled_date - before).days, 1)
 
+    def test_break_shifts_etas(self):
+        """Con descanso configurado, las paradas posteriores a su franja se corren."""
+        without = [p.route_delivery_eta for p in self.batch._route_delivery_stops()]
+        self.batch._route_delivery_update_etas()
+        base = self.batch._route_delivery_stops().mapped("route_delivery_eta")
+        # Franja de descanso que empieza antes de la primera llegada: afecta a todas.
+        tz_now = fields.Datetime.context_timestamp(self.batch.with_context(tz="UTC"), base[0])
+        self.icp.set_param("route_optimizer.break_duration_minutes", "30")
+        self.icp.set_param("route_optimizer.break_earliest_hour", "0")
+        self.icp.set_param("route_optimizer.break_latest_hour", "23.9")
+        self.batch._route_delivery_update_etas()
+        shifted = self.batch._route_delivery_stops().mapped("route_delivery_eta")
+        self.assertEqual([(b - a).total_seconds() for a, b in zip(base, shifted)], [1800.0] * 3)
+        self.assertTrue(without and tz_now)
+
+    def test_suggestions_flag_delivery_windows(self):
+        if "delivery_time_preference" not in self.env["res.partner"]._fields:
+            self.skipTest("Sin el módulo OCA de ventanas horarias")
+        board = self.Batch
+        day = fields.Date.to_string(
+            fields.Datetime.context_timestamp(board, self.batch.scheduled_date).date()
+        )
+        near = self._extra_picking("Con horario", -34.63, -58.41)
+        options = [o for o in board.route_dispatch_suggest([near.id], day) if o["batch_id"] == self.batch.id]
+        self.assertFalse(options[0]["outside_window"])
+        # Solo recibe de 3 a 4 de la mañana: cualquier llegada del día queda afuera.
+        weekdays = self.env["time.weekday"].search([])
+        near.partner_id.write(
+            {
+                "delivery_time_preference": "time_windows",
+                "delivery_time_window_ids": [
+                    (0, 0, {"time_window_start": 3.0, "time_window_end": 4.0, "time_window_weekday_ids": [(6, 0, weekdays.ids)]})
+                ],
+            }
+        )
+        options = [o for o in board.route_dispatch_suggest([near.id], day) if o["batch_id"] == self.batch.id]
+        self.assertTrue(options[0]["outside_window"])
+        self.assertIn("recibe 3:00 a 4:00", options[0]["window_note"])
+
     def test_live_position_refreshes_etas(self):
         """Con la ruta en la calle, el GPS corrige las horas sin esperar a la próxima parada."""
         self.app().route_delivery_app_start(self.batch.id, -34.60, -58.38)
