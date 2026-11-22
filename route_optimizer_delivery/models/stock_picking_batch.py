@@ -589,6 +589,27 @@ class StockPickingBatch(models.Model):
         )
         return data
 
+    def route_dispatch_route(self):
+        """Una sola ruta con su mapa, para la pestaña Recorrido del formulario del lote."""
+        self.ensure_one()
+        data = self._route_dispatch_route_data()
+        coords = route_service._partner_coords(route_service._get_depot_partner(self))
+        data["depot"] = {"lon": coords[0], "lat": coords[1], "name": ""} if coords else False
+        data["map"] = self._route_dispatch_map_config()
+        return data
+
+    @api.model
+    def _route_dispatch_map_config(self):
+        icp = self.env["ir.config_parameter"].sudo()
+        provider = (icp.get_param("route_optimizer_delivery.map_provider") or "osm").strip()
+        google_key = (icp.get_param("route_optimizer_delivery.google_maps_key") or "").strip()
+        return {
+            "provider": "google" if provider == "google" and google_key else "osm",
+            "google_key": google_key if provider == "google" else "",
+            "tile_url": (icp.get_param("route_optimizer_delivery.tile_url") or "").strip()
+            or "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        }
+
     @api.model
     def route_dispatch_data(self, day=None):
         local_day, start, end = self._route_dispatch_day_bounds(day)
@@ -627,20 +648,13 @@ class StockPickingBatch(models.Model):
             else [("groups_id", "in", driver_group.ids), ("share", "=", False)],
             order="name",
         )
-        map_provider = (icp.get_param("route_optimizer_delivery.map_provider") or "osm").strip()
-        google_key = (icp.get_param("route_optimizer_delivery.google_maps_key") or "").strip()
         return {
             "day": fields.Date.to_string(local_day),
             "routes": [batch._route_dispatch_route_data() for batch in batches],
             "unassigned": [p._route_delivery_stop_data() for p in unassigned],
             "depot": depot,
             "drivers": [{"id": user.id, "name": user.name} for user in drivers],
-            "map": {
-                "provider": "google" if map_provider == "google" and google_key else "osm",
-                "google_key": google_key if map_provider == "google" else "",
-                "tile_url": (icp.get_param("route_optimizer_delivery.tile_url") or "").strip()
-                or "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-            },
+            "map": self._route_dispatch_map_config(),
             "routing": self._route_delivery_routing_provider() or "estimate",
         }
 

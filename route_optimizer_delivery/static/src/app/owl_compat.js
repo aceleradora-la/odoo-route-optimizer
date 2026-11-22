@@ -14,3 +14,14 @@ import * as owl from "@odoo/owl";
 export function reactive(value) {
     return owl.proxy ? owl.proxy(value) : owl.useState(value);
 }
+
+/**
+ * Props de un widget de vista (`<widget name="..."/>`): en OWL 3 hay que declararlas con
+ * `useProps`; en OWL 2 ya están en `this.props`. Llamar desde `setup()`.
+ */
+export function widgetProps(component) {
+    if (owl.useProps) {
+        return owl.useProps({ record: owl.t.object(), readonly: owl.t.boolean().optional() });
+    }
+    return component.props;
+}

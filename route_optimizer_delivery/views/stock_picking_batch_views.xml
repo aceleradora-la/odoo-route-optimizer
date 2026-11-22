@@ -6,24 +6,24 @@
         <field name="inherit_id" ref="stock.stock_picking_batch_form"/>
         <field name="arch" type="xml">
             <xpath expr="//group[@id='batch_delivery_data']" position="inside">
-                <field name="route_delivery_stop_count" invisible="1"/>
-                <field name="route_delivery_progress" widget="progressbar" string="Avance del reparto"
-                       invisible="not route_delivery_stop_count"/>
-                <label for="route_delivery_done_count" string="Entregas"
-                       invisible="not route_delivery_stop_count"/>
-                <div invisible="not route_delivery_stop_count">
-                    <field name="route_delivery_done_count" class="oe_inline"/> entregadas ·
-                    <field name="route_delivery_failed_count" class="oe_inline"/> no entregadas ·
-                    <field name="route_delivery_stop_count" class="oe_inline"/> paradas
-                </div>
                 <field name="route_delivery_started_at" invisible="not route_delivery_started_at"/>
                 <field name="route_delivery_finished_at" invisible="not route_delivery_finished_at"/>
             </xpath>
-            <xpath expr="//header" position="inside">
-                <button name="action_route_delivery_update_etas" type="object"
-                        string="Recalcular horas" class="btn-secondary"
-                        invisible="not picking_ids or state == 'cancel'"
-                        groups="stock.group_stock_user"/>
+            <xpath expr="//notebook/page[1]" position="before">
+                <page string="Recorrido" name="route_delivery_route" invisible="not picking_ids">
+                    <widget name="route_delivery_route"/>
+                </page>
+            </xpath>
+            <!-- El resumen en texto de la última optimización lo reemplaza la pestaña Recorrido. -->
+            <xpath expr="//field[@name='route_optimizer_visit_summary']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <!-- Menos botones arriba: Google Maps, WhatsApp y recalcular viven en la pestaña Recorrido. -->
+            <xpath expr="//button[@name='action_open_gmaps_route']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_share_whatsapp']" position="attributes">
+                <attribute name="invisible">1</attribute>
             </xpath>
         </field>
     </record>
