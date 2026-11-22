@@ -36,7 +36,8 @@
             <field name="category_id" position="after">
                 <field name="geo_delivery_zone_id"/>
             </field>
-            <xpath expr="//group[@name='group_by']" position="inside">
+            <!-- Se ancla a un filtro y no al grupo: Odoo 20 le quitó el name al <group>. -->
+            <xpath expr="//filter[@name='group_country']" position="after">
                 <filter
                     name="group_delivery_zone"
                     string="Zona de entrega"

@@ -41,6 +41,13 @@ class RouteOptimizerWizard(models.TransientModel):
         help="Capacidad máxima de volumen opcional por vehículo (misma unidad que el volumen del "
         "traslado, normalmente m³). Dejar vacío para usar un valor no restrictivo en el solver.",
     )
+    vehicle_line_ids = fields.One2many(
+        "route.optimizer.wizard.vehicle",
+        "wizard_id",
+        string="Vehículos de la flota",
+        help="Un renglón por vehículo cuando no todos cargan lo mismo. Si hay renglones, "
+        "definen la cantidad de vehículos y la capacidad de cada uno.",
+    )
     max_stops_per_vehicle = fields.Integer(
         string="Máx. paradas por vehículo",
         help="Límite duro opcional para forzar la división de paradas entre vehículos.",
@@ -83,10 +90,19 @@ class RouteOptimizerWizard(models.TransientModel):
                 if block:
                     raise UserError(body)
                 self.batch_id.message_post(body=body)
+        lines = self.vehicle_line_ids.sorted("sequence")
+        if len(lines) > len(pickings := self.batch_id.picking_ids.filtered(lambda p: p.state != "cancel")):
+            raise UserError(
+                _("Hay más vehículos (%(v)s) que paradas (%(s)s): quitá renglones.")
+                % {"v": len(lines), "s": len(pickings)}
+            )
         res = optimize_batch(
             self.env,
             self.batch_id,
-            num_vehicles=self.num_vehicles,
+            vehicle_capacities=lines.mapped("capacity") if lines else None,
+            vehicle_volume_capacities=lines.mapped("volume_capacity") if lines else None,
+            vehicle_refs=[line._vehicle_ref() for line in lines] if lines else None,
+            num_vehicles=len(lines) or self.num_vehicles,
             use_duration=self.use_duration,
             depot_partner=self.depot_partner_id,
             vehicle_capacity=self.vehicle_capacity or None,
@@ -100,3 +116,21 @@ class RouteOptimizerWizard(models.TransientModel):
             body = f"{msg}\n\n{summary}" if summary else msg
             self.batch_id.message_post(body=body)
         return {"type": "ir.actions.act_window_close"}
+
+
+class RouteOptimizerWizardVehicle(models.TransientModel):
+    _name = "route.optimizer.wizard.vehicle"
+    _description = "Vehículo del asistente de optimización"
+    _order = "sequence, id"
+
+    wizard_id = fields.Many2one("route.optimizer.wizard", required=True, ondelete="cascade")
+    sequence = fields.Integer(default=10)
+    name = fields.Char(string="Vehículo", help="Patente o nombre, para reconocer la ruta.")
+    capacity = fields.Float(string="Capacidad (kg)", help="0 = sin tope de peso.")
+    volume_capacity = fields.Float(string="Capacidad (m³)", help="0 = sin tope de volumen.")
+
+    def _vehicle_ref(self):
+        """Identificador del vehículo para asignarlo a su ruta; el puente con Flota
+        devuelve el id del vehículo."""
+        self.ensure_one()
+        return False

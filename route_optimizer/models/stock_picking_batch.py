@@ -169,6 +169,14 @@ class StockPickingBatch(models.Model):
             done_pickings = self.env["stock.picking"].search(domain)
             batch.allowed_picking_ids |= done_pickings
 
+    def _route_optimizer_set_vehicle(self, vehicle_ref):
+        """Deja asignado en el lote el vehículo que le tocó al optimizar.
+
+        Acá no hace nada: el vehículo existe recién con el puente de Flota, que
+        sobrescribe este método.
+        """
+        return False
+
     def action_route_optimizer_wizard(self):
         self.ensure_one()
         default_fleet_vehicle_id = None

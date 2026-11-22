@@ -1,35 +1,13 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Zonas de Entrega",
-    "version": "18.0.1.0.1",
+    "version": "18.0.1.0.3",
     "category": "Inventory/Delivery",
-    "summary": "Zonas de entrega por contacto, con autodetección desde Google My Maps "
-    "y agrupación automática de lotes por zona",
-    "description": """
-Zonas de Entrega
-================
-
-Agrega el concepto de **Zona de entrega** a los contactos y a las órdenes de entrega.
-
-Funcionalidades
----------------
-* Tabla de configuración de zonas (creación manual)
-* Autodetección de la zona por geolocalización contra un **Google My Maps** público
-  (no requiere API key ni cuenta de Google: se lee el KML del mapa compartido)
-* Zona en el contacto y en cada dirección de entrega, con herencia al contacto
-  principal cuando la dirección no tiene zona propia
-* Zona en la orden de entrega (calculada, sobrescribible), con filtro y agrupación
-* Nueva opción **Zona de entrega** en la agrupación automática de lotes del
-  Tipo de Operación, junto a Contacto, País de destino y Ubicaciones
-
-Requisitos
-----------
-* Contactos geolocalizados (``base_geolocalize``) para la autodetección
-* Un mapa de Google My Maps con las zonas dibujadas como polígonos, compartido
-  como «cualquiera con el enlace»
-    """,
-    "author": "Aceleradora LA",
-    "website": "https://github.com/aceleradora-la/odoo-route-optimizer",
+    "summary": "Zonas de entrega por contacto, detectadas desde Google My Maps, y lotes automáticos por zona",
+    "description": """Zona de entrega en contactos y entregas, detectada por geolocalización contra un
+Google My Maps público, con lotes automáticos por zona.""",
+    "author": "aceleradora.la",
+    "website": "https://aceleradora.la",
     "support": "info@aceleradora.la",
     "maintainers": ["aceleradora-la"],
     "license": "LGPL-3",
@@ -48,7 +26,7 @@ Requisitos
         "views/stock_picking_views.xml",
         "views/stock_picking_type_views.xml",
     ],
-    "images": ["static/description/icon.png"],
+    "images": ["static/description/banner.png"],
     "installable": True,
     "application": False,
 }

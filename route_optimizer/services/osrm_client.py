@@ -96,3 +96,41 @@ def fetch_table(base_url, profile, coordinates_lonlat, timeout=60):
         "distances": distances,
         "raw": data,
     }
+
+
+def fetch_route(base_url, profile, coordinates_lonlat, timeout=20):
+    """
+    Recorrido por calles que pasa por los puntos EN EL ORDEN DADO (servicio Route).
+
+    Devuelve {"durations": [s por tramo], "distances": [m por tramo],
+    "polylines": [polilínea codificada]} — el mismo contrato que
+    google_client.compute_route.
+    """
+    base = normalize_osrm_base_url(base_url)
+    if not base:
+        raise OsrmError("OSRM base URL is not configured.")
+    if len(coordinates_lonlat) < 2:
+        raise OsrmError("At least two coordinates are required.")
+    coord_str = ";".join(f"{lon:.7f},{lat:.7f}" for lon, lat in coordinates_lonlat)
+    url = f"{base}/route/v1/{profile}/{coord_str}?overview=full&geometries=polyline&steps=false"
+    req = urllib.request.Request(url, method="GET", headers={"User-Agent": "Odoo-route-optimizer"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise OsrmError(f"OSRM HTTP error: {e.code} {e.reason}.") from e
+    except urllib.error.URLError as e:
+        raise OsrmError(f"OSRM connection error: {e.reason}") from e
+    except json.JSONDecodeError as e:
+        raise OsrmError("OSRM response is not valid JSON.") from e
+    if data.get("code") != "Ok" or not data.get("routes"):
+        raise OsrmError(data.get("message") or f"OSRM error code: {data.get('code')}")
+    route = data["routes"][0]
+    legs = route.get("legs") or []
+    if len(legs) != len(coordinates_lonlat) - 1:
+        raise OsrmError("OSRM returned an unexpected number of legs.")
+    return {
+        "durations": [float(leg.get("duration") or 0.0) for leg in legs],
+        "distances": [float(leg.get("distance") or 0.0) for leg in legs],
+        "polylines": [route["geometry"]] if route.get("geometry") else [],
+    }

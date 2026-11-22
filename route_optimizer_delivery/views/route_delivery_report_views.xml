@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Entregas -->
+    <record id="view_route_delivery_report_graph" model="ir.ui.view">
+        <field name="name">route.delivery.report.graph</field>
+        <field name="model">route.delivery.report</field>
+        <field name="arch" type="xml">
+            <graph string="Entregas" type="bar" stacked="1">
+                <field name="date" interval="day"/>
+                <field name="state"/>
+                <field name="stop_count" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="view_route_delivery_report_pivot" model="ir.ui.view">
+        <field name="name">route.delivery.report.pivot</field>
+        <field name="model">route.delivery.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Entregas">
+                <field name="driver_id" type="row"/>
+                <field name="stop_count" type="measure"/>
+                <field name="delivered_count" type="measure"/>
+                <field name="failed_count" type="measure"/>
+                <field name="on_time_count" type="measure"/>
+                <field name="late_count" type="measure"/>
+                <field name="delay_minutes" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_route_delivery_report_list" model="ir.ui.view">
+        <field name="name">route.delivery.report.list</field>
+        <field name="model">route.delivery.report</field>
+        <field name="arch" type="xml">
+            <list string="Entregas" create="0" edit="0" delete="0">
+                <field name="date"/>
+                <field name="batch_id"/>
+                <field name="driver_id"/>
+                <field name="partner_id"/>
+                <field name="picking_id"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'delivered'"
+                       decoration-warning="state == 'partial'"
+                       decoration-danger="state == 'failed'"
+                       decoration-muted="state == 'pending'"/>
+                <field name="fail_reason_id" optional="show"/>
+                <field name="delay_minutes" optional="show"/>
+                <field name="cod_amount" sum="Cobrado" optional="hide"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_route_delivery_report_search" model="ir.ui.view">
+        <field name="name">route.delivery.report.search</field>
+        <field name="model">route.delivery.report</field>
+        <field name="arch" type="xml">
+            <search string="Entregas">
+                <field name="partner_id"/>
+                <field name="driver_id"/>
+                <field name="batch_id"/>
+                <filter name="visited" string="Visitadas" domain="[('state', '!=', 'pending')]"/>
+                <filter name="failed" string="No entregadas" domain="[('state', '=', 'failed')]"/>
+                <filter name="late" string="Llegaron tarde" domain="[('late_count', '=', 1)]"/>
+                <separator/>
+                <filter name="date" string="Día" date="date"/>
+                <filter name="group_driver" string="Chofer" context="{'group_by': 'driver_id'}"/>
+                <filter name="group_date" string="Día" context="{'group_by': 'date:day'}"/>
+                <filter name="group_state" string="Resultado" context="{'group_by': 'state'}"/>
+                <filter name="group_reason" string="Motivo de no entrega" context="{'group_by': 'fail_reason_id'}"/>
+                <filter name="group_partner" string="Cliente" context="{'group_by': 'partner_id'}"/>
+            </search>
+        </field>
+    </record>
+    <record id="action_route_delivery_report" model="ir.actions.act_window">
+        <field name="name">Entregas</field>
+        <field name="res_model">route.delivery.report</field>
+        <field name="view_mode">graph,pivot,list</field>
+        <field name="context">{'search_default_visited': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Todavía no hay entregas hechas con la app</p>
+            <p>Acá vas a ver cuántas se entregan, cuántas fallan y por qué, y con cuánto atraso llegan.</p>
+        </field>
+    </record>
+
+    <!-- Rutas -->
+    <record id="view_route_delivery_route_report_pivot" model="ir.ui.view">
+        <field name="name">route.delivery.route.report.pivot</field>
+        <field name="model">route.delivery.route.report</field>
+        <field name="arch" type="xml">
+            <pivot string="Rutas">
+                <field name="driver_id" type="row"/>
+                <field name="route_count" type="measure"/>
+                <field name="stop_count" type="measure"/>
+                <field name="planned_km" type="measure"/>
+                <field name="driven_km" type="measure"/>
+                <field name="planned_minutes" type="measure"/>
+                <field name="actual_minutes" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+    <record id="view_route_delivery_route_report_graph" model="ir.ui.view">
+        <field name="name">route.delivery.route.report.graph</field>
+        <field name="model">route.delivery.route.report</field>
+        <field name="arch" type="xml">
+            <graph string="Rutas" type="bar">
+                <field name="date" interval="day"/>
+                <field name="planned_km" type="measure"/>
+                <field name="driven_km" type="measure"/>
+            </graph>
+        </field>
+    </record>
+    <record id="view_route_delivery_route_report_list" model="ir.ui.view">
+        <field name="name">route.delivery.route.report.list</field>
+        <field name="model">route.delivery.route.report</field>
+        <field name="arch" type="xml">
+            <list string="Rutas" create="0" edit="0" delete="0">
+                <field name="date"/>
+                <field name="batch_id"/>
+                <field name="driver_id"/>
+                <field name="stop_count" sum="Paradas"/>
+                <field name="delivered_count" sum="Entregadas"/>
+                <field name="failed_count" sum="No entregadas"/>
+                <field name="planned_km" sum="Planificados"/>
+                <field name="driven_km" sum="Recorridos"/>
+                <field name="planned_minutes" widget="float_time" optional="show"/>
+                <field name="actual_minutes" widget="float_time" optional="show"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_route_delivery_route_report_search" model="ir.ui.view">
+        <field name="name">route.delivery.route.report.search</field>
+        <field name="model">route.delivery.route.report</field>
+        <field name="arch" type="xml">
+            <search string="Rutas">
+                <field name="driver_id"/>
+                <field name="batch_id"/>
+                <filter name="date" string="Día" date="date"/>
+                <filter name="group_driver" string="Chofer" context="{'group_by': 'driver_id'}"/>
+                <filter name="group_date" string="Día" context="{'group_by': 'date:day'}"/>
+            </search>
+        </field>
+    </record>
+    <record id="action_route_delivery_route_report" model="ir.actions.act_window">
+        <field name="name">Rutas: planificado y real</field>
+        <field name="res_model">route.delivery.route.report</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Todavía no salió ninguna ruta</p>
+            <p>Compará los km y el tiempo que se planificaron al salir con lo que pasó en la calle.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_route_delivery_reporting" name="Reparto" parent="stock.menu_warehouse_report" sequence="60"
+              groups="stock.group_stock_user"/>
+    <menuitem id="menu_route_delivery_report" name="Entregas" parent="menu_route_delivery_reporting"
+              action="action_route_delivery_report" sequence="10"/>
+    <menuitem id="menu_route_delivery_route_report" name="Rutas: planificado y real" parent="menu_route_delivery_reporting"
+              action="action_route_delivery_route_report" sequence="20"/>
+</odoo>

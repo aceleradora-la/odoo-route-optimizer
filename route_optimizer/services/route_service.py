@@ -139,9 +139,17 @@ def optimize_batch(
     vehicle_volume_capacity=None,
     max_stops_per_vehicle=None,
     max_route_duration_minutes=None,
+    vehicle_capacities=None,
+    vehicle_volume_capacities=None,
+    vehicle_refs=None,
 ):
     """
     Run OSRM + OR-Tools and apply ordering / batch splits.
+
+    Flota con capacidades distintas: ``vehicle_capacities`` y
+    ``vehicle_volume_capacities`` son listas con un valor por vehículo (0 = sin tope)
+    y mandan sobre los valores únicos. ``vehicle_refs`` identifica cada vehículo para
+    dejarlo asignado en la ruta que le toca.
 
     :param env: odoo.api.Environment
     :param batch: stock.picking.batch record
@@ -322,7 +330,53 @@ def optimize_batch(
         ortools_api_key,
         icp,
         stops,
+        vehicle_capacities=vehicle_capacities,
+        vehicle_volume_capacities=vehicle_volume_capacities,
+        vehicle_refs=vehicle_refs,
     )
+
+
+def break_settings(icp):
+    """Descanso del chofer configurado: (inicio más temprano, más tardío, duración) en
+    segundos desde medianoche, o None si no hay descanso."""
+    def number(key, default):
+        try:
+            return float(icp.get_param(key, default) or default)
+        except (TypeError, ValueError):
+            return float(default)
+
+    duration = int(number("route_optimizer.break_duration_minutes", 0) * 60)
+    if duration <= 0:
+        return None
+    earliest = int(number("route_optimizer.break_earliest_hour", 12) * 3600)
+    latest = int(number("route_optimizer.break_latest_hour", 14) * 3600)
+    return earliest, max(latest, earliest), duration
+
+
+def _break_payload(icp, payload):
+    """Claves del descanso para /vrp. Necesita la hora de salida y los tiempos de
+    atención aunque no haya ventanas horarias cargadas."""
+    settings = break_settings(icp)
+    if not settings:
+        return {}
+    extra = {
+        "break_earliest_seconds": settings[0],
+        "break_latest_seconds": settings[1],
+        "break_duration_seconds": settings[2],
+    }
+    if "route_start_seconds" not in payload:
+        try:
+            start_hour = float(icp.get_param("route_optimizer.route_start_hour", "8") or 8)
+        except (TypeError, ValueError):
+            start_hour = 8.0
+        try:
+            service = int(icp.get_param("route_optimizer.service_time_seconds", "600") or 600)
+        except (TypeError, ValueError):
+            service = 600
+        nodes = len(payload["matrix"])
+        extra["route_start_seconds"] = int(start_hour * 3600)
+        extra["service_times"] = [0] + [max(0, service)] * (nodes - 1)
+    return extra
 
 
 def _fetch_matrix(icp, coordinates_lonlat, timeout, osrm_base_url, osrm_profile):
@@ -563,6 +617,8 @@ def _build_vrp_payload(
     max_stops_per_vehicle,
     max_route_duration_minutes,
     use_duration,
+    vehicle_capacities=None,
+    vehicle_volume_capacities=None,
 ):
     """Assemble the JSON payload for the extended /vrp endpoint."""
     matrix = table["durations"] if use_duration else table["distances"]
@@ -571,17 +627,21 @@ def _build_vrp_payload(
     if len(matrix) != n or any(len(row) != n for row in matrix):
         raise UserError(_("El tamaño de la matriz de OSRM no coincide con la cantidad de nodos."))
 
-    if vehicle_capacity and vehicle_capacity > 0:
-        capacities_weight = [float(vehicle_capacity)] * nv
-    else:
-        total_demand = sum(demands_weight[1:])
-        capacities_weight = [max(total_demand * 2, 1.0)] * nv
+    # Sin tope se usa un valor holgado: el doble de todo lo que hay que cargar.
+    free_weight = max(sum(demands_weight[1:]) * 2, 1.0)
+    free_volume = max(sum(demands_volume[1:]) * 2, 0.000001)
 
-    if vehicle_volume_capacity and vehicle_volume_capacity > 0:
-        capacities_volume = [float(vehicle_volume_capacity)] * nv
-    else:
-        total_vol = sum(demands_volume[1:])
-        capacities_volume = [max(total_vol * 2, 0.000001)] * nv
+    def per_vehicle(values, single, free):
+        """Capacidad de cada vehículo: la lista si vino, si no el valor único."""
+        if values:
+            padded = list(values)[:nv] + [0.0] * max(0, nv - len(values))
+            return [float(v) if v and float(v) > 0 else free for v in padded]
+        if single and single > 0:
+            return [float(single)] * nv
+        return [free] * nv
+
+    capacities_weight = per_vehicle(vehicle_capacities, vehicle_capacity, free_weight)
+    capacities_volume = per_vehicle(vehicle_volume_capacities, vehicle_volume_capacity, free_volume)
 
     payload = {
         "version": 1,
@@ -636,6 +696,9 @@ def _run_vrp_api(
     ortools_api_key,
     icp,
     stops,
+    vehicle_capacities=None,
+    vehicle_volume_capacities=None,
+    vehicle_refs=None,
 ):
     """Call the extended /vrp endpoint and apply results to the batch."""
     payload, metric = _build_vrp_payload(
@@ -650,13 +713,21 @@ def _run_vrp_api(
         max_stops_per_vehicle,
         max_route_duration_minutes,
         use_duration,
+        vehicle_capacities=vehicle_capacities,
+        vehicle_volume_capacities=vehicle_volume_capacities,
     )
+
+    # Paradas urgentes (prioridad del traslado): el solver las adelanta.
+    priorities = [0] + [1 if s["picking"].priority == "1" else 0 for s in stops]
+    if any(priorities):
+        payload["priorities"] = priorities
 
     # OCA stock_partner_delivery_window: time windows per stop (requires duration matrix).
     if use_duration:
         time_payload = delivery_windows.build_vrp_time_payload(env, batch, stops, icp)
         if time_payload:
             payload.update(time_payload)
+        payload.update(_break_payload(icp, payload))
 
     try:
         result = ortools_client.solve_vrp(ortools_url, payload, timeout=timeout, api_key=ortools_api_key)
@@ -694,7 +765,9 @@ def _run_vrp_api(
     routes = result.get("routes") or []
 
     if nv > 1 and routes:
-        batch_orders = _apply_multi_vehicle_routes(env, batch, routes, picking_ids_order)
+        batch_orders = _apply_multi_vehicle_routes(
+            env, batch, routes, picking_ids_order, vehicle_refs=vehicle_refs
+        )
         msg = _("VRP aplicado: %(v)s vehículos, métrica %(metric)s.") % {"v": nv, "metric": metric}
         for i, (b, pids) in enumerate(batch_orders):
             if i == 0:
@@ -818,10 +891,14 @@ def _apply_order_single_batch(batch, ordered_picking_ids):
             seq += 10
 
 
-def _apply_multi_vehicle_routes(env, original_batch, routes, picking_ids_order):
-    """Assign pickings to batches; return [(batch, ordered_picking_ids), ...] in stable order."""
+def _apply_multi_vehicle_routes(env, original_batch, routes, picking_ids_order, vehicle_refs=None):
+    """Assign pickings to batches; return [(batch, ordered_picking_ids), ...] in stable order.
+
+    Cada ruta conserva el índice de su vehículo: con flota de capacidades distintas
+    importa cuál camión lleva cada lote, y se deja asignado si hay cómo.
+    """
     vehicle_routes = []
-    for r in routes:
+    for position, r in enumerate(routes):
         nodes = r.get("node_indices") or r.get("nodes") or []
         pids = []
         for idx in nodes:
@@ -829,20 +906,20 @@ def _apply_multi_vehicle_routes(env, original_batch, routes, picking_ids_order):
                 continue
             if 1 <= idx < len(picking_ids_order) + 1:
                 pids.append(picking_ids_order[idx - 1])
-        vehicle_routes.append(pids)
-
-    # Some solvers may return empty routes for unused vehicles (e.g., [0, 0]).
-    # Keep only routes that actually carry at least one stop.
-    vehicle_routes = [r for r in vehicle_routes if r]
+        # Some solvers may return empty routes for unused vehicles (e.g., [0, 0]).
+        if pids:
+            vehicle_routes.append((int(r.get("vehicle_index", position)), pids))
     if not vehicle_routes:
         raise UserError(_("OR-Tools devolvió rutas vacías."))
+
+    def set_vehicle(batch, vehicle_index):
+        if vehicle_refs and vehicle_index < len(vehicle_refs) and vehicle_refs[vehicle_index]:
+            batch._route_optimizer_set_vehicle(vehicle_refs[vehicle_index])
 
     batch_orders = []
 
     # Move secondary vehicles to new batches first so original batch only keeps the first non-empty route.
-    for extra_pick_ids in vehicle_routes[1:]:
-        if not extra_pick_ids:
-            continue
+    for vehicle_index, extra_pick_ids in vehicle_routes[1:]:
         new_batch = env["stock.picking.batch"].create(
             {
                 "picking_type_id": original_batch.picking_type_id.id,
@@ -857,8 +934,10 @@ def _apply_multi_vehicle_routes(env, original_batch, routes, picking_ids_order):
             seq += 10
         if original_batch.state == "in_progress" and new_batch.state == "draft":
             new_batch.action_confirm()
+        set_vehicle(new_batch, vehicle_index)
         batch_orders.append((new_batch, extra_pick_ids))
 
-    first = vehicle_routes[0]
+    first_index, first = vehicle_routes[0]
     _apply_order_single_batch(original_batch, first)
+    set_vehicle(original_batch, first_index)
     return [(original_batch, first)] + batch_orders

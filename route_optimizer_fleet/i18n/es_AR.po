@@ -17,7 +17,7 @@ msgstr ""
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #. module: route_optimizer_fleet
-msgid "Route Optimizer — Fleet bridge"
+msgid "Route Optimizer — Flota"
 msgstr "Optimizador de rutas — enlace Flota"
 
 #. module: route_optimizer_fleet

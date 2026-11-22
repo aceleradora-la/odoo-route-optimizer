@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_route_delivery_fail_reason_user,route.delivery.fail.reason user,model_route_delivery_fail_reason,base.group_user,1,0,0,0
+access_route_delivery_fail_reason_manager,route.delivery.fail.reason manager,model_route_delivery_fail_reason,stock.group_stock_manager,1,1,1,1
+access_route_delivery_report_user,route.delivery.report user,model_route_delivery_report,stock.group_stock_user,1,0,0,0
+access_route_delivery_route_report_user,route.delivery.route.report user,model_route_delivery_route_report,stock.group_stock_user,1,0,0,0

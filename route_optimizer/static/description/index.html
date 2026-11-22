@@ -1,52 +1,50 @@
-<section style="max-width: 875px; margin: 0 auto; font-family: sans-serif; color: #333;">
-    <div style="text-align: center; padding: 24px 0;">
-        <h1 style="color: #214263; margin-bottom: 8px;">Optimizador de Rutas de Entrega</h1>
-        <p style="font-size: 18px; color: #666;">OSRM + Google OR-Tools para traslados por lote</p>
+<section style="max-width: 900px; margin: 0 auto; font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color: #111827;">
+    <img src="banner.png" alt="Route Optimizer" style="width: 100%; border-radius: 12px; border: 1px solid #e5e7eb;"/>
+    <div style="padding: 32px 0 8px; text-align: center;">
+        <h1 style="margin: 0; font-size: 34px; color: #111827;">Rutas de entrega optimizadas con un clic</h1>
+        <p style="margin: 10px auto 0; max-width: 640px; font-size: 18px; line-height: 1.5; color: #4b5563;">Elegí las entregas del día, tocá <strong>Optimizar ruta</strong> y Odoo ordena las paradas por tiempo o distancia real de manejo.</p>
     </div>
-
-    <div style="background: #f5f7fa; border-radius: 8px; padding: 20px 24px; margin-bottom: 24px;">
-        <p style="font-size: 15px; line-height: 1.6; margin: 0;">
-            Optimizá el orden de visita de las entregas de un lote con un click.
-            El módulo consulta un servidor <strong>OSRM</strong> para calcular las matrices de
-            distancia y tiempo reales de manejo, y resuelve el problema de ruteo (VRP) con
-            <strong>Google OR-Tools</strong> mediante un microservicio Docker incluido en el repositorio.
-        </p>
+    <div style="display: flex; flex-wrap: wrap; gap: 14px; margin-top: 24px;">
+        <div style="flex: 1 1 250px; padding: 18px; border: 1px solid #e5e7eb; border-top: 4px solid #4338CA; border-radius: 10px; background: #ffffff;">
+            <div style="font-size: 17px; font-weight: 700; color: #111827;">Varios vehículos</div>
+            <div style="margin-top: 6px; font-size: 15px; line-height: 1.5; color: #4b5563;">Reparte el lote en una ruta por vehículo.</div>
+        </div>
+        <div style="flex: 1 1 250px; padding: 18px; border: 1px solid #e5e7eb; border-top: 4px solid #4338CA; border-radius: 10px; background: #ffffff;">
+            <div style="font-size: 17px; font-weight: 700; color: #111827;">Capacidad</div>
+            <div style="margin-top: 6px; font-size: 15px; line-height: 1.5; color: #4b5563;">Respeta el peso y el volumen de cada vehículo, aunque no todos carguen lo mismo.</div>
+        </div>
+        <div style="flex: 1 1 250px; padding: 18px; border: 1px solid #e5e7eb; border-top: 4px solid #4338CA; border-radius: 10px; background: #ffffff;">
+            <div style="font-size: 17px; font-weight: 700; color: #111827;">Ventanas horarias</div>
+            <div style="margin-top: 6px; font-size: 15px; line-height: 1.5; color: #4b5563;">Llega a cada cliente dentro de su horario de recepción.</div>
+        </div>
+        <div style="flex: 1 1 250px; padding: 18px; border: 1px solid #e5e7eb; border-top: 4px solid #4338CA; border-radius: 10px; background: #ffffff;">
+            <div style="font-size: 17px; font-weight: 700; color: #111827;">Límites por ruta</div>
+            <div style="margin-top: 6px; font-size: 15px; line-height: 1.5; color: #4b5563;">Máximo de paradas y de duración, descanso del chofer y entregas urgentes primero.</div>
+        </div>
+        <div style="flex: 1 1 250px; padding: 18px; border: 1px solid #e5e7eb; border-top: 4px solid #4338CA; border-radius: 10px; background: #ffffff;">
+            <div style="font-size: 17px; font-weight: 700; color: #111827;">Hoja de ruta</div>
+            <div style="margin-top: 6px; font-size: 15px; line-height: 1.5; color: #4b5563;">PDF con QR de Google Maps, teléfonos, productos y firma.</div>
+        </div>
+        <div style="flex: 1 1 250px; padding: 18px; border: 1px solid #e5e7eb; border-top: 4px solid #4338CA; border-radius: 10px; background: #ffffff;">
+            <div style="font-size: 17px; font-weight: 700; color: #111827;">WhatsApp</div>
+            <div style="margin-top: 6px; font-size: 15px; line-height: 1.5; color: #4b5563;">Enviá la ruta completa al chofer con un clic.</div>
+        </div>
     </div>
-
-    <h2 style="color: #214263;">Funcionalidades</h2>
-    <ul style="font-size: 15px; line-height: 1.9;">
-        <li><strong>Optimización con un click</strong> desde el traslado por lote</li>
-        <li><strong>Multi-vehículo:</strong> divide el lote en varios lotes, uno por vehículo</li>
-        <li><strong>Capacidades:</strong> restricciones de peso y volumen por vehículo</li>
-        <li><strong>Ventanas horarias</strong> por cliente (integración con OCA <em>stock_partner_delivery_window</em>)</li>
-        <li><strong>Límites duros:</strong> máximo de paradas y duración máxima por ruta</li>
-        <li><strong>Hoja de Ruta PDF</strong> con QR de Google Maps, teléfonos, resumen de productos, ventanas horarias y bloque de firma</li>
-        <li><strong>Compartir por WhatsApp:</strong> mensaje pre-armado con las paradas y el link de la ruta</li>
-        <li><strong>Google Maps:</strong> link directo con todas las paradas en el orden optimizado</li>
-    </ul>
-
-    <h2 style="color: #214263;">Cómo funciona</h2>
-    <ol style="font-size: 15px; line-height: 1.9;">
-        <li>Creá un traslado por lote con las entregas del día</li>
-        <li>Hacé click en <strong>Optimizar ruta</strong> y elegí vehículos, depósito y capacidades</li>
-        <li>El sistema ordena las paradas minimizando tiempo o distancia</li>
-        <li>Imprimí la <strong>Hoja de Ruta</strong> o compartila por <strong>WhatsApp</strong> con el transportista</li>
+    <h2 style="margin: 40px 0 12px; font-size: 24px; text-align: center; color: #111827;">Qué necesitás</h2>
+    <ol style="max-width: 640px; margin: 0 auto; font-size: 16px; line-height: 1.8; color: #374151;">
+        <li>Contactos geolocalizados.</li>
+        <li>Un servidor OSRM y el microservicio OR-Tools incluido (Docker), o una cuenta de Google Cloud.</li>
+        <li>El módulo OCA <em>stock_partner_delivery_window</em> para las ventanas horarias (Odoo 18 y 19).</li>
     </ol>
 
-    <h2 style="color: #214263;">Requisitos</h2>
-    <ul style="font-size: 15px; line-height: 1.9;">
-        <li>Servidor <strong>OSRM</strong> accesible (Docker, ver manual de deployment)</li>
-        <li>Microservicio <strong>OR-Tools</strong> incluido (carpeta <code>ortools_service</code>, deploy con docker-compose)</li>
-        <li>Contactos geolocalizados (<em>base_geolocalize</em>)</li>
-    </ul>
-
-    <h2 style="color: #214263;">Módulo complementario</h2>
-    <p style="font-size: 15px; line-height: 1.6;">
-        <strong>Route Optimizer — Fleet bridge:</strong> agrega el vehículo de Flota al asistente
-        y precarga las capacidades de peso/volumen desde la categoría del vehículo.
-    </p>
-
-    <div style="text-align: center; padding: 20px; color: #999; font-size: 13px;">
-        Licencia LGPL-3 · <a href="https://github.com/aceleradora-la/odoo-route-optimizer">GitHub</a>
+    <div style="margin-top: 40px; padding: 24px; border-radius: 12px; background: #111827; color: #ffffff; text-align: center;">
+        <div style="font-size: 20px; font-weight: 700;">aceleradora.la</div>
+        <div style="margin-top: 6px; font-size: 15px; color: #d1d5db;">Implementación y desarrollo Odoo para empresas de Latinoamérica</div>
+        <div style="margin-top: 14px; font-size: 15px;">
+            <a href="https://aceleradora.la" style="color: #ffffff; font-weight: 700;">aceleradora.la</a>
+            &nbsp;·&nbsp; <a href="mailto:info@aceleradora.la" style="color: #ffffff;">info@aceleradora.la</a>
+            &nbsp;·&nbsp; <a href="https://github.com/aceleradora-la/odoo-route-optimizer" style="color: #ffffff;">Código en GitHub</a>
+        </div>
+        <div style="margin-top: 10px; font-size: 13px; color: #d1d5db;">Licencia LGPL-3 · Community y Enterprise</div>
     </div>
 </section>

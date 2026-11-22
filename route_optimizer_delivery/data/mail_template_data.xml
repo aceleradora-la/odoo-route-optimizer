@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="mail_template_route_delivery_on_the_way" model="mail.template">
+        <field name="name">Reparto: tu pedido salió</field>
+        <field name="model_id" ref="stock.model_stock_picking"/>
+        <field name="subject">Tu pedido {{ object.origin or object.name }} salió a reparto</field>
+        <field name="email_from">{{ (object.company_id.email_formatted or user.email_formatted) }}</field>
+        <field name="partner_to">{{ object.partner_id.id }}</field>
+        <field name="auto_delete" eval="True"/>
+        <field name="body_html" type="html">
+<div style="font-family:Arial,sans-serif;font-size:15px;color:#111827">
+    <p>Hola <t t-out="object.partner_id.name or ''"/>,</p>
+    <p>Tu pedido <strong t-out="object.origin or object.name"/> salió a reparto.</p>
+    <p>
+        <a t-att-href="object.route_delivery_tracking_url"
+           style="display:inline-block;padding:12px 20px;background:#714B67;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold">
+            Seguir mi entrega
+        </a>
+    </p>
+    <p>Ahí vas a ver el horario estimado y cuántas paradas faltan.</p>
+    <p t-out="object.company_id.name or ''"/>
+</div>
+        </field>
+    </record>
+
+    <record id="mail_template_route_delivery_next" model="mail.template">
+        <field name="name">Reparto: sos la próxima parada</field>
+        <field name="model_id" ref="stock.model_stock_picking"/>
+        <field name="subject">Estamos yendo: sos la próxima parada</field>
+        <field name="email_from">{{ (object.company_id.email_formatted or user.email_formatted) }}</field>
+        <field name="partner_to">{{ object.partner_id.id }}</field>
+        <field name="auto_delete" eval="True"/>
+        <field name="body_html" type="html">
+<div style="font-family:Arial,sans-serif;font-size:15px;color:#111827">
+    <p>Hola <t t-out="object.partner_id.name or ''"/>,</p>
+    <p>El reparto va hacia tu domicilio con el pedido <strong t-out="object.origin or object.name"/>.</p>
+    <p>
+        <a t-att-href="object.route_delivery_tracking_url"
+           style="display:inline-block;padding:12px 20px;background:#714B67;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold">
+            Ver horario estimado
+        </a>
+    </p>
+    <p t-out="object.company_id.name or ''"/>
+</div>
+        </field>
+    </record>
+
+    <record id="mail_template_route_delivery_delivered" model="mail.template">
+        <field name="name">Reparto: pedido entregado</field>
+        <field name="model_id" ref="stock.model_stock_picking"/>
+        <field name="subject">Entregamos tu pedido {{ object.origin or object.name }}</field>
+        <field name="email_from">{{ (object.company_id.email_formatted or user.email_formatted) }}</field>
+        <field name="partner_to">{{ object.partner_id.id }}</field>
+        <field name="auto_delete" eval="True"/>
+        <field name="body_html" type="html">
+<div style="font-family:Arial,sans-serif;font-size:15px;color:#111827">
+    <p>Hola <t t-out="object.partner_id.name or ''"/>,</p>
+    <p>
+        Entregamos tu pedido <strong t-out="object.origin or object.name"/><t t-if="object.route_delivery_receiver_name">.
+        Lo recibió <t t-out="object.route_delivery_receiver_name"/></t>.
+    </p>
+    <p t-if="object.route_delivery_state == 'partial'">La entrega fue parcial: te contactamos por lo que falta.</p>
+    <p>¡Gracias!</p>
+    <p t-out="object.company_id.name or ''"/>
+</div>
+        </field>
+    </record>
+
+    <record id="mail_template_route_delivery_failed" model="mail.template">
+        <field name="name">Reparto: no pudimos entregar</field>
+        <field name="model_id" ref="stock.model_stock_picking"/>
+        <field name="subject">No pudimos entregar tu pedido {{ object.origin or object.name }}</field>
+        <field name="email_from">{{ (object.company_id.email_formatted or user.email_formatted) }}</field>
+        <field name="partner_to">{{ object.partner_id.id }}</field>
+        <field name="auto_delete" eval="True"/>
+        <field name="body_html" type="html">
+<div style="font-family:Arial,sans-serif;font-size:15px;color:#111827">
+    <p>Hola <t t-out="object.partner_id.name or ''"/>,</p>
+    <p>
+        Pasamos a entregar tu pedido <strong t-out="object.origin or object.name"/> y no fue posible
+        (<t t-out="object.route_delivery_fail_reason_id.name or ''"/>).
+    </p>
+    <p>Nos vamos a contactar para coordinar una nueva entrega.</p>
+    <p t-out="object.company_id.name or ''"/>
+</div>
+        </field>
+    </record>
+</odoo>

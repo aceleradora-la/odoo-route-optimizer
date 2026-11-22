@@ -65,6 +65,12 @@ class VrpRequest(BaseModel):
     time_windows_list: List[List[List[int]]] = []
     route_start_seconds: int = 0
     service_times: List[int] = []
+    # 1 = parada urgente: el solver intenta visitarla entre las primeras de su ruta.
+    priorities: List[int] = []
+    # Descanso obligatorio del chofer (segundos desde medianoche); 0 = sin descanso.
+    break_earliest_seconds: int = 0
+    break_latest_seconds: int = 0
+    break_duration_seconds: int = 0
 
 
 def _apply_time_windows(
@@ -130,6 +136,14 @@ async def optimize(request: RouteRequest, token: str = Depends(get_api_key)):
     search_parameters.first_solution_strategy = (
         routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
     )
+
+    # Con restricciones blandas o descansos, la primera solución suele ser mejorable:
+    # se le da un tiempo corto de búsqueda local.
+    if urgent or has_break:
+        search_parameters.local_search_metaheuristic = (
+            routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+        )
+        search_parameters.time_limit.FromSeconds(3 if n <= 60 else 8)
 
     solution = routing.SolveWithParameters(search_parameters)
     if not solution:
@@ -267,7 +281,16 @@ async def vrp(request: VrpRequest, token: str = Depends(get_api_key)):
             "Stops",
         )
 
-    use_time = bool(request.time_windows or request.time_windows_list)
+    has_break = request.break_duration_seconds > 0 and request.matrix_metric == "duration"
+    # La dimensión de tiempo hace falta para las ventanas, para el descanso y para que
+    # el tope de duración se cumpla aunque no haya ventanas cargadas.
+    use_time = bool(
+        request.time_windows
+        or request.time_windows_list
+        or has_break
+        or (request.max_route_duration_seconds > 0 and request.matrix_metric == "duration")
+    )
+    time_dimension = None
     if use_time:
         day_horizon = 24 * 3600
         route_horizon = (
@@ -308,12 +331,62 @@ async def vrp(request: VrpRequest, token: str = Depends(get_api_key)):
             time_dimension.CumulVar(start_index).SetRange(route_start, route_start)
             if request.max_route_duration_seconds and request.max_route_duration_seconds > 0:
                 end_index = routing.End(v)
-                time_dimension.CumulVar(end_index).SetMax(int(request.max_route_duration_seconds))
+                time_dimension.CumulVar(end_index).SetMax(
+                    route_start + int(request.max_route_duration_seconds)
+                )
+
+        if has_break:
+            # Un descanso por vehículo, que empieza dentro de la franja indicada. No corta
+            # la atención de una parada: cae entre paradas o durante un viaje.
+            earliest = max(int(request.break_earliest_seconds), route_start)
+            latest = max(int(request.break_latest_seconds), earliest)
+            visit_transit = [0] * routing.Size()
+            for index in range(routing.Size()):
+                visit_transit[index] = service_times[manager.IndexToNode(index)]
+            solver = routing.solver()
+            for v in range(num_vehicles):
+                interval = solver.FixedDurationIntervalVar(
+                    earliest, latest, int(request.break_duration_seconds), False, f"break_{v}"
+                )
+                time_dimension.SetBreakIntervalsOfVehicle([interval], v, visit_transit)
+
+    urgent = [
+        node
+        for node, value in enumerate(request.priorities[:n])
+        if node != depot and int(value or 0) > 0
+    ]
+    if urgent:
+        # Posición de cada parada en su ruta (1 = primera). A las urgentes se les pide
+        # quedar entre las primeras; cada lugar de más cuesta como un tramo promedio, así
+        # el solver las adelanta salvo que el desvío sea desproporcionado.
+        def position_callback(from_index):
+            return 0 if manager.IndexToNode(from_index) == depot else 1
+
+        position_cb = routing.RegisterUnaryTransitCallback(position_callback)
+        routing.AddDimension(position_cb, 0, n, True, "Position")
+        position_dimension = routing.GetDimensionOrDie("Position")
+        arcs = [
+            float(request.matrix[i][j]) for i in range(n) for j in range(n) if i != j
+        ]
+        penalty = max(1, int(sum(arcs) / max(len(arcs), 1)))
+        early_slots = max(0, -(-len(urgent) // num_vehicles) - 1)
+        for node in urgent:
+            position_dimension.SetCumulVarSoftUpperBound(
+                manager.NodeToIndex(node), early_slots, penalty
+            )
 
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
     search_parameters.first_solution_strategy = (
         routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
     )
+
+    # Con restricciones blandas o descansos, la primera solución suele ser mejorable:
+    # se le da un tiempo corto de búsqueda local.
+    if urgent or has_break:
+        search_parameters.local_search_metaheuristic = (
+            routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
+        )
+        search_parameters.time_limit.FromSeconds(3 if n <= 60 else 8)
 
     solution = routing.SolveWithParameters(search_parameters)
     if not solution:
@@ -329,6 +402,16 @@ async def vrp(request: VrpRequest, token: str = Depends(get_api_key)):
             nodes.append(manager.IndexToNode(index))
             index = solution.Value(routing.NextVar(index))
         nodes.append(manager.IndexToNode(index))
-        routes.append({"node_indices": nodes})
+        route = {"node_indices": nodes, "vehicle_index": v}
+        if time_dimension is not None:
+            # Hora de llegada a cada nodo (segundos desde medianoche), ya con el descanso.
+            arrivals = []
+            index = routing.Start(v)
+            while not routing.IsEnd(index):
+                arrivals.append(int(solution.Min(time_dimension.CumulVar(index))))
+                index = solution.Value(routing.NextVar(index))
+            arrivals.append(int(solution.Min(time_dimension.CumulVar(index))))
+            route["arrival_seconds"] = arrivals
+        routes.append(route)
 
     return {"success": True, "routes": routes, "total_cost": int(solution.ObjectiveValue())}
