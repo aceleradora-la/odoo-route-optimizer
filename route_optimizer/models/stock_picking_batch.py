@@ -172,17 +172,27 @@ class StockPickingBatch(models.Model):
         """
         super()._compute_allowed_picking_ids()
         icp = self.env["ir.config_parameter"].sudo()
-        if not _param_bool(icp.get_param("route_optimizer.allow_done_in_batch", "False")):
+        allow_done = _param_bool(icp.get_param("route_optimizer.allow_done_in_batch", "False"))
+        allow_pickups = _param_bool(icp.get_param("route_optimizer.allow_pickups_in_batch", "False"))
+        if not allow_done and not allow_pickups:
             return
         for batch in self:
-            domain = [
-                ("company_id", "=", batch.company_id.id),
-                ("state", "=", "done"),
-            ]
-            if batch.picking_type_id:
-                domain.append(("picking_type_id", "=", batch.picking_type_id.id))
-            done_pickings = self.env["stock.picking"].search(domain)
-            batch.allowed_picking_ids |= done_pickings
+            states = ["waiting", "confirmed", "assigned"] + (["draft"] if batch.state == "draft" else [])
+            if allow_done:
+                domain = [("company_id", "=", batch.company_id.id), ("state", "=", "done")]
+                if batch.picking_type_id:
+                    domain.append(("picking_type_id", "=", batch.picking_type_id.id))
+                batch.allowed_picking_ids |= self.env["stock.picking"].search(domain)
+            if allow_pickups:
+                # Retiros y devoluciones en la misma ruta que las entregas: Odoo pide un
+                # solo tipo de operación por lote, acá se suman las recepciones.
+                batch.allowed_picking_ids |= self.env["stock.picking"].search(
+                    [
+                        ("company_id", "=", batch.company_id.id),
+                        ("picking_type_code", "=", "incoming"),
+                        ("state", "in", states + (["done"] if allow_done else [])),
+                    ]
+                )
 
     def _route_optimizer_set_vehicle(self, vehicle_ref):
         """Deja asignado en el lote el vehículo que le tocó al optimizar.

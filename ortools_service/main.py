@@ -67,6 +67,8 @@ class VrpRequest(BaseModel):
     service_times: List[int] = []
     # 1 = parada urgente: el solver intenta visitarla entre las primeras de su ruta.
     priorities: List[int] = []
+    # 1 = la parada es un retiro: la carga sube en vez de bajar. Vacío = todo entregas.
+    pickups: List[int] = []
     # Descanso obligatorio del chofer (segundos desde medianoche); 0 = sin descanso.
     break_earliest_seconds: int = 0
     break_latest_seconds: int = 0
@@ -215,56 +217,64 @@ async def vrp(request: VrpRequest, token: str = Depends(get_api_key)):
     transit_callback_index = routing.RegisterTransitCallback(cost_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
 
+    pickups = [bool(x) for x in (request.pickups or [])]
+    if pickups and len(pickups) != n:
+        raise HTTPException(status_code=422, detail="pickups debe tener largo N")
+    has_pickups = any(pickups)
+
+    def add_capacity(name, demands, capacities):
+        """Tope de carga por vehículo.
+
+        Solo entregas: la carga acumulada es lo que salió del depósito. Con retiros,
+        el vehículo sale con todo lo que entrega, baja en cada entrega y sube en cada
+        retiro, y el tope vale en cada tramo: un retiro temprano solo entra si ya
+        hay lugar.
+        """
+        if len(demands) != n:
+            raise HTTPException(status_code=422, detail="demands de %s debe tener largo N" % name)
+        if len(capacities) != num_vehicles:
+            raise HTTPException(
+                status_code=422, detail="capacidades de %s debe tener largo num_vehicles" % name
+            )
+        amounts = []
+        for value in demands:
+            try:
+                amounts.append(int(round(float(value))))
+            except Exception:
+                amounts.append(0)
+        caps = [int(round(float(c))) for c in capacities]
+
+        if not has_pickups:
+            cb = routing.RegisterUnaryTransitCallback(lambda index: amounts[manager.IndexToNode(index)])
+            routing.AddDimensionWithVehicleCapacity(cb, 0, caps, True, name)
+            return
+
+        def delivered(index):
+            node = manager.IndexToNode(index)
+            return 0 if pickups[node] else amounts[node]
+
+        def load_change(index):
+            node = manager.IndexToNode(index)
+            return amounts[node] if pickups[node] else -amounts[node]
+
+        out_cb = routing.RegisterUnaryTransitCallback(delivered)
+        routing.AddDimensionWithVehicleCapacity(out_cb, 0, caps, True, name + "Out")
+        load_cb = routing.RegisterUnaryTransitCallback(load_change)
+        routing.AddDimensionWithVehicleCapacity(load_cb, 0, caps, False, name)
+        out_dim = routing.GetDimensionOrDie(name + "Out")
+        load_dim = routing.GetDimensionOrDie(name)
+        solver = routing.solver()
+        for v in range(num_vehicles):
+            # Sale cargado exactamente con lo que va a entregar.
+            solver.Add(load_dim.CumulVar(routing.Start(v)) == out_dim.CumulVar(routing.End(v)))
+
     demands_weight = request.demands_weight or request.demands
     caps_weight = request.vehicle_capacities_weight or request.vehicle_capacities
     if demands_weight and caps_weight:
-        if len(demands_weight) != n:
-            raise HTTPException(status_code=422, detail="demands_weight debe tener largo N")
-        if len(caps_weight) != num_vehicles:
-            raise HTTPException(
-                status_code=422, detail="vehicle_capacities_weight debe tener largo num_vehicles"
-            )
-
-        def demand_callback(from_index):
-            node = manager.IndexToNode(from_index)
-            try:
-                return int(round(float(demands_weight[node])))
-            except Exception:
-                return 0
-
-        demand_callback_index = routing.RegisterUnaryTransitCallback(demand_callback)
-        routing.AddDimensionWithVehicleCapacity(
-            demand_callback_index,
-            0,
-            [int(round(float(c))) for c in caps_weight],
-            True,
-            "Capacity",
-        )
+        add_capacity("Capacity", demands_weight, caps_weight)
 
     if request.demands_volume and request.vehicle_capacities_volume:
-        if len(request.demands_volume) != n:
-            raise HTTPException(status_code=422, detail="demands_volume debe tener largo N")
-        if len(request.vehicle_capacities_volume) != num_vehicles:
-            raise HTTPException(
-                status_code=422,
-                detail="vehicle_capacities_volume debe tener largo num_vehicles",
-            )
-
-        def volume_callback(from_index):
-            node = manager.IndexToNode(from_index)
-            try:
-                return int(round(float(request.demands_volume[node])))
-            except Exception:
-                return 0
-
-        vol_cb = routing.RegisterUnaryTransitCallback(volume_callback)
-        routing.AddDimensionWithVehicleCapacity(
-            vol_cb,
-            0,
-            [int(round(float(c))) for c in request.vehicle_capacities_volume],
-            True,
-            "CapacityVolume",
-        )
+        add_capacity("CapacityVolume", request.demands_volume, request.vehicle_capacities_volume)
 
     if request.max_stops_per_vehicle and request.max_stops_per_vehicle > 0:
 

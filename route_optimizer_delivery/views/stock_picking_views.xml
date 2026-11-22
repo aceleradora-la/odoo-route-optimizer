@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="stock.view_picking_form"/>
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
-                <page string="Entrega" name="route_delivery" invisible="picking_type_code != 'outgoing'">
+                <page string="Entrega" name="route_delivery" invisible="picking_type_code not in ('outgoing', 'incoming')">
                     <widget name="route_delivery_pod"/>
                 </page>
             </xpath>

@@ -86,6 +86,7 @@ Soporta en **`POST /vrp`** (contrato extendido Odoo):
 - Capacidad peso/volumen, `max_stops_per_vehicle`, `max_route_duration_seconds`
 - Capacidad distinta por vehículo (`vehicle_capacities_weight` / `vehicle_capacities_volume`, un valor por vehículo)
 - `priorities` (paradas urgentes primero)
+- `pickups` (1 = retiro: la carga sube en esa parada en vez de bajar)
 - `break_earliest_seconds`, `break_latest_seconds`, `break_duration_seconds` (descanso del chofer)
 - Devuelve `vehicle_index` y, cuando hay tiempos, `arrival_seconds` por ruta
 

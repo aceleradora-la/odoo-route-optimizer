@@ -101,6 +101,12 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer.max_route_duration_minutes",
         help="Límite duro opcional de duración por ruta de vehículo (requiere optimizar por duración).",
     )
+    route_optimizer_allow_pickups_in_batch = fields.Boolean(
+        string="Retiros y devoluciones en la ruta",
+        config_parameter="route_optimizer.allow_pickups_in_batch",
+        help="Permite sumar recepciones (retiros a clientes o proveedores y devoluciones) "
+        "a un lote de entregas. El optimizador las trata como paradas donde la carga sube.",
+    )
     route_optimizer_allow_done_in_batch = fields.Boolean(
         string="Permitir traslados validados en los lotes",
         config_parameter="route_optimizer.allow_done_in_batch",

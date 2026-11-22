@@ -109,6 +109,11 @@ class StockPicking(models.Model):
         string="Link de seguimiento", compute="_compute_route_delivery_tracking_url"
     )
     route_delivery_next_notified = fields.Boolean(copy=False)
+    route_delivery_load_data = fields.Json(
+        copy=False,
+        readonly=True,
+        help="Control de carga: qué bultos de este traslado ya se subieron al vehículo.",
+    )
     route_delivery_client_id = fields.Char(
         copy=False,
         readonly=True,
@@ -251,7 +256,13 @@ class StockPicking(models.Model):
         return True
 
     def _route_delivery_notify(self, kind):
-        """Avisa al cliente del paso `kind` por los canales que estén activos."""
+        """Avisa al cliente del paso `kind` por los canales que estén activos.
+
+        Los retiros no se avisan: los textos y plantillas hablan de una entrega.
+        """
+        self = self.filtered(lambda p: not p._route_optimizer_is_pickup())
+        if not self:
+            return
         self._route_delivery_notify_email(kind)
         reached = self._route_delivery_notify_whatsapp(kind)
         self._route_delivery_notify_sms(kind, reached)
@@ -362,6 +373,69 @@ class StockPicking(models.Model):
     # Datos para la app y el tablero
     # ------------------------------------------------------------------
 
+    def _route_delivery_kind(self):
+        """delivery (se entrega), pickup (se retira) o return (se retira una devolución)."""
+        self.ensure_one()
+        if not self._route_optimizer_is_pickup():
+            return "delivery"
+        returned = ("return_id" in self._fields and self.return_id) or any(
+            self.move_ids.mapped("origin_returned_move_id")
+        )
+        return "return" if returned else "pickup"
+
+    def _route_delivery_packages(self):
+        """Paquetes de Odoo del traslado, con lo que la app necesita de cada uno."""
+        self.ensure_one()
+        lines = self.move_line_ids
+        if "result_package_id" not in lines._fields:
+            return []
+        packages = lines.mapped("result_package_id")
+        result = []
+        for package in packages.sorted("name"):
+            weight = 0.0
+            for field in ("shipping_weight", "weight"):
+                if field in package._fields and package[field]:
+                    weight = package[field]
+                    break
+            kind = package.package_type_id.name if "package_type_id" in package._fields else ""
+            result.append(
+                {
+                    "key": "p%d" % package.id,
+                    "code": package.name or "",
+                    "label": package.name or "",
+                    "type": kind or "",
+                    "weight": round(weight, 2),
+                }
+            )
+        return result
+
+    def _route_delivery_load_items(self, mode):
+        """Qué hay que subir al vehículo por este traslado, según el modo de control.
+
+        `package`: cada paquete de Odoo es un bulto a escanear; un traslado sin
+        paquetes se controla entero, por su remito. `picking`: siempre por remito.
+        Los retiros no cargan nada al salir.
+        """
+        self.ensure_one()
+        if mode not in ("picking", "package") or self._route_optimizer_is_pickup():
+            return []
+        items = self._route_delivery_packages() if mode == "package" else []
+        if not items:
+            items = [
+                {
+                    "key": "k%d" % self.id,
+                    "code": self.name or "",
+                    "alt_code": self.origin or "",
+                    "label": self.name or "",
+                    "type": "",
+                    "weight": round(self.shipping_weight or 0.0, 2),
+                }
+            ]
+        loaded = (self.route_delivery_load_data or {}).get("loaded") or {}
+        for item in items:
+            item["loaded"] = item["key"] in loaded
+        return items
+
     def _route_delivery_moves(self):
         self.ensure_one()
         return self.move_ids.filtered(lambda m: m.state != "cancel")
@@ -416,6 +490,7 @@ class StockPicking(models.Model):
             "lon": lon or False,
             "maps_url": ("https://www.google.com/maps/dir/?api=1&destination=%s" % point) if point else False,
             "weight": self.shipping_weight or 0.0,
+            "kind": self._route_delivery_kind(),
             "zone": self.geo_delivery_zone_id.name or "" if "geo_delivery_zone_id" in self._fields else "",
             "late_minutes": round(
                 (self.route_delivery_eta - self.route_delivery_planned_eta).total_seconds() / 60.0
@@ -439,14 +514,14 @@ class StockPicking(models.Model):
                     "integer": self._route_delivery_uom_is_integer(uom),
                 }
             )
-        packages = []
-        if "result_package_id" in self.env["stock.move.line"]._fields:
-            packages = sorted(set(self.move_line_ids.mapped("result_package_id.name")))
+        packages = self._route_delivery_packages()
+        load_mode = self.env["stock.picking.batch"]._route_delivery_load_config()["mode"]
         self._route_delivery_ensure_token()
         data.update(
             {
                 "lines": lines,
                 "packages": packages,
+                "load_items": self._route_delivery_load_items(load_mode),
                 "tracking_url": self.route_delivery_tracking_url,
                 "whatsapp_url": self._route_delivery_whatsapp_url() if customer.phone else False,
                 "receiver_name": self.route_delivery_receiver_name or "",
@@ -559,8 +634,13 @@ class StockPicking(models.Model):
                     "%s: %g / %g %s"
                     % (move.product_id.display_name, qty, planned, _move_uom(move).name or "")
                 )
+        pickup = self._route_optimizer_is_pickup()
         if moves and not total:
-            raise UserError(_("No se entregó nada: usá «No entregado» y elegí el motivo."))
+            raise UserError(
+                _("No se retiró nada: usá «No retirado» y elegí el motivo.")
+                if pickup
+                else _("No se entregó nada: usá «No entregado» y elegí el motivo.")
+            )
 
         try:
             packages = int(float(vals.get("packages") or 0))
@@ -589,12 +669,16 @@ class StockPicking(models.Model):
         if flag("validate_on_delivery") and self.state not in ("done", "cancel"):
             self._route_delivery_validate_picking(delivered)
 
-        body = Markup("<b>%s</b>") % (
-            _("Entrega parcial") if partial_lines else _("Entregado")
-        )
+        if pickup:
+            title = _("Retiro parcial") if partial_lines else _("Retirado")
+        else:
+            title = _("Entrega parcial") if partial_lines else _("Entregado")
+        body = Markup("<b>%s</b>") % title
         details = []
         if values["route_delivery_receiver_name"]:
-            details.append(_("Recibió: %s") % values["route_delivery_receiver_name"])
+            details.append(
+                (_("Entregó: %s") if pickup else _("Recibió: %s")) % values["route_delivery_receiver_name"]
+            )
         if values["route_delivery_receiver_doc"]:
             details.append(_("DNI: %s") % values["route_delivery_receiver_doc"])
         if packages:
@@ -602,6 +686,9 @@ class StockPicking(models.Model):
         if cod:
             details.append(_("Cobrado: %s") % cod)
         details.extend(partial_lines)
+        unscanned = [str(label) for label in (vals.get("unscanned") or [])][:50]
+        if unscanned:
+            details.append(_("Bultos sin escanear al entregar: %s") % ", ".join(unscanned))
         if values["route_delivery_note"]:
             details.append(values["route_delivery_note"])
         for detail in details:
@@ -628,7 +715,10 @@ class StockPicking(models.Model):
         values.update(self._route_delivery_position_vals(vals))
         self.write(values)
         attachments = self._route_delivery_attach_photos(vals.get("photos"))
-        body = Markup("<b>%s</b>: %s") % (_("No entregado"), reason.name)
+        body = Markup("<b>%s</b>: %s") % (
+            _("No retirado") if self._route_optimizer_is_pickup() else _("No entregado"),
+            reason.name,
+        )
         if note:
             body += Markup("<br/>") + escape(note)
         self.message_post(body=body, attachment_ids=attachments.ids)

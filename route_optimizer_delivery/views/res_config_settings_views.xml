@@ -117,6 +117,27 @@
                             </div>
                         </div>
                     </setting>
+                    <setting string="Carga del vehículo"
+                             help="Control de lo que sube al vehículo antes de salir. La app muestra los bultos en orden de carga: lo último que se entrega, al fondo.">
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <label for="route_delivery_load_control" class="col-lg-5"/>
+                                <field name="route_delivery_load_control" class="col-lg-7"/>
+                            </div>
+                            <div class="row mt8" invisible="route_delivery_load_control == 'none'">
+                                <field name="route_delivery_load_required" class="col-1"/>
+                                <label for="route_delivery_load_required" class="col"/>
+                            </div>
+                            <div class="row" invisible="route_delivery_load_control == 'none'">
+                                <field name="route_delivery_load_scan_only" class="col-1"/>
+                                <label for="route_delivery_load_scan_only" class="col"/>
+                            </div>
+                            <div class="row">
+                                <field name="route_delivery_unload_control" class="col-1"/>
+                                <label for="route_delivery_unload_control" class="col"/>
+                            </div>
+                        </div>
+                    </setting>
                     <setting string="Seguimiento y mapa"
                              help="Margen de la franja horaria que ve el cliente y mapa del tablero. Con Google Maps se suman tráfico en vivo y vista satelital.">
                         <div class="content-group">

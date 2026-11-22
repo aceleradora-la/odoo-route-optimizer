@@ -21,6 +21,35 @@ class ResConfigSettings(models.TransientModel):
         help="Envía un correo con el link de seguimiento cuando sale la ruta, cuando "
         "el cliente es la próxima parada y cuando se entrega o falla la entrega.",
     )
+    route_delivery_load_control = fields.Selection(
+        [
+            ("none", "Sin control"),
+            ("picking", "Por remito"),
+            ("package", "Por bulto (paquetes de Odoo)"),
+        ],
+        string="Control de carga del vehículo",
+        config_parameter="route_optimizer_delivery.load_control",
+        default="none",
+        help="Antes de salir, el chofer escanea lo que sube al vehículo. Por bulto usa los "
+        "paquetes de Odoo de cada traslado («Poner en paquete»); un traslado sin paquetes "
+        "se controla por su remito.",
+    )
+    route_delivery_load_required = fields.Boolean(
+        string="No salir con carga incompleta",
+        config_parameter="route_optimizer_delivery.load_required",
+        help="Apagado, la app avisa qué falta y deja salir igual; queda anotado en la ruta.",
+    )
+    route_delivery_load_scan_only = fields.Boolean(
+        string="Solo por escaneo",
+        config_parameter="route_optimizer_delivery.load_scan_only",
+        help="No deja tildar un bulto a mano: hay que escanearlo o escribir su código.",
+    )
+    route_delivery_unload_control = fields.Boolean(
+        string="Controlar bultos al entregar",
+        config_parameter="route_optimizer_delivery.unload_control",
+        help="En cada parada la app pide escanear los bultos que se bajan. Si falta alguno "
+        "avisa antes de confirmar y lo deja anotado en el traslado.",
+    )
     route_delivery_require_signature = fields.Boolean(
         string="Firma obligatoria",
         config_parameter="route_optimizer_delivery.require_signature",

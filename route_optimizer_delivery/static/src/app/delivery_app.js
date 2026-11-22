@@ -77,7 +77,7 @@ export class RouteDeliveryApp extends Component {
             this.pwa = null;
         }
         this.state = reactive({
-            screen: "home", // home | route | stop | fail
+            screen: "home", // home | route | load | stop | fail
             user: "",
             dispatcher: false,
             routes: [],
@@ -93,6 +93,7 @@ export class RouteDeliveryApp extends Component {
             queue: [], // acciones hechas sin conexión que faltan mandar
             syncing: false,
             confirmPartial: false,
+            confirmLoad: false, // segundo toque para salir con carga incompleta
             stale: false, // se está viendo una copia guardada, no datos recién traídos
             checked: {}, // códigos de bultos y productos ya controlados
         });
@@ -202,8 +203,10 @@ export class RouteDeliveryApp extends Component {
     /** Aplica sobre una ruta recién traída lo que todavía está en la cola. */
     applyQueue(route) {
         for (const item of this.state.queue) {
-            if (item.routeId === route.id && item.patch) {
-                if (item.stopId) {
+            if (item.routeId === route.id && (item.patch || item.loadPatch)) {
+                if (item.loadPatch) {
+                    this.applyLoad(route, item.loadPatch);
+                } else if (item.stopId) {
                     const stop = route.stops.find((entry) => entry.id === item.stopId);
                     if (stop) {
                         Object.assign(stop, item.patch);
@@ -454,11 +457,13 @@ export class RouteDeliveryApp extends Component {
         }
         this.state.stopId = null;
         this.state.showManual = false;
+        this.state.confirmLoad = false;
         this.state.screen = "route";
     }
 
     backToRoute() {
         this.state.stopId = null;
+        this.state.confirmLoad = false;
         this.state.screen = "route";
     }
 
@@ -474,13 +479,184 @@ export class RouteDeliveryApp extends Component {
         return this.state.route.stops.indexOf(stop) + 1;
     }
 
+    /** Textos de una parada según sea entrega, retiro o devolución. */
+    words(stop) {
+        if (!stop || !stop.kind || stop.kind === "delivery") {
+            return {
+                tag: "", what: "Qué se entrega", who: "Quién recibe", done: "Entregado", partial: "Entrega parcial",
+                confirmPartial: "Confirmar entrega parcial", failed: "No entregado", notAll: "No se entrega todo.",
+                confirmHint: "Tocá de nuevo para confirmar la entrega parcial.", cod: "Cobrado en la entrega ($)",
+                window: "Recibe", person: "Recibió", toast: "entregado", failToast: "no entregado",
+            };
+        }
+        return {
+            tag: stop.kind === "return" ? "Devolución" : "Retiro", what: "Qué se retira", who: "Quién entrega",
+            done: "Retirado", partial: "Retiro parcial", confirmPartial: "Confirmar retiro parcial", failed: "No retirado",
+            notAll: "No se retira todo.", confirmHint: "Tocá de nuevo para confirmar el retiro parcial.",
+            cod: "Pagado en el retiro ($)", window: "Atiende", person: "Entregó", toast: "retirado", failToast: "no retirado",
+        };
+    }
+
     stateLabel(stop) {
-        return { delivered: "Entregado", partial: "Parcial", failed: "No entregado" }[stop.state] || "";
+        const words = this.words(stop);
+        return { delivered: words.done, partial: "Parcial", failed: words.failed }[stop.state] || "";
+    }
+
+    // ------------------------------------------------------------------
+    // Carga del vehículo
+    // ------------------------------------------------------------------
+    get loadCfg() {
+        return (this.state.route && this.state.route.load) || { mode: "none", required: false, manual: true, unload: false };
+    }
+
+    get loadOn() {
+        return this.loadCfg.mode !== "none";
+    }
+
+    /** Bultos a subir agrupados por parada, en orden de carga: primero lo que se
+     * entrega último, que va al fondo. */
+    get loadGroups() {
+        return this.state.route.stops
+            .map((stop, index) => ({ stop, number: index + 1, items: stop.state === "pending" ? stop.load_items || [] : [] }))
+            .filter((group) => group.items.length)
+            .reverse()
+            .map((group, index, all) => ({
+                ...group,
+                place: index === 0 ? "al fondo" : index === all.length - 1 ? "junto a la puerta" : "",
+            }));
+    }
+
+    get loadPercent() {
+        return this.loadTotal ? Math.round((100 * (this.loadTotal - this.loadMissing)) / this.loadTotal) : 0;
+    }
+
+    get loadTotal() {
+        return this.loadGroups.reduce((sum, group) => sum + group.items.length, 0);
+    }
+
+    get loadMissing() {
+        return this.loadGroups.reduce((sum, group) => sum + group.items.filter((item) => !item.loaded).length, 0);
+    }
+
+    groupLoaded(group) {
+        return group.items.every((item) => item.loaded);
+    }
+
+    openLoad() {
+        this.state.showManual = false;
+        this.state.manualCode = "";
+        this.state.confirmLoad = false;
+        this.state.screen = "load";
+        document.querySelector(".o_route_delivery_app")?.scrollTo(0, 0);
+    }
+
+    applyLoad(route, patch) {
+        for (const stop of route.stops) {
+            for (const item of stop.load_items || []) {
+                if (item.key in patch) {
+                    item.loaded = patch[item.key];
+                }
+            }
+        }
+    }
+
+    async setLoaded(item, loaded) {
+        if (item.loaded === loaded) {
+            return;
+        }
+        const route = this.state.route;
+        const loadPatch = { [item.key]: loaded };
+        await this.act(
+            { method: "route_delivery_app_load", args: [route.id, { items: loadPatch }], routeId: route.id, label: "Carga de " + item.label, loadPatch },
+            (local) => this.applyLoad(local, loadPatch)
+        );
+    }
+
+    toggleLoad(item) {
+        if (!this.loadCfg.manual) {
+            this.notification.add("Escaneá el bulto o escribí su código.", { type: "warning" });
+            return;
+        }
+        return this.setLoaded(item, !item.loaded);
+    }
+
+    findLoadItem(code) {
+        const wanted = code.trim().toLowerCase();
+        for (const group of this.loadGroups) {
+            for (const item of group.items) {
+                if (item.code.toLowerCase() === wanted || (item.alt_code && item.alt_code.toLowerCase() === wanted)) {
+                    return { group, item };
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Sube al vehículo el bulto de ese código. Avisa fuerte si no es de esta ruta. */
+    async loadCode(code) {
+        const found = this.findLoadItem(code);
+        if (!found) {
+            navigator.vibrate?.([200, 100, 200]);
+            let where = "";
+            if (this.state.online) {
+                try {
+                    const other = await this.orm.silent.call(MODEL, "route_delivery_app_scan", [code, null]);
+                    where = other.batch_id && other.batch_id !== this.state.route.id ? " Es de otra ruta." : "";
+                } catch (error) {
+                    where = isNetworkError(error) ? "" : " Es de otra ruta.";
+                }
+            }
+            this.notification.add(`«${code}» no va en este vehículo.${where}`, { type: "danger" });
+            return;
+        }
+        if (found.item.loaded) {
+            this.notification.add("Ese ya estaba cargado.", { type: "info" });
+            return;
+        }
+        const place = `Parada ${found.group.number} · ${found.group.stop.partner}`;
+        await this.setLoaded(found.item, true);
+        const left = this.loadMissing;
+        this.notification.add(left ? `${place}. Faltan ${left}.` : `${place}. Carga completa.`, { type: "success" });
+    }
+
+    /** Escaneo continuo: la cámara se vuelve a abrir hasta cerrarla o completar la carga. */
+    async scanLoad() {
+        for (;;) {
+            const code = await this.readCode();
+            if (!code) {
+                break;
+            }
+            await this.loadCode(code);
+            if (!this.loadMissing) {
+                break;
+            }
+        }
+    }
+
+    async submitLoadManual(ev) {
+        ev.preventDefault();
+        const code = this.state.manualCode.trim();
+        if (code) {
+            this.state.manualCode = "";
+            await this.loadCode(code);
+        }
     }
 
     async startRoute() {
         const pos = this.positionArgs;
         const route = this.state.route;
+        if (this.loadOn && this.loadMissing) {
+            if (this.loadCfg.required) {
+                this.notification.add(`Falta cargar ${this.loadMissing} bulto(s) antes de salir.`, { type: "warning" });
+                this.openLoad();
+                return;
+            }
+            if (!this.state.confirmLoad) {
+                this.state.confirmLoad = true;
+                return;
+            }
+        }
+        this.state.confirmLoad = false;
         await this.act(
             { method: "route_delivery_app_start", args: [route.id, pos.lat, pos.lon], routeId: route.id, label: "Salida de " + route.name, patch: { started: true } },
             (local) => {
@@ -630,7 +806,7 @@ export class RouteDeliveryApp extends Component {
     // Control por escaneo: bultos del traslado y productos con código de barras.
     get scanTargets() {
         const stop = this.currentStop;
-        return [...stop.packages, ...stop.lines.map((line) => line.barcode).filter(Boolean)];
+        return [...stop.packages.map((pack) => pack.code), ...stop.lines.map((line) => line.barcode).filter(Boolean)];
     }
 
     get checkedCount() {
@@ -654,6 +830,31 @@ export class RouteDeliveryApp extends Component {
         this.state.checked[target] = true;
         const left = this.scanTargets.length - this.checkedCount;
         this.notification.add(left ? `Bien. Faltan ${left}.` : "Todo controlado.", { type: "success" });
+    }
+
+    /** Tildar un bulto a mano, si el depósito lo permite. */
+    togglePackage(pack) {
+        if (!this.loadCfg.manual) {
+            this.notification.add("Escaneá el bulto.", { type: "warning" });
+            return;
+        }
+        this.state.checked[pack.code] = !this.state.checked[pack.code];
+        this.state.confirmPartial = false;
+    }
+
+    /** El bulto figura en la carga y no se subió al vehículo. */
+    packageNotLoaded(stop, pack) {
+        const item = (stop.load_items || []).find((entry) => entry.key === pack.key);
+        return Boolean(item && this.state.route.started && !item.loaded);
+    }
+
+    /** Bultos que el control de entrega pide escanear y todavía no se escanearon. */
+    get unscannedPackages() {
+        const stop = this.currentStop;
+        if (!this.loadCfg.unload || (stop.kind && stop.kind !== "delivery")) {
+            return [];
+        }
+        return stop.packages.filter((pack) => !this.state.checked[pack.code]).map((pack) => pack.label);
     }
 
     // Fotos (entrega y no entrega comparten la lógica).
@@ -762,6 +963,7 @@ export class RouteDeliveryApp extends Component {
             note: form.note,
             photos: [...form.photos],
             signature: form.signature,
+            unscanned: this.unscannedPackages,
             ...this.positionArgs,
         };
         vals.client_id = newClientId();
@@ -783,14 +985,14 @@ export class RouteDeliveryApp extends Component {
                 (route) => Object.assign(route.stops.find((entry) => entry.id === stop.id), patch)
             );
             this.notification.add(
-                sent ? `${stop.partner}: entregado.` : `${stop.partner}: guardado en el teléfono. Se envía cuando vuelva la señal.`,
+                sent ? `${stop.partner}: ${this.words(stop).toast}.` : `${stop.partner}: guardado en el teléfono. Se envía cuando vuelva la señal.`,
                 { type: sent ? "success" : "info" }
             );
             this.afterStop();
         };
         // Entrega parcial: se confirma con un segundo toque en la misma pantalla. No se usa
         // un diálogo porque sin conexión Odoo 20 deshabilita los botones de los diálogos.
-        if (this.isPartial && !this.state.confirmPartial) {
+        if ((this.isPartial || vals.unscanned.length) && !this.state.confirmPartial) {
             this.state.confirmPartial = true;
             return;
         }
@@ -852,7 +1054,7 @@ export class RouteDeliveryApp extends Component {
             (route) => Object.assign(route.stops.find((entry) => entry.id === stop.id), patch)
         );
         this.notification.add(
-            sent ? `${stop.partner}: no entregado.` : `${stop.partner}: guardado en el teléfono. Se envía cuando vuelva la señal.`,
+            sent ? `${stop.partner}: ${this.words(stop).failToast}.` : `${stop.partner}: guardado en el teléfono. Se envía cuando vuelva la señal.`,
             { type: sent ? "warning" : "info" }
         );
         this.afterStop();
