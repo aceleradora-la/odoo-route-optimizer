@@ -53,6 +53,18 @@ class StockPickingBatch(models.Model):
         string="Minutos pendientes", copy=False, readonly=True
     )
     route_delivery_routing_source = fields.Char(copy=False, readonly=True)
+    route_delivery_planned_km = fields.Float(
+        string="Km planificados", copy=False, readonly=True, help="Recorrido previsto al salir la ruta."
+    )
+    route_delivery_planned_minutes = fields.Integer(
+        string="Minutos planificados", copy=False, readonly=True
+    )
+    route_delivery_driven_km = fields.Float(
+        string="Km recorridos (GPS)",
+        copy=False,
+        readonly=True,
+        help="Suma de los tramos entre las posiciones que informó la app.",
+    )
     route_delivery_eta_refreshed_at = fields.Datetime(copy=False, readonly=True)
     route_delivery_stop_count = fields.Integer(
         string="Paradas", compute="_compute_route_delivery_progress"
@@ -419,8 +431,18 @@ class StockPickingBatch(models.Model):
             return False
         if not lat and not lon:
             return False
+        values = {}
+        last_at = self.route_delivery_last_position_at
+        if self.route_delivery_started_at and last_at:
+            # Se suma el tramo desde la posición anterior. Un salto con mucho tiempo en
+            # el medio (app cerrada) o imposible (GPS errático) no se cuenta.
+            minutes = (fields.Datetime.now() - last_at).total_seconds() / 60.0
+            hop = _haversine_m((self.route_delivery_last_longitude, self.route_delivery_last_latitude), (lon, lat))
+            if minutes <= 15 and hop <= 2000 * max(minutes, 1):
+                values["route_delivery_driven_km"] = self.route_delivery_driven_km + hop / 1000.0
         self.write(
             {
+                **values,
                 "route_delivery_last_latitude": lat,
                 "route_delivery_last_longitude": lon,
                 "route_delivery_last_position_at": fields.Datetime.now(),
@@ -440,8 +462,14 @@ class StockPickingBatch(models.Model):
             pending = batch._route_delivery_stops().filtered(
                 lambda p: p.route_delivery_state == "pending"
             )
+            # Foto de lo prometido: contra esto se miden el atraso y los km de más.
+            batch.write(
+                {
+                    "route_delivery_planned_km": batch.route_delivery_remaining_km,
+                    "route_delivery_planned_minutes": batch.route_delivery_remaining_minutes,
+                }
+            )
             for picking in pending:
-                # Foto de lo prometido: contra esto se mide el atraso.
                 picking.route_delivery_planned_eta = picking.route_delivery_eta
             pending._route_delivery_ensure_token()
             pending._route_delivery_notify("on_the_way")
@@ -543,6 +571,8 @@ class StockPickingBatch(models.Model):
     def route_delivery_app_deliver(self, picking_id, vals):
         picking = self._route_delivery_app_picking(picking_id)
         batch = picking.batch_id
+        if picking._route_delivery_already_sent(vals):
+            return batch._route_delivery_app_payload()
         picking._route_delivery_register_delivered(vals or {})
         batch._route_delivery_set_position((vals or {}).get("lat"), (vals or {}).get("lon"))
         batch._route_delivery_after_stop()
@@ -552,6 +582,8 @@ class StockPickingBatch(models.Model):
     def route_delivery_app_fail(self, picking_id, vals):
         picking = self._route_delivery_app_picking(picking_id)
         batch = picking.batch_id
+        if picking._route_delivery_already_sent(vals):
+            return batch._route_delivery_app_payload()
         picking._route_delivery_register_failed(vals or {})
         batch._route_delivery_set_position((vals or {}).get("lat"), (vals or {}).get("lon"))
         batch._route_delivery_after_stop()

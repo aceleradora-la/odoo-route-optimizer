@@ -34,13 +34,17 @@ Con Google como motor, las horas estimadas y el dibujo de cada ruta salen de Rou
 
 ## Uso
 
-- **Optimizar**: en un traslado por lote, botón *Optimizar ruta*.
+- **Optimizar**: en un traslado por lote, botón *Optimizar ruta*. Si la flota no carga toda lo mismo, cargá un renglón por vehículo con su capacidad. Las entregas marcadas como urgentes se visitan primero. El descanso del chofer se configura en *Ajustes → Inventario → Optimización de rutas*.
 - **Repartir**: el chofer es el *Responsable* del lote y entra por el menú *Reparto* (`/odoo/reparto`); desde ahí instala la app en su celular. Alcanza con el grupo *Chofer de reparto*.
 - **Seguir**: cada entrega tiene un link público de seguimiento, en la pestaña *Entrega* del traslado. Con la ruta en la calle, la app informa la ubicación del chofer cada minuto y las horas estimadas se corrigen solas; si la app queda cerrada, se estiman desde la última entrega.
 - **Despachar**: *Inventario → Operaciones → Tablero de despacho* (`/odoo/despacho`). Elegí entregas en la lista, en el mapa o con el lazo; el panel ordena las rutas por lo que cuesta sumarlas. *Publicar a choferes* confirma las rutas en borrador. *En vivo* muestra camiones, atrasos e incidencias.
 - **Zonas**: pegá la URL de tu Google My Maps en *Ajustes → Inventario → Zonas de entrega* y sincronizá.
 
-Los avisos por correo al cliente y la validación del traslado al entregar vienen apagados: se activan en *Ajustes → Inventario → Reparto*.
+- **Sin conexión**: con la app abierta, el chofer sigue cargando entregas sin señal; quedan en el teléfono y se envían solas al volver la conexión. Abrir la app desde cero sin señal no es posible.
+- **WhatsApp automático**: *Ajustes → Inventario → Reparto*. Usa WhatsApp Business (Cloud API de Meta) y necesita una plantilla aprobada por aviso, con tres variables en el cuerpo: `{{1}}` nombre, `{{2}}` pedido, `{{3}}` link de seguimiento. Cargá los teléfonos con código de país.
+- **Reportes**: *Inventario → Reportes → Reparto*: entregas (a tiempo, tarde, fallidas por motivo, por chofer) y rutas (km y tiempo planificados contra reales).
+
+Los avisos por correo y WhatsApp al cliente y la validación del traslado al entregar vienen apagados: se activan en *Ajustes → Inventario → Reparto*.
 
 ## Desarrollo
 

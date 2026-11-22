@@ -15,6 +15,44 @@
                              help="En camino, sos el próximo, entregado y no entregado, con el link de seguimiento.">
                         <field name="route_delivery_notify_email"/>
                     </setting>
+                    <setting string="Avisar al cliente por WhatsApp"
+                             help="Avisos automáticos por WhatsApp Business. Necesita plantillas aprobadas por Meta con tres variables: {{1}} nombre, {{2}} pedido, {{3}} link de seguimiento.">
+                        <field name="route_delivery_whatsapp_enabled"/>
+                        <div class="content-group" invisible="not route_delivery_whatsapp_enabled">
+                            <div class="row mt8">
+                                <label for="route_delivery_whatsapp_phone_id" class="col-lg-5"/>
+                                <field name="route_delivery_whatsapp_phone_id" class="col-lg-7"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_whatsapp_token" class="col-lg-5"/>
+                                <field name="route_delivery_whatsapp_token" class="col-lg-7" password="True"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_whatsapp_language" class="col-lg-5"/>
+                                <field name="route_delivery_whatsapp_language" class="col-lg-3"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_whatsapp_country_code" class="col-lg-5"/>
+                                <field name="route_delivery_whatsapp_country_code" class="col-lg-3" placeholder="54"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_whatsapp_tpl_on_the_way" class="col-lg-5"/>
+                                <field name="route_delivery_whatsapp_tpl_on_the_way" class="col-lg-7"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_whatsapp_tpl_next" class="col-lg-5"/>
+                                <field name="route_delivery_whatsapp_tpl_next" class="col-lg-7"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_whatsapp_tpl_delivered" class="col-lg-5"/>
+                                <field name="route_delivery_whatsapp_tpl_delivered" class="col-lg-7"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_whatsapp_tpl_failed" class="col-lg-5"/>
+                                <field name="route_delivery_whatsapp_tpl_failed" class="col-lg-7"/>
+                            </div>
+                        </div>
+                    </setting>
                     <setting string="Prueba de entrega obligatoria"
                              help="Qué tiene que cargar el chofer para marcar una parada como entregada.">
                         <div class="content-group">

@@ -3,6 +3,7 @@ import base64
 import binascii
 import logging
 import uuid
+from datetime import timedelta
 from urllib.parse import quote as url_quote
 
 from markupsafe import Markup, escape
@@ -12,6 +13,8 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.tools import float_compare
 
 from odoo.addons.route_optimizer.models.stock_picking import _move_uom
+
+from ..services import whatsapp_client
 
 _logger = logging.getLogger(__name__)
 
@@ -106,6 +109,12 @@ class StockPicking(models.Model):
         string="Link de seguimiento", compute="_compute_route_delivery_tracking_url"
     )
     route_delivery_next_notified = fields.Boolean(copy=False)
+    route_delivery_client_id = fields.Char(
+        copy=False,
+        readonly=True,
+        help="Identificador que genera la app para cada entrega: si el mismo envío llega "
+        "dos veces (reintento tras quedarse sin señal), no se registra de nuevo.",
+    )
 
     # ------------------------------------------------------------------
     # Seguimiento
@@ -242,7 +251,11 @@ class StockPicking(models.Model):
         return True
 
     def _route_delivery_notify(self, kind):
-        """Envía el correo de aviso `kind` si los avisos están activos."""
+        """Avisa al cliente del paso `kind` por los canales que estén activos."""
+        self._route_delivery_notify_email(kind)
+        self._route_delivery_notify_whatsapp(kind)
+
+    def _route_delivery_notify_email(self, kind):
         icp = self.env["ir.config_parameter"].sudo()
         if icp.get_param("route_optimizer_delivery.notify_email") not in ("True", "1", "true"):
             return
@@ -260,6 +273,42 @@ class StockPicking(models.Model):
                 template.sudo().send_mail(picking.id, force_send=False)
             except Exception:  # un correo que falla no puede frenar al chofer
                 _logger.exception("No se pudo enviar el aviso %s de %s", kind, picking.name)
+
+    def _route_delivery_notify_whatsapp(self, kind):
+        """Aviso por WhatsApp Business con la plantilla configurada para `kind`.
+
+        Si falla (número inválido, plantilla sin aprobar, token vencido) queda una
+        nota en el traslado y el reparto sigue.
+        """
+        icp = self.env["ir.config_parameter"].sudo()
+
+        def param(key, default=""):
+            return (icp.get_param("route_optimizer_delivery.%s" % key) or default).strip()
+
+        if param("whatsapp_enabled") not in ("True", "1", "true"):
+            return
+        template = param("whatsapp_tpl_%s" % kind)
+        if not template:
+            return
+        for picking in self:
+            partner = picking._route_delivery_customer()
+            number = whatsapp_client.normalize_phone(partner.phone, param("whatsapp_country_code"))
+            if not number:
+                continue
+            picking._route_delivery_ensure_token()
+            try:
+                whatsapp_client.send_template(
+                    param("whatsapp_phone_id"),
+                    param("whatsapp_token"),
+                    number,
+                    template,
+                    param("whatsapp_language", "es_AR"),
+                    [partner.name or "", picking.origin or picking.name, picking.route_delivery_tracking_url],
+                    version=param("whatsapp_api_version", "v22.0"),
+                )
+            except whatsapp_client.WhatsappError as error:
+                _logger.warning("WhatsApp %s de %s: %s", kind, picking.name, error)
+                picking.sudo().message_post(body=_("No se pudo avisar por WhatsApp: %s") % error)
 
     # ------------------------------------------------------------------
     # Datos para la app y el tablero
@@ -387,6 +436,29 @@ class StockPicking(models.Model):
             self.route_delivery_photo_ids = [(4, att.id) for att in attachments]
         return attachments
 
+    def _route_delivery_already_sent(self, vals):
+        """True si este mismo envío de la app ya se registró (reintento)."""
+        self.ensure_one()
+        client_id = (vals or {}).get("client_id")
+        return bool(
+            client_id
+            and self.route_delivery_client_id == client_id
+            and self.route_delivery_state != "pending"
+        )
+
+    def _route_delivery_client_vals(self, vals):
+        """Identificador y hora del envío. Lo cargado sin señal se manda después: vale
+        la hora en que el chofer lo hizo, si es creíble (ni futura ni de hace días)."""
+        now = fields.Datetime.now()
+        when = now
+        try:
+            sent = fields.Datetime.to_datetime(vals.get("client_time"))
+        except (TypeError, ValueError):
+            sent = None
+        if sent and now - timedelta(hours=48) <= sent <= now + timedelta(minutes=5):
+            when = min(sent, now)
+        return {"route_delivery_done_at": when, "route_delivery_client_id": vals.get("client_id") or False}
+
     def _route_delivery_position_vals(self, vals):
         try:
             lat = float(vals.get("lat") or 0.0)
@@ -450,7 +522,6 @@ class StockPicking(models.Model):
 
         values = {
             "route_delivery_state": "partial" if partial_lines else "delivered",
-            "route_delivery_done_at": fields.Datetime.now(),
             "route_delivery_user_id": self.env.uid,
             "route_delivery_fail_reason_id": False,
             "route_delivery_receiver_name": (vals.get("receiver_name") or "").strip(),
@@ -462,6 +533,7 @@ class StockPicking(models.Model):
         }
         if signature:
             values["route_delivery_signature"] = signature
+        values.update(self._route_delivery_client_vals(vals))
         values.update(self._route_delivery_position_vals(vals))
         self.write(values)
         attachments = self._route_delivery_attach_photos(photos)
@@ -500,11 +572,11 @@ class StockPicking(models.Model):
             raise UserError(_("Contá qué pasó: este motivo pide una aclaración."))
         values = {
             "route_delivery_state": "failed",
-            "route_delivery_done_at": fields.Datetime.now(),
             "route_delivery_user_id": self.env.uid,
             "route_delivery_fail_reason_id": reason.id,
             "route_delivery_note": note,
         }
+        values.update(self._route_delivery_client_vals(vals))
         values.update(self._route_delivery_position_vals(vals))
         self.write(values)
         attachments = self._route_delivery_attach_photos(vals.get("photos"))
