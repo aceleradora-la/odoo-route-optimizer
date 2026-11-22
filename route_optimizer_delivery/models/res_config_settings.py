@@ -57,3 +57,47 @@ class ResConfigSettings(models.TransientModel):
         "real del chofer con esta frecuencia. 0 = solo al completar cada parada. Con "
         "Google como motor, cada recálculo es un pedido a Routes API.",
     )
+    route_delivery_whatsapp_enabled = fields.Boolean(
+        string="Avisar al cliente por WhatsApp",
+        config_parameter="route_optimizer_delivery.whatsapp_enabled",
+        help="Envía los avisos por WhatsApp Business (Cloud API de Meta) usando plantillas "
+        "aprobadas. Cada plantilla lleva tres variables: nombre, pedido y link de seguimiento.",
+    )
+    route_delivery_whatsapp_phone_id = fields.Char(
+        string="Identificador del número (Phone number ID)",
+        config_parameter="route_optimizer_delivery.whatsapp_phone_id",
+    )
+    route_delivery_whatsapp_token = fields.Char(
+        string="Token de acceso",
+        config_parameter="route_optimizer_delivery.whatsapp_token",
+    )
+    route_delivery_whatsapp_language = fields.Char(
+        string="Idioma de las plantillas",
+        config_parameter="route_optimizer_delivery.whatsapp_language",
+        default="es_AR",
+    )
+    route_delivery_whatsapp_country_code = fields.Char(
+        string="Código de país por defecto",
+        config_parameter="route_optimizer_delivery.whatsapp_country_code",
+        help="Se antepone a los teléfonos cargados sin código de país (54 para Argentina).",
+    )
+    route_delivery_whatsapp_tpl_on_the_way = fields.Char(
+        string="Plantilla: salió a reparto",
+        config_parameter="route_optimizer_delivery.whatsapp_tpl_on_the_way",
+        default="reparto_en_camino",
+    )
+    route_delivery_whatsapp_tpl_next = fields.Char(
+        string="Plantilla: sos el próximo",
+        config_parameter="route_optimizer_delivery.whatsapp_tpl_next",
+        default="reparto_proxima_parada",
+    )
+    route_delivery_whatsapp_tpl_delivered = fields.Char(
+        string="Plantilla: entregado",
+        config_parameter="route_optimizer_delivery.whatsapp_tpl_delivered",
+        default="reparto_entregado",
+    )
+    route_delivery_whatsapp_tpl_failed = fields.Char(
+        string="Plantilla: no entregado",
+        config_parameter="route_optimizer_delivery.whatsapp_tpl_failed",
+        default="reparto_no_entregado",
+    )

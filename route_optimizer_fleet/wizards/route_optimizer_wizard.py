@@ -178,3 +178,28 @@ class RouteOptimizerWizard(models.TransientModel):
             if batch and "vehicle_id" in batch._fields and batch.vehicle_id:
                 wiz.fleet_vehicle_id = batch.vehicle_id
                 wiz._prefill_capacities_from_vehicle()
+
+
+class RouteOptimizerWizardVehicle(models.TransientModel):
+    _inherit = "route.optimizer.wizard.vehicle"
+
+    fleet_vehicle_id = fields.Many2one("fleet.vehicle", string="Vehículo de flota")
+
+    @api.onchange("fleet_vehicle_id")
+    def _onchange_fleet_vehicle(self):
+        """Al elegir el vehículo se completan su nombre y sus capacidades."""
+        wizard = self.env["route.optimizer.wizard"]
+        for line in self.filtered("fleet_vehicle_id"):
+            vehicle = line.fleet_vehicle_id
+            line.name = vehicle.license_plate or vehicle.display_name
+            category = getattr(getattr(vehicle, "model_id", None), "category_id", None)
+            weight = 0.0
+            if category and "weight_capacity" in category._fields:
+                weight = category.weight_capacity or 0.0
+            line.capacity = weight or wizard._fleet_capacity_candidates(vehicle) or 0.0
+            if category and "volume_capacity" in category._fields:
+                line.volume_capacity = category.volume_capacity or 0.0
+
+    def _vehicle_ref(self):
+        self.ensure_one()
+        return self.fleet_vehicle_id.id or False

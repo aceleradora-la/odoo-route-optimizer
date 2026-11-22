@@ -83,6 +83,30 @@
     }
     .o_rd_install { display: flex; flex-direction: column; gap: 6px; margin-top: auto; padding-top: 12px; }
 
+    // Aviso de sin conexión / pendiente de enviar
+    .o_rd_sync {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        background: #1f2937;
+        color: #fff;
+        font-size: 13px;
+    }
+    .o_rd_sync_bad { background: #991b1b; }
+    .o_rd_sync_text { flex: 1 1 auto; min-width: 0; }
+    .o_rd_sync_btn {
+        flex: 0 0 auto;
+        min-height: 38px;
+        padding: 0 12px;
+        border: 1px solid #fff;
+        border-radius: 8px;
+        background: transparent;
+        color: #fff;
+        font-weight: 600;
+        &:disabled { opacity: 0.6; }
+    }
+
     // Estado de la ubicación mientras se reparte
     .o_rd_gps {
         display: flex;
@@ -350,6 +374,18 @@
         color: #111827;
     }
     .o_rd_reason_on { border: 2px solid $rd-bad; background: #fef2f2; font-weight: 700; }
+
+    .o_rd_partial {
+        position: sticky;
+        bottom: 84px;
+        margin: 0 14px;
+        padding: 10px 12px;
+        border: 2px solid #d97706;
+        border-radius: 10px;
+        background: #fff7ed;
+        color: #7c2d12;
+        font-size: 13px;
+    }
 
     .o_rd_footer {
         position: sticky;

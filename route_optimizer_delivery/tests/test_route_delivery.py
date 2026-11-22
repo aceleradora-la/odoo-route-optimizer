@@ -370,6 +370,151 @@ class TestRouteDelivery(RouteDeliveryCommon):
         self.assertEqual(second.route_delivery_state, "pending")
         self.assertEqual((second.scheduled_date - before).days, 1)
 
+    def test_reports(self):
+        """Entregas a tiempo, tarde y fallidas; km planificados contra recorridos."""
+        self.app().route_delivery_app_start(self.batch.id, -34.600, -58.380)
+        self.assertGreater(self.batch.route_delivery_planned_km, 0)
+        self.app().route_delivery_app_ping(self.batch.id, -34.609, -58.380)  # ~1 km al sur
+        self.assertAlmostEqual(self.batch.route_delivery_driven_km, 1.0, delta=0.05)
+        first, second, third = self.batch._route_delivery_stops()
+        self.app().route_delivery_app_deliver(first.id, {"lines": self.line_vals(first, 5), "cod_amount": 100})
+        # La segunda se entrega 40 minutos después de lo previsto.
+        second.route_delivery_planned_eta = fields.Datetime.subtract(fields.Datetime.now(), minutes=40)
+        self.app().route_delivery_app_deliver(second.id, {"lines": self.line_vals(second, 5)})
+        reason = self.env.ref("route_optimizer_delivery.fail_reason_absent")
+        self.app().route_delivery_app_fail(third.id, {"reason_id": reason.id})
+        self.env.flush_all()
+
+        Report = self.env["route.delivery.report"]
+        rows = Report.search([("batch_id", "=", self.batch.id)])
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(sum(rows.mapped("delivered_count")), 2)
+        self.assertEqual(sum(rows.mapped("failed_count")), 1)
+        self.assertEqual(sum(rows.mapped("on_time_count")), 1)
+        late = rows.filtered(lambda r: r.picking_id == second)
+        self.assertEqual(late.late_count, 1)
+        self.assertAlmostEqual(late.delay_minutes, 40, delta=1)
+        self.assertEqual(rows.filtered(lambda r: r.picking_id == third).fail_reason_id, reason)
+        self.assertEqual(sum(rows.mapped("cod_amount")), 100)
+        self.assertEqual(set(rows.mapped("driver_id").ids), {self.driver.id})
+        grouped = Report._read_group([("batch_id", "=", self.batch.id)], ["state"], ["stop_count:sum"])
+        self.assertEqual(dict(grouped), {"delivered": 2, "failed": 1})
+
+        route = self.env["route.delivery.route.report"].search([("batch_id", "=", self.batch.id)])
+        self.assertEqual((route.stop_count, route.delivered_count, route.failed_count), (3, 2, 1))
+        self.assertAlmostEqual(route.planned_km, self.batch.route_delivery_planned_km, places=2)
+        self.assertAlmostEqual(route.driven_km, self.batch.route_delivery_driven_km, places=2)
+
+    def test_whatsapp_notifications(self):
+        from odoo.addons.route_optimizer_delivery.services import whatsapp_client as wa
+
+        self.assertEqual(wa.normalize_phone("+54 9 11 5555-0001"), "5491155550001")
+        self.assertEqual(wa.normalize_phone("011 5555 0001", "54"), "541155550001")
+        self.assertEqual(wa.normalize_phone("0054 11 5555 0001", "54"), "541155550001")
+        self.assertEqual(wa.normalize_phone("123"), "")
+
+        for key, value in {
+            "whatsapp_enabled": "True", "whatsapp_phone_id": "PHONE1", "whatsapp_token": "tok",
+            "whatsapp_tpl_on_the_way": "reparto_en_camino", "whatsapp_tpl_next": "reparto_proxima_parada",
+            "whatsapp_tpl_delivered": "reparto_entregado", "whatsapp_language": "es_AR",
+        }.items():
+            self.icp.set_param("route_optimizer_delivery." + key, value)
+        sent = []
+
+        def fake_post(url, payload, token, timeout):
+            sent.append((url, payload, token))
+            return {"messages": [{"id": "wamid.1"}]}
+
+        target = "odoo.addons.route_optimizer_delivery.services.whatsapp_client._post"
+        with patch(target, side_effect=fake_post):
+            self.app().route_delivery_app_start(self.batch.id)
+        # 3 «salió a reparto» + 1 «sos la próxima parada».
+        self.assertEqual([p["template"]["name"] for _u, p, _t in sent].count("reparto_en_camino"), 3)
+        self.assertEqual([p["template"]["name"] for _u, p, _t in sent].count("reparto_proxima_parada"), 1)
+        url, payload, token = sent[0]
+        self.assertIn("/PHONE1/messages", url)
+        self.assertEqual(token, "tok")
+        self.assertEqual(payload["template"]["language"], {"code": "es_AR"})
+        texts = [x["text"] for x in payload["template"]["components"][0]["parameters"]]
+        self.assertEqual(len(texts), 3)
+        self.assertIn("/reparto/t/", texts[2])
+        self.assertTrue(payload["to"].startswith("54"))
+
+        # Si Meta rechaza el envío, queda una nota y la entrega se registra igual.
+        first = self.batch._route_delivery_stops()[0]
+        with patch(target, side_effect=wa.WhatsappError("plantilla sin aprobar")):
+            self.app().route_delivery_app_deliver(first.id, {"lines": self.line_vals(first, 5)})
+        self.assertEqual(first.route_delivery_state, "delivered")
+        self.assertTrue(first.message_ids.filtered(lambda m: "plantilla sin aprobar" in (m.body or "")))
+
+    def test_offline_retry_is_idempotent(self):
+        """Lo cargado sin señal se manda después: no se duplica y conserva su hora."""
+        picking = self.batch._route_delivery_stops()[0]
+        made_at = fields.Datetime.subtract(fields.Datetime.now(), minutes=40).replace(microsecond=0)
+        vals = {
+            "lines": self.line_vals(picking, 5),
+            "receiver_name": "Juana",
+            "photos": ["data:image/jpeg;base64," + PIXEL],
+            "client_id": "abc-123",
+            "client_time": fields.Datetime.to_string(made_at),
+        }
+        self.app().route_delivery_app_deliver(picking.id, vals)
+        self.assertEqual(picking.route_delivery_done_at, made_at)
+        messages = len(picking.message_ids)
+        # El mismo envío llega de nuevo (la respuesta se había perdido).
+        route = self.app().route_delivery_app_deliver(picking.id, vals)
+        self.assertEqual(route["done_count"], 1)
+        self.assertEqual(len(picking.route_delivery_photo_ids), 1)
+        self.assertEqual(len(picking.message_ids), messages)
+        # Una hora imposible (futura) no se toma.
+        other = self.batch._route_delivery_stops()[1]
+        future = fields.Datetime.add(fields.Datetime.now(), hours=3)
+        self.app().route_delivery_app_fail(
+            other.id,
+            {"reason_id": self.env.ref("route_optimizer_delivery.fail_reason_absent").id,
+             "client_id": "abc-124", "client_time": fields.Datetime.to_string(future)},
+        )
+        self.assertLessEqual(other.route_delivery_done_at, fields.Datetime.now())
+
+    def test_break_shifts_etas(self):
+        """Con descanso configurado, las paradas posteriores a su franja se corren."""
+        without = [p.route_delivery_eta for p in self.batch._route_delivery_stops()]
+        self.batch._route_delivery_update_etas()
+        base = self.batch._route_delivery_stops().mapped("route_delivery_eta")
+        # Franja de descanso que empieza antes de la primera llegada: afecta a todas.
+        tz_now = fields.Datetime.context_timestamp(self.batch.with_context(tz="UTC"), base[0])
+        self.icp.set_param("route_optimizer.break_duration_minutes", "30")
+        self.icp.set_param("route_optimizer.break_earliest_hour", "0")
+        self.icp.set_param("route_optimizer.break_latest_hour", "23.9")
+        self.batch._route_delivery_update_etas()
+        shifted = self.batch._route_delivery_stops().mapped("route_delivery_eta")
+        self.assertEqual([(b - a).total_seconds() for a, b in zip(base, shifted)], [1800.0] * 3)
+        self.assertTrue(without and tz_now)
+
+    def test_suggestions_flag_delivery_windows(self):
+        if "delivery_time_preference" not in self.env["res.partner"]._fields:
+            self.skipTest("Sin el módulo OCA de ventanas horarias")
+        board = self.Batch
+        day = fields.Date.to_string(
+            fields.Datetime.context_timestamp(board, self.batch.scheduled_date).date()
+        )
+        near = self._extra_picking("Con horario", -34.63, -58.41)
+        options = [o for o in board.route_dispatch_suggest([near.id], day) if o["batch_id"] == self.batch.id]
+        self.assertFalse(options[0]["outside_window"])
+        # Solo recibe de 3 a 4 de la mañana: cualquier llegada del día queda afuera.
+        weekdays = self.env["time.weekday"].search([])
+        near.partner_id.write(
+            {
+                "delivery_time_preference": "time_windows",
+                "delivery_time_window_ids": [
+                    (0, 0, {"time_window_start": 3.0, "time_window_end": 4.0, "time_window_weekday_ids": [(6, 0, weekdays.ids)]})
+                ],
+            }
+        )
+        options = [o for o in board.route_dispatch_suggest([near.id], day) if o["batch_id"] == self.batch.id]
+        self.assertTrue(options[0]["outside_window"])
+        self.assertIn("recibe 3:00 a 4:00", options[0]["window_note"])
+
     def test_live_position_refreshes_etas(self):
         """Con la ruta en la calle, el GPS corrige las horas sin esperar a la próxima parada."""
         self.app().route_delivery_app_start(self.batch.id, -34.60, -58.38)

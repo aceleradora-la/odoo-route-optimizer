@@ -1,3 +1,5 @@
 id,name,model_id,group_id/id,operation,domain
 access_route_delivery_fail_reason_user,route.delivery.fail.reason user,route.delivery.fail.reason,base.group_user,r,
 access_route_delivery_fail_reason_manager,route.delivery.fail.reason manager,route.delivery.fail.reason,stock.group_stock_manager,crud,
+access_route_delivery_report_user,route.delivery.report user,route.delivery.report,stock.group_stock_user,r,
+access_route_delivery_route_report_user,route.delivery.route.report user,route.delivery.route.report,stock.group_stock_user,r,

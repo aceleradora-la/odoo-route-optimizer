@@ -53,6 +53,18 @@ class StockPickingBatch(models.Model):
         string="Minutos pendientes", copy=False, readonly=True
     )
     route_delivery_routing_source = fields.Char(copy=False, readonly=True)
+    route_delivery_planned_km = fields.Float(
+        string="Km planificados", copy=False, readonly=True, help="Recorrido previsto al salir la ruta."
+    )
+    route_delivery_planned_minutes = fields.Integer(
+        string="Minutos planificados", copy=False, readonly=True
+    )
+    route_delivery_driven_km = fields.Float(
+        string="Km recorridos (GPS)",
+        copy=False,
+        readonly=True,
+        help="Suma de los tramos entre las posiciones que informó la app.",
+    )
     route_delivery_eta_refreshed_at = fields.Datetime(copy=False, readonly=True)
     route_delivery_stop_count = fields.Integer(
         string="Paradas", compute="_compute_route_delivery_progress"
@@ -217,6 +229,26 @@ class StockPickingBatch(models.Model):
             "source": provider if result else "estimate",
         }
 
+    def _route_delivery_break(self, departure):
+        """Descanso del chofer que todavía le falta a la ruta: (desde cuándo, duración).
+
+        Devuelve None si no hay descanso configurado o si la ruta sale (o ya va) después
+        de la franja: en ese caso se da por tomado.
+        """
+        self.ensure_one()
+        settings = route_service.break_settings(self.env["ir.config_parameter"].sudo())
+        if not settings:
+            return None
+        earliest, latest, duration = settings
+        tz = pytz.timezone(delivery_windows._routing_timezone(self.env, self))
+        local = pytz.utc.localize(departure).astimezone(tz)
+        midnight = tz.localize(datetime.combine(local.date(), time.min))
+        start = (midnight + timedelta(seconds=earliest)).astimezone(pytz.utc).replace(tzinfo=None)
+        end = (midnight + timedelta(seconds=latest)).astimezone(pytz.utc).replace(tzinfo=None)
+        if departure > end:
+            return None
+        return start, timedelta(seconds=duration)
+
     def _route_delivery_update_etas(self):
         icp = self.env["ir.config_parameter"].sudo()
         try:
@@ -243,9 +275,15 @@ class StockPickingBatch(models.Model):
             departure = batch._route_delivery_departure()
             path = batch._route_delivery_path(points, departure=departure)
             clock = departure
+            pause = batch._route_delivery_break(departure)
             for picking, leg in zip(pending, path["seconds"]):
                 # Sin coordenadas se asume un tramo corto para no cortar la cadena.
                 clock += timedelta(seconds=leg if leg is not None else 600)
+                if pause and clock >= pause[0]:
+                    # El descanso cae antes de la primera parada a la que se llegaría
+                    # ya dentro de su franja.
+                    clock += pause[1]
+                    pause = None
                 eta = clock.replace(microsecond=0)
                 if picking.route_delivery_eta != eta:
                     picking.route_delivery_eta = eta
@@ -393,8 +431,18 @@ class StockPickingBatch(models.Model):
             return False
         if not lat and not lon:
             return False
+        values = {}
+        last_at = self.route_delivery_last_position_at
+        if self.route_delivery_started_at and last_at:
+            # Se suma el tramo desde la posición anterior. Un salto con mucho tiempo en
+            # el medio (app cerrada) o imposible (GPS errático) no se cuenta.
+            minutes = (fields.Datetime.now() - last_at).total_seconds() / 60.0
+            hop = _haversine_m((self.route_delivery_last_longitude, self.route_delivery_last_latitude), (lon, lat))
+            if minutes <= 15 and hop <= 2000 * max(minutes, 1):
+                values["route_delivery_driven_km"] = self.route_delivery_driven_km + hop / 1000.0
         self.write(
             {
+                **values,
                 "route_delivery_last_latitude": lat,
                 "route_delivery_last_longitude": lon,
                 "route_delivery_last_position_at": fields.Datetime.now(),
@@ -414,8 +462,14 @@ class StockPickingBatch(models.Model):
             pending = batch._route_delivery_stops().filtered(
                 lambda p: p.route_delivery_state == "pending"
             )
+            # Foto de lo prometido: contra esto se miden el atraso y los km de más.
+            batch.write(
+                {
+                    "route_delivery_planned_km": batch.route_delivery_remaining_km,
+                    "route_delivery_planned_minutes": batch.route_delivery_remaining_minutes,
+                }
+            )
             for picking in pending:
-                # Foto de lo prometido: contra esto se mide el atraso.
                 picking.route_delivery_planned_eta = picking.route_delivery_eta
             pending._route_delivery_ensure_token()
             pending._route_delivery_notify("on_the_way")
@@ -517,6 +571,8 @@ class StockPickingBatch(models.Model):
     def route_delivery_app_deliver(self, picking_id, vals):
         picking = self._route_delivery_app_picking(picking_id)
         batch = picking.batch_id
+        if picking._route_delivery_already_sent(vals):
+            return batch._route_delivery_app_payload()
         picking._route_delivery_register_delivered(vals or {})
         batch._route_delivery_set_position((vals or {}).get("lat"), (vals or {}).get("lon"))
         batch._route_delivery_after_stop()
@@ -526,6 +582,8 @@ class StockPickingBatch(models.Model):
     def route_delivery_app_fail(self, picking_id, vals):
         picking = self._route_delivery_app_picking(picking_id)
         batch = picking.batch_id
+        if picking._route_delivery_already_sent(vals):
+            return batch._route_delivery_app_payload()
         picking._route_delivery_register_failed(vals or {})
         batch._route_delivery_set_position((vals or {}).get("lat"), (vals or {}).get("lon"))
         batch._route_delivery_after_stop()
@@ -708,6 +766,50 @@ class StockPickingBatch(models.Model):
             placements.append((picking, order.index(picking)))
         return placements, extra, order
 
+    def _route_dispatch_window_issue(self, picking, order, service):
+        """Texto si `picking`, puesto donde dice `order`, llegaría fuera del horario en
+        que recibe el cliente; False si llega bien o no hay horarios cargados.
+
+        La llegada se estima con la hora de la parada anterior más el tramo en línea
+        recta: alcanza para avisar antes de asignar, no reemplaza al optimizador.
+        """
+        self.ensure_one()
+        partner = picking._route_optimizer_delivery_partner()
+        if not partner or "delivery_time_preference" not in partner._fields:
+            return False
+        tz = pytz.timezone(delivery_windows._routing_timezone(self.env, self))
+        index = order.index(picking)
+        previous = order[index - 1] if index else False
+        if previous and previous.route_delivery_eta:
+            clock = previous.route_delivery_eta + timedelta(seconds=service)
+            origin = route_service._partner_coords(previous._route_optimizer_delivery_partner())
+        else:
+            clock = self._route_delivery_departure()
+            origin = self._route_delivery_origin()
+        point = route_service._partner_coords(partner)
+        if origin and point:
+            clock += timedelta(seconds=_haversine_m(origin, point) * DETOUR_FACTOR / (URBAN_SPEED_KMH / 3.6))
+        local = pytz.utc.localize(clock).astimezone(tz)
+        weekday = local.weekday()
+        windows = delivery_windows._partner_delivery_windows(partner, weekday)
+        intervals = delivery_windows._intervals_for_partner(partner, weekday, local, windows)
+        arrival = local.hour * 3600 + local.minute * 60
+        tolerance = 600
+
+        def clock_text(seconds):
+            return "%d:%02d" % (seconds // 3600, seconds % 3600 // 60)
+
+        if intervals is None:
+            return _("%s no recibe ese día.") % partner.display_name
+        if any(start - tolerance <= arrival <= end + tolerance for start, end in intervals):
+            return False
+        hours = ", ".join("%s a %s" % (clock_text(a), clock_text(b)) for a, b in intervals)
+        return _("%(name)s llegaría %(at)s y recibe %(hours)s.") % {
+            "name": partner.display_name,
+            "at": clock_text(arrival),
+            "hours": hours,
+        }
+
     @api.model
     def route_dispatch_suggest(self, picking_ids, day=None):
         """Rutas del día ordenadas por lo que cuesta sumarles estas entregas."""
@@ -739,6 +841,8 @@ class StockPickingBatch(models.Model):
             extra_min = extra_m / (URBAN_SPEED_KMH / 3.6) / 60.0 + len(moving) * service / 60.0
             load = sum(batch._route_delivery_stops().mapped("shipping_weight")) + sum(moving.mapped("shipping_weight"))
             capacity = batch._route_dispatch_capacity()
+            issues = [batch._route_dispatch_window_issue(p, order, service) for p in moving]
+            issues = [issue for issue in issues if issue]
             first = placements[0][1]
             before = order[first - 1] if first > 0 else False
             after = order[first + 1] if first + 1 < len(order) else False
@@ -756,11 +860,15 @@ class StockPickingBatch(models.Model):
                     "load": round(load, 1),
                     "capacity": capacity,
                     "over_capacity": bool(capacity and load > capacity + 0.001),
+                    "outside_window": bool(issues),
+                    "window_note": " ".join(issues[:2]),
                     "started": bool(batch.route_delivery_started_at),
                 }
             )
         # Primero las que entran; entre ellas, la que menos se desvía.
-        options.sort(key=lambda o: (o["over_capacity"], o["extra_minutes"], o["extra_km"]))
+        options.sort(
+            key=lambda o: (o["over_capacity"], o["outside_window"], o["extra_minutes"], o["extra_km"])
+        )
         return options
 
     @api.model

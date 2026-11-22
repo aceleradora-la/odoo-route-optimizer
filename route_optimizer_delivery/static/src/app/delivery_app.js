@@ -6,9 +6,11 @@ import { isBarcodeScannerSupported } from "@web/core/barcode/barcode_video_scann
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { parseNum, formatNum, normalizeNum, selectOnFocus } from "./number_input";
 import { reactive } from "./owl_compat";
+import { offlineStore } from "./offline_store";
 
 const MODEL = "stock.picking.batch";
 const PING_MS = 60000;
+const SYNC_MS = 20000;
 const MAX_PHOTOS = 6;
 const PHOTO_MAX_SIDE = 1280;
 
@@ -44,6 +46,19 @@ function shrinkPhoto(file) {
     });
 }
 
+/** Un pedido falló sin respuesta del servidor (sin señal), no por una regla de negocio. */
+function isNetworkError(error) {
+    return !(error && (error.data || error.exceptionName));
+}
+
+function serverNow() {
+    return new Date().toISOString().slice(0, 19).replace("T", " ");
+}
+
+function newClientId() {
+    return window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 /**
  * App de reparto, pensada para el celular: mis rutas → paradas en orden → una parada.
  * La parada se abre tocándola o escaneando el remito. Todo lo que es número abre el
@@ -70,13 +85,37 @@ export class RouteDeliveryApp extends Component {
             form: this.emptyForm(),
             fail: { reasonId: null, note: "", photos: [] },
             gps: "wait", // wait | on | off: si el celular está informando la ubicación
+            online: navigator.onLine !== false,
+            queue: [], // acciones hechas sin conexión que faltan mandar
+            syncing: false,
+            confirmPartial: false,
+            stale: false, // se está viendo una copia guardada, no datos recién traídos
             checked: {}, // códigos de bultos y productos ya controlados
         });
         this.scannerSupported = isBarcodeScannerSupported();
         this.position = null;
         this.selectOnFocus = selectOnFocus;
-        onWillStart(() => this.loadRoutes());
-        onWillUnmount(() => this.stopTracking());
+        onWillStart(async () => {
+            this.state.queue = await offlineStore.queueAll();
+            await this.loadRoutes();
+            this.sync();
+        });
+        this.onOnline = () => {
+            this.state.online = true;
+            this.sync();
+        };
+        this.onOffline = () => {
+            this.state.online = false;
+        };
+        window.addEventListener("online", this.onOnline);
+        window.addEventListener("offline", this.onOffline);
+        this.syncTimer = setInterval(() => this.sync(), SYNC_MS);
+        onWillUnmount(() => {
+            this.stopTracking();
+            clearInterval(this.syncTimer);
+            window.removeEventListener("online", this.onOnline);
+            window.removeEventListener("offline", this.onOffline);
+        });
     }
 
     emptyForm() {
@@ -89,13 +128,142 @@ export class RouteDeliveryApp extends Component {
     async call(method, args = []) {
         this.state.busy = true;
         try {
-            return await this.orm.call(MODEL, method, args);
+            // `silent`: sin señal no hace falta el cartel de Odoo; la app avisa a su modo.
+            const result = await this.orm.silent.call(MODEL, method, args);
+            this.state.online = true;
+            return result;
         } catch (error) {
-            const message = (error.data && error.data.message) || error.message || String(error);
-            this.notification.add(message, { type: "danger" });
+            if (isNetworkError(error)) {
+                this.state.online = false;
+            } else {
+                this.notification.add((error.data && error.data.message) || error.message || String(error), { type: "danger" });
+            }
             throw error;
         } finally {
             this.state.busy = false;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Sin conexión: cola de acciones y copia de las rutas
+    // ------------------------------------------------------------------
+    get pendingSync() {
+        return this.state.queue.filter((item) => !item.error);
+    }
+
+    get failedSync() {
+        return this.state.queue.filter((item) => item.error);
+    }
+
+    isUnsynced(stopId) {
+        return this.state.queue.some((item) => item.stopId === stopId);
+    }
+
+    /**
+     * Hace una acción del chofer. Con señal va directo al servidor; sin señal se guarda en
+     * el teléfono y se aplica en pantalla con `apply`, para que pueda seguir repartiendo.
+     * Devuelve true si llegó al servidor, false si quedó guardada.
+     */
+    async act(item, apply) {
+        try {
+            this.setRoute(await this.call(item.method, item.args), true);
+            return true;
+        } catch (error) {
+            if (!isNetworkError(error)) {
+                throw error;
+            }
+            item.id = await offlineStore.queueAdd(item);
+            this.state.queue.push(item);
+            apply(this.state.route);
+            this.recount(this.state.route);
+            offlineStore.cacheSet("route:" + this.state.route.id, this.state.route);
+            return false;
+        }
+    }
+
+    /** Cuenta de nuevo el avance de una ruta modificada en el teléfono. */
+    recount(route) {
+        const done = route.stops.filter((stop) => stop.state === "delivered" || stop.state === "partial").length;
+        const failed = route.stops.filter((stop) => stop.state === "failed").length;
+        route.done_count = done;
+        route.failed_count = failed;
+        route.pending_count = route.stops.length - done - failed;
+        route.progress = route.stops.length ? Math.round((100 * (done + failed)) / route.stops.length) : 0;
+        route.finished = route.started && route.pending_count === 0;
+        const next = route.stops.find((stop) => stop.state === "pending");
+        route.next_stop = next ? next.partner : "";
+    }
+
+    /** Aplica sobre una ruta recién traída lo que todavía está en la cola. */
+    applyQueue(route) {
+        for (const item of this.state.queue) {
+            if (item.routeId === route.id && item.patch) {
+                if (item.stopId) {
+                    const stop = route.stops.find((entry) => entry.id === item.stopId);
+                    if (stop) {
+                        Object.assign(stop, item.patch);
+                    }
+                } else {
+                    Object.assign(route, item.patch);
+                }
+            }
+        }
+        if (this.state.queue.some((item) => item.routeId === route.id)) {
+            this.recount(route);
+        }
+        return route;
+    }
+
+    /** Manda al servidor lo guardado, en orden. Corta al primer pedido sin señal. */
+    async sync() {
+        if (this.state.syncing || !this.pendingSync.length) {
+            return;
+        }
+        this.state.syncing = true;
+        let sent = 0;
+        try {
+            for (const item of [...this.pendingSync]) {
+                try {
+                    const route = await this.orm.silent.call(MODEL, item.method, item.args);
+                    await offlineStore.queueDelete(item.id);
+                    this.state.queue = this.state.queue.filter((entry) => entry.id !== item.id);
+                    this.state.online = true;
+                    sent += 1;
+                    if (this.state.route && route && route.id === this.state.route.id) {
+                        this.setRoute(route, true);
+                    }
+                } catch (error) {
+                    if (isNetworkError(error)) {
+                        this.state.online = false;
+                        break;
+                    }
+                    // El servidor la rechazó (por ejemplo, el depósito sacó la parada de la
+                    // ruta): queda a la vista para que el chofer decida, y se sigue con el resto.
+                    item.error = (error.data && error.data.message) || error.message || "No se pudo guardar.";
+                    await offlineStore.queuePut(item);
+                    this.state.queue = [...this.state.queue];
+                }
+            }
+        } finally {
+            this.state.syncing = false;
+        }
+        if (sent) {
+            this.notification.add(sent === 1 ? "Se envió 1 acción guardada." : `Se enviaron ${sent} acciones guardadas.`, { type: "success" });
+            if (this.state.screen === "home") {
+                this.loadRoutes();
+            }
+        }
+    }
+
+    async discardSync(item) {
+        await offlineStore.queueDelete(item.id);
+        this.state.queue = this.state.queue.filter((entry) => entry.id !== item.id);
+        if (this.state.route && this.state.route.id === item.routeId) {
+            try {
+                this.setRoute(await this.call("route_delivery_app_route", [item.routeId]), true);
+            } catch {
+                // sin señal se sigue con lo que hay en pantalla
+            }
         }
     }
 
@@ -155,7 +323,7 @@ export class RouteDeliveryApp extends Component {
     ping() {
         const route = this.state.route;
         if (route && route.started && !route.finished && this.position) {
-            this.orm
+            this.orm.silent
                 .call(MODEL, "route_delivery_app_ping", [route.id, this.position.lat, this.position.lon])
                 .catch(() => {});
         }
@@ -225,7 +393,18 @@ export class RouteDeliveryApp extends Component {
     }
 
     async loadRoutes() {
-        const data = await this.call("route_delivery_app_routes");
+        let data;
+        try {
+            data = await this.call("route_delivery_app_routes");
+            offlineStore.cacheSet("routes", data);
+            this.state.stale = false;
+        } catch (error) {
+            data = isNetworkError(error) && (await offlineStore.cacheGet("routes"));
+            if (!data) {
+                throw error;
+            }
+            this.state.stale = true;
+        }
         this.state.routes = data.routes;
         this.state.user = data.user;
         this.state.dispatcher = data.dispatcher;
@@ -242,7 +421,12 @@ export class RouteDeliveryApp extends Component {
     // ------------------------------------------------------------------
     // Ruta
     // ------------------------------------------------------------------
-    setRoute(route) {
+    /** `fresh`: la ruta viene del servidor; se guarda copia y se le aplica la cola. */
+    setRoute(route, fresh = false) {
+        if (fresh) {
+            this.applyQueue(route);
+            offlineStore.cacheSet("route:" + route.id, route);
+        }
         this.state.route = route;
         if (route.started && !route.finished) {
             this.startTracking();
@@ -250,7 +434,19 @@ export class RouteDeliveryApp extends Component {
     }
 
     async openRoute(routeId) {
-        this.setRoute(await this.call("route_delivery_app_route", [routeId]));
+        try {
+            this.setRoute(await this.call("route_delivery_app_route", [routeId]), true);
+        } catch (error) {
+            const cached = isNetworkError(error) && (await offlineStore.cacheGet("route:" + routeId));
+            if (!cached) {
+                if (isNetworkError(error)) {
+                    this.notification.add("Sin conexión, y esta ruta no quedó guardada en el teléfono.", { type: "warning" });
+                    return;
+                }
+                throw error;
+            }
+            this.setRoute(cached);
+        }
         this.state.stopId = null;
         this.state.showManual = false;
         this.state.screen = "route";
@@ -279,7 +475,14 @@ export class RouteDeliveryApp extends Component {
 
     async startRoute() {
         const pos = this.positionArgs;
-        this.setRoute(await this.call("route_delivery_app_start", [this.state.route.id, pos.lat, pos.lon]));
+        const route = this.state.route;
+        await this.act(
+            { method: "route_delivery_app_start", args: [route.id, pos.lat, pos.lon], routeId: route.id, label: "Salida de " + route.name, patch: { started: true } },
+            (local) => {
+                local.started = true;
+            }
+        );
+        this.startTracking();
     }
 
     openMaps(url) {
@@ -373,6 +576,7 @@ export class RouteDeliveryApp extends Component {
         }
         form.packages = stop.packages.length ? String(stop.packages.length) : "";
         this.state.form = form;
+        this.state.confirmPartial = false;
         this.state.checked = {};
         this.state.stopId = stopId;
         this.state.screen = "stop";
@@ -395,6 +599,7 @@ export class RouteDeliveryApp extends Component {
         // Tope en lo pedido y texto prolijo ("3.50" → "3,5"); vacío vuelve a 0.
         const text = formatNum(Math.min(parseNum(ev.target.value), line.qty)) || "0";
         this.state.form.qty[line.id] = text;
+        this.state.confirmPartial = false;
         // También directo en el campo: si el estado vuelve al valor ya dibujado, OWL no
         // toca el DOM y quedaría a la vista lo tipeado.
         ev.target.value = text;
@@ -554,27 +759,45 @@ export class RouteDeliveryApp extends Component {
             signature: form.signature,
             ...this.positionArgs,
         };
+        vals.client_id = newClientId();
+        vals.client_time = serverNow();
+        const patch = {
+            state: this.isPartial ? "partial" : "delivered",
+            done_at: vals.client_time,
+            receiver_name: vals.receiver_name,
+            receiver_doc: vals.receiver_doc,
+            delivered_packages: vals.packages,
+            cod_amount: vals.cod_amount,
+            driver_note: vals.note,
+            photo_count: vals.photos.length,
+            has_signature: Boolean(vals.signature),
+        };
         const send = async () => {
-            this.setRoute(await this.call("route_delivery_app_deliver", [stop.id, vals]));
-            this.notification.add(`${stop.partner}: entregado.`, { type: "success" });
+            const sent = await this.act(
+                { method: "route_delivery_app_deliver", args: [stop.id, vals], routeId: this.state.route.id, stopId: stop.id, label: stop.partner, patch },
+                (route) => Object.assign(route.stops.find((entry) => entry.id === stop.id), patch)
+            );
+            this.notification.add(
+                sent ? `${stop.partner}: entregado.` : `${stop.partner}: guardado en el teléfono. Se envía cuando vuelva la señal.`,
+                { type: sent ? "success" : "info" }
+            );
             this.afterStop();
         };
-        if (this.isPartial) {
-            const missing = stop.lines
-                .filter((line) => this.lineShort(line))
-                .map((line) => `${line.product}: ${formatNum(this.lineDelivered(line)) || "0"} de ${formatNum(line.qty)}`)
-                .join(" · ");
-            this.dialog.add(ConfirmationDialog, {
-                title: "Entrega parcial",
-                body: `No se entrega todo. ${missing}. ¿Confirmás?`,
-                confirmLabel: "Sí, entrega parcial",
-                cancelLabel: "Revisar",
-                confirm: send,
-                cancel: () => {},
-            });
-        } else {
-            await send();
+        // Entrega parcial: se confirma con un segundo toque en la misma pantalla. No se usa
+        // un diálogo porque sin conexión Odoo 20 deshabilita los botones de los diálogos.
+        if (this.isPartial && !this.state.confirmPartial) {
+            this.state.confirmPartial = true;
+            return;
         }
+        this.state.confirmPartial = false;
+        await send();
+    }
+
+    get partialSummary() {
+        return this.currentStop.lines
+            .filter((line) => this.lineShort(line))
+            .map((line) => `${line.product}: ${formatNum(this.lineDelivered(line)) || "0"} de ${formatNum(line.qty)}`)
+            .join(" · ");
     }
 
     /** Tras cerrar una parada se vuelve a la lista, que ya muestra la próxima arriba. */
@@ -610,9 +833,23 @@ export class RouteDeliveryApp extends Component {
             this.notification.add("Contá qué pasó: este motivo pide una aclaración.", { type: "warning" });
             return;
         }
-        const vals = { reason_id: fail.reasonId, note: fail.note, photos: [...fail.photos], ...this.positionArgs };
-        this.setRoute(await this.call("route_delivery_app_fail", [stop.id, vals]));
-        this.notification.add(`${stop.partner}: no entregado.`, { type: "warning" });
+        const vals = {
+            reason_id: fail.reasonId,
+            note: fail.note,
+            photos: [...fail.photos],
+            client_id: newClientId(),
+            client_time: serverNow(),
+            ...this.positionArgs,
+        };
+        const patch = { state: "failed", done_at: vals.client_time, fail_reason: this.failReason.name, driver_note: fail.note };
+        const sent = await this.act(
+            { method: "route_delivery_app_fail", args: [stop.id, vals], routeId: this.state.route.id, stopId: stop.id, label: stop.partner, patch },
+            (route) => Object.assign(route.stops.find((entry) => entry.id === stop.id), patch)
+        );
+        this.notification.add(
+            sent ? `${stop.partner}: no entregado.` : `${stop.partner}: guardado en el teléfono. Se envía cuando vuelva la señal.`,
+            { type: sent ? "warning" : "info" }
+        );
         this.afterStop();
     }
 
@@ -624,7 +861,15 @@ export class RouteDeliveryApp extends Component {
             confirmLabel: "Corregir",
             cancelLabel: "Dejar como está",
             confirm: async () => {
-                this.setRoute(await this.call("route_delivery_app_reopen", [stop.id]));
+                try {
+                    this.setRoute(await this.call("route_delivery_app_reopen", [stop.id]), true);
+                } catch (error) {
+                    if (isNetworkError(error)) {
+                        this.notification.add("Para corregir una parada hace falta conexión.", { type: "warning" });
+                        return;
+                    }
+                    throw error;
+                }
                 this.openStop(stop.id);
             },
             cancel: () => {},

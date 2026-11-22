@@ -5,6 +5,24 @@
 <t t-name="route_optimizer_delivery.RouteDeliveryApp">
     <div class="o_route_delivery_app">
 
+        <!-- Estado de la conexión y de lo que falta enviar: a la vista en todas las pantallas -->
+        <div t-if="!this.state.online or this.state.queue.length" t-attf-class="o_rd_sync {{ this.failedSync.length ? 'o_rd_sync_bad' : '' }}">
+            <div class="o_rd_sync_text">
+                <strong t-if="!this.state.online">Sin conexión.</strong>
+                <t t-if="this.pendingSync.length">
+                    <t t-out="this.pendingSync.length"/> <t t-if="this.pendingSync.length === 1">acción guardada</t><t t-else="">acciones guardadas</t> en el teléfono.
+                </t>
+                <t t-elif="!this.state.online"> Podés seguir repartiendo: se guarda en el teléfono.</t>
+            </div>
+            <button data-available-offline="" t-if="this.pendingSync.length and this.state.online" type="button" class="o_rd_sync_btn" t-on-click="this.sync" t-att-disabled="this.state.syncing">
+                <t t-if="this.state.syncing">Enviando…</t><t t-else="">Enviar ahora</t>
+            </button>
+        </div>
+        <div t-foreach="this.failedSync" t-as="item" t-key="item.id" class="o_rd_sync o_rd_sync_bad">
+            <div class="o_rd_sync_text"><strong t-out="item.label"/>: no se pudo guardar. <t t-out="item.error"/></div>
+            <button data-available-offline="" type="button" class="o_rd_sync_btn" t-on-click="() => this.discardSync(item)">Descartar</button>
+        </div>
+
         <!-- Inicio: mis rutas -->
         <t t-if="this.state.screen === 'home'">
             <div class="o_rd_header o_rd_header_home">
@@ -13,15 +31,15 @@
                     <div class="o_rd_title">Reparto</div>
                     <div class="o_rd_sub"><t t-out="this.todayLabel"/> · <t t-out="this.state.user"/></div>
                 </div>
-                <button type="button" class="o_rd_back" aria-label="Actualizar" t-on-click="this.loadRoutes" t-att-disabled="this.state.busy">
+                <button data-available-offline="" type="button" class="o_rd_back" aria-label="Actualizar" t-on-click="this.loadRoutes" t-att-disabled="this.state.busy">
                     <i class="o_rdi o_rdi-refresh"/>
                 </button>
             </div>
             <div class="o_rd_body">
-                <button t-if="this.scannerSupported" type="button" class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="this.scan" t-att-disabled="this.state.busy">
+                <button data-available-offline="" t-if="this.scannerSupported" type="button" class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="this.scan" t-att-disabled="this.state.busy">
                     <i class="o_rdi o_rdi-qrcode me-2"/> Escanear remito
                 </button>
-                <button t-if="this.scannerSupported and !this.state.showManual" type="button" class="o_rd_link" t-on-click="this.toggleManual">
+                <button data-available-offline="" t-if="this.scannerSupported and !this.state.showManual" type="button" class="o_rd_link" t-on-click="this.toggleManual">
                     No puedo escanear: escribir el número
                 </button>
                 <form t-if="this.state.showManual or !this.scannerSupported" class="o_rd_manual" t-on-submit="this.submitManual">
@@ -29,7 +47,7 @@
                     <div class="d-flex gap-2">
                         <input id="rd_manual_home" type="text" class="o_rd_input" autocapitalize="characters"
                                autocomplete="off" enterkeyhint="search" t-att-value="this.state.manualCode" t-on-input="(ev) => this.setValue(this.state, 'manualCode', ev)"/>
-                        <button type="submit" class="o_rd_btn o_rd_btn_secondary o_rd_btn_inline" t-att-disabled="this.state.busy">Abrir</button>
+                        <button data-available-offline="" type="submit" class="o_rd_btn o_rd_btn_secondary o_rd_btn_inline" t-att-disabled="this.state.busy">Abrir</button>
                     </div>
                 </form>
 
@@ -40,7 +58,7 @@
 
                 <div t-if="this.openRoutes.length" class="o_rd_section_title">Mis rutas</div>
                 <t t-foreach="this.openRoutes" t-as="route" t-key="route.id">
-                    <button type="button" t-attf-class="o_rd_card o_rd_card_button {{ route.started ? 'o_rd_card_active' : '' }}"
+                    <button data-available-offline="" type="button" t-attf-class="o_rd_card o_rd_card_button {{ route.started ? 'o_rd_card_active' : '' }}"
                             t-on-click="() => this.openRoute(route.id)">
                         <div class="d-flex justify-content-between align-items-start gap-2">
                             <div>
@@ -61,7 +79,7 @@
 
                 <div t-if="this.finishedRoutes.length" class="o_rd_section_title">Terminadas</div>
                 <t t-foreach="this.finishedRoutes" t-as="route" t-key="route.id">
-                    <button type="button" class="o_rd_card o_rd_card_button" t-on-click="() => this.openRoute(route.id)">
+                    <button data-available-offline="" type="button" class="o_rd_card o_rd_card_button" t-on-click="() => this.openRoute(route.id)">
                         <div class="d-flex justify-content-between align-items-start gap-2">
                             <div>
                                 <div class="o_rd_card_title" t-out="route.name"/>
@@ -76,7 +94,7 @@
                 </t>
 
                 <div t-if="this.canInstall" class="o_rd_install">
-                    <button type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="this.installApp">
+                    <button data-available-offline="" type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="this.installApp">
                         <i class="o_rdi o_rdi-mobile me-2"/> Instalar en el celular
                     </button>
                     <div class="o_rd_hint">Queda con su ícono en la pantalla de inicio y abre directo acá.</div>
@@ -87,7 +105,7 @@
         <!-- Ruta: paradas en orden de visita -->
         <t t-if="this.state.screen === 'route'">
             <div class="o_rd_header">
-                <button type="button" class="o_rd_back" aria-label="Volver a mis rutas" t-on-click="this.goHome">
+                <button data-available-offline="" type="button" class="o_rd_back" aria-label="Volver a mis rutas" t-on-click="this.goHome">
                     <i class="o_rdi o_rdi-chevron-left"/>
                 </button>
                 <div class="flex-grow-1">
@@ -100,23 +118,23 @@
                 </div>
             </div>
             <div class="o_rd_body">
-                <button t-if="!this.state.route.started and this.pendingStops.length" type="button"
+                <button data-available-offline="" t-if="!this.state.route.started and this.pendingStops.length" type="button"
                         class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="this.startRoute" t-att-disabled="this.state.busy">
                     <i class="o_rdi o_rdi-play me-2"/> Salir a repartir
                 </button>
                 <div class="o_rd_actions o_rd_actions_2">
-                    <button t-if="this.scannerSupported" type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="this.scan" t-att-disabled="this.state.busy">
+                    <button data-available-offline="" t-if="this.scannerSupported" type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="this.scan" t-att-disabled="this.state.busy">
                         <i class="o_rdi o_rdi-qrcode me-2"/> Escanear remito
                     </button>
-                    <button t-else="" type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="this.toggleManual">
+                    <button data-available-offline="" t-else="" type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="this.toggleManual">
                         <i class="o_rdi o_rdi-keyboard-o me-2"/> Buscar remito
                     </button>
-                    <button type="button" class="o_rd_btn o_rd_btn_secondary" t-att-disabled="!this.state.route.gmaps_url"
+                    <button data-available-offline="" type="button" class="o_rd_btn o_rd_btn_secondary" t-att-disabled="!this.state.route.gmaps_url"
                             t-on-click="() => this.openMaps(this.state.route.gmaps_url)">
                         <i class="o_rdi o_rdi-map-o me-2"/> Ver recorrido
                     </button>
                 </div>
-                <button t-if="this.scannerSupported and !this.state.showManual" type="button" class="o_rd_link" t-on-click="this.toggleManual">
+                <button data-available-offline="" t-if="this.scannerSupported and !this.state.showManual" type="button" class="o_rd_link" t-on-click="this.toggleManual">
                     No puedo escanear: escribir el número
                 </button>
                 <form t-if="this.state.showManual" class="o_rd_manual" t-on-submit="this.submitManual">
@@ -124,7 +142,7 @@
                     <div class="d-flex gap-2">
                         <input id="rd_manual_route" type="text" class="o_rd_input" autocapitalize="characters"
                                autocomplete="off" enterkeyhint="search" t-att-value="this.state.manualCode" t-on-input="(ev) => this.setValue(this.state, 'manualCode', ev)"/>
-                        <button type="submit" class="o_rd_btn o_rd_btn_secondary o_rd_btn_inline" t-att-disabled="this.state.busy">Abrir</button>
+                        <button data-available-offline="" type="submit" class="o_rd_btn o_rd_btn_secondary o_rd_btn_inline" t-att-disabled="this.state.busy">Abrir</button>
                     </div>
                 </form>
 
@@ -142,7 +160,7 @@
                 </div>
 
                 <t t-foreach="this.state.route.stops" t-as="stop" t-key="stop.id">
-                    <button type="button" t-on-click="() => this.openStop(stop.id)"
+                    <button data-available-offline="" type="button" t-on-click="() => this.openStop(stop.id)"
                             t-attf-class="o_rd_stop o_rd_stop_{{ stop.state }} {{ this.nextStop and this.nextStop.id === stop.id ? 'o_rd_stop_next' : '' }}">
                         <div class="o_rd_stop_num">
                             <i t-if="stop.state === 'delivered' or stop.state === 'partial'" class="o_rdi o_rdi-check"/>
@@ -162,7 +180,8 @@
                             </t>
                             <t t-else="">
                                 <span t-attf-class="o_rd_badge o_rd_badge_{{ stop.state }}" t-out="this.stateLabel(stop)"/>
-                                <span class="o_rd_muted" t-out="this.hour(stop.done_at)"/>
+                                <span t-if="this.isUnsynced(stop.id)" class="o_rd_badge o_rd_badge_idle">Sin enviar</span>
+                                <span t-else="" class="o_rd_muted" t-out="this.hour(stop.done_at)"/>
                             </t>
                         </div>
                     </button>
@@ -174,7 +193,7 @@
         <t t-if="this.state.screen === 'stop'">
             <t t-set="stop" t-value="this.currentStop"/>
             <div class="o_rd_header">
-                <button type="button" class="o_rd_back" aria-label="Volver a la ruta" t-on-click="this.backToRoute">
+                <button data-available-offline="" type="button" class="o_rd_back" aria-label="Volver a la ruta" t-on-click="this.backToRoute">
                     <i class="o_rdi o_rdi-chevron-left"/>
                 </button>
                 <div class="flex-grow-1">
@@ -225,7 +244,7 @@
                             <t t-if="stop.has_signature">con firma</t>
                         </div>
                     </div>
-                    <button type="button" class="o_rd_link" t-on-click="this.reopen" t-att-disabled="this.state.busy">
+                    <button data-available-offline="" type="button" class="o_rd_link" t-on-click="this.reopen" t-att-disabled="this.state.busy">
                         Me equivoqué: corregir esta parada
                     </button>
                 </t>
@@ -238,7 +257,7 @@
                             <t t-out="this.checkedCount"/> de <t t-out="this.scanTargets.length"/> controlados
                         </span>
                     </div>
-                    <button t-if="this.scanTargets.length and this.scannerSupported" type="button"
+                    <button data-available-offline="" t-if="this.scanTargets.length and this.scannerSupported" type="button"
                             class="o_rd_btn o_rd_btn_secondary" t-on-click="this.scanItem">
                         <i class="o_rdi o_rdi-barcode me-2"/> Escanear <t t-if="stop.packages.length">bultos</t><t t-else="">productos</t>
                     </button>
@@ -306,7 +325,7 @@
                     <div class="o_rd_photos">
                         <div t-foreach="this.state.form.photos" t-as="photo" t-key="photo_index" class="o_rd_photo">
                             <img t-att-src="photo" alt="Foto de la entrega"/>
-                            <button type="button" aria-label="Quitar foto" t-on-click="() => this.removePhoto(this.state.form, photo_index)">
+                            <button data-available-offline="" type="button" aria-label="Quitar foto" t-on-click="() => this.removePhoto(this.state.form, photo_index)">
                                 <i class="o_rdi o_rdi-times"/>
                             </button>
                         </div>
@@ -326,7 +345,7 @@
                                 t-on-pointerdown="this.onSignatureDown" t-on-pointermove="this.onSignatureMove"
                                 t-on-pointerup="this.onSignatureUp" t-on-pointercancel="this.onSignatureUp" t-on-pointerleave="this.onSignatureUp"/>
                         <div t-if="!this.state.form.signature" class="o_rd_signature_hint">Firmá acá con el dedo</div>
-                        <button t-if="this.state.form.signature" type="button" class="o_rd_signature_clear" t-on-click="this.clearSignature">Borrar</button>
+                        <button data-available-offline="" t-if="this.state.form.signature" type="button" class="o_rd_signature_clear" t-on-click="this.clearSignature">Borrar</button>
                     </div>
 
                     <div>
@@ -335,12 +354,19 @@
                     </div>
                 </t>
             </div>
+            <div t-if="stop.state === 'pending' and this.state.confirmPartial" class="o_rd_partial" role="alert">
+                <strong>No se entrega todo.</strong>
+                <div t-out="this.partialSummary"/>
+                <div>Tocá de nuevo para confirmar la entrega parcial.</div>
+            </div>
             <div t-if="stop.state === 'pending'" class="o_rd_footer">
-                <button type="button" class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="this.deliver" t-att-disabled="this.state.busy">
+                <button data-available-offline="" type="button" class="o_rd_btn o_rd_btn_primary o_rd_btn_scan" t-on-click="this.deliver" t-att-disabled="this.state.busy">
                     <i class="o_rdi o_rdi-check me-2"/>
-                    <t t-if="this.isPartial">Entrega parcial</t><t t-else="">Entregado</t>
+                    <t t-if="this.state.confirmPartial">Confirmar entrega parcial</t>
+                    <t t-elif="this.isPartial">Entrega parcial</t>
+                    <t t-else="">Entregado</t>
                 </button>
-                <button type="button" class="o_rd_btn o_rd_btn_danger" t-on-click="this.openFail" t-att-disabled="this.state.busy">
+                <button data-available-offline="" type="button" class="o_rd_btn o_rd_btn_danger" t-on-click="this.openFail" t-att-disabled="this.state.busy">
                     No entregado
                 </button>
             </div>
@@ -350,7 +376,7 @@
         <t t-if="this.state.screen === 'fail'">
             <t t-set="stop" t-value="this.currentStop"/>
             <div class="o_rd_header">
-                <button type="button" class="o_rd_back" aria-label="Volver a la parada" t-on-click="this.backToStop">
+                <button data-available-offline="" type="button" class="o_rd_back" aria-label="Volver a la parada" t-on-click="this.backToStop">
                     <i class="o_rdi o_rdi-chevron-left"/>
                 </button>
                 <div>
@@ -360,7 +386,7 @@
             </div>
             <div class="o_rd_body">
                 <div class="o_rd_section_title">¿Qué pasó?</div>
-                <button t-foreach="this.state.route.reasons" t-as="reason" t-key="reason.id" type="button"
+                <button data-available-offline="" t-foreach="this.state.route.reasons" t-as="reason" t-key="reason.id" type="button"
                         t-attf-class="o_rd_reason {{ this.state.fail.reasonId === reason.id ? 'o_rd_reason_on' : '' }}"
                         t-att-aria-pressed="this.state.fail.reasonId === reason.id ? 'true' : 'false'"
                         t-on-click="() => this.state.fail.reasonId = reason.id">
@@ -377,7 +403,7 @@
                 <div class="o_rd_photos">
                     <div t-foreach="this.state.fail.photos" t-as="photo" t-key="photo_index" class="o_rd_photo">
                         <img t-att-src="photo" alt="Foto de la entrega"/>
-                        <button type="button" aria-label="Quitar foto" t-on-click="() => this.removePhoto(this.state.fail, photo_index)">
+                        <button data-available-offline="" type="button" aria-label="Quitar foto" t-on-click="() => this.removePhoto(this.state.fail, photo_index)">
                             <i class="o_rdi o_rdi-times"/>
                         </button>
                     </div>
@@ -390,7 +416,7 @@
                 </div>
             </div>
             <div class="o_rd_footer">
-                <button type="button" class="o_rd_btn o_rd_btn_danger_solid o_rd_btn_scan" t-on-click="this.confirmFail" t-att-disabled="this.state.busy">
+                <button data-available-offline="" type="button" class="o_rd_btn o_rd_btn_danger_solid o_rd_btn_scan" t-on-click="this.confirmFail" t-att-disabled="this.state.busy">
                     Confirmar no entregado
                 </button>
             </div>
