@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer — Reparto",
-    "version": "19.0.2.1.0",
+    "version": "20.0.2.1.0",
     "category": "Inventory/Delivery",
     "summary": "App del chofer con prueba de entrega, seguimiento para el cliente y tablero de despacho",
     "description": """Lleva la ruta a la calle: app del chofer para el celular con prueba de entrega,
@@ -17,7 +17,7 @@ link de seguimiento para el cliente y tablero de despacho con mapa.""",
     ],
     "data": [
         "security/route_delivery_security.xml",
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "data/route_delivery_fail_reason_data.xml",
         "data/mail_template_data.xml",
         "views/route_delivery_tracking_templates.xml",

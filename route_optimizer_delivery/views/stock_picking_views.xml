@@ -62,7 +62,7 @@
     <record id="view_picking_batch_list_route_delivery" model="ir.ui.view">
         <field name="name">stock.picking.list.batch.route_delivery</field>
         <field name="model">stock.picking</field>
-        <field name="inherit_id" ref="stock_picking_batch.stock_picking_view_batch_tree_ref"/>
+        <field name="inherit_id" ref="stock.stock_picking_view_batch_tree_ref"/>
         <field name="arch" type="xml">
             <field name="batch_sequence" position="after">
                 <field name="route_delivery_eta" string="Hora est." widget="datetime"

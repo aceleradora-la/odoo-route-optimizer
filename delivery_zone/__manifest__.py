@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Zonas de Entrega",
-    "version": "19.0.1.0.3",
+    "version": "20.0.1.0.3",
     "category": "Inventory/Delivery",
     "summary": "Zonas de entrega por contacto, detectadas desde Google My Maps, y lotes automáticos por zona",
     "description": """Zona de entrega en contactos y entregas, detectada por geolocalización contra un
@@ -12,12 +12,12 @@ Google My Maps público, con lotes automáticos por zona.""",
     "maintainers": ["aceleradora-la"],
     "license": "LGPL-3",
     "depends": [
-        "stock_picking_batch",
+        "stock",
         "base_geolocalize",
         "contacts",
     ],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "data/delivery_zone_server_actions.xml",
         "report/stock_picking_reports.xml",
         "views/delivery_zone_views.xml",

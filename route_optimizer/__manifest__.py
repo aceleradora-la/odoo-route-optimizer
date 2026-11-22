@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer",
-    "version": "19.0.1.6.0",
+    "version": "20.0.1.6.0",
     "category": "Inventory/Delivery",
     "summary": "Optimiza las rutas de entrega de tus lotes: vehículos, capacidades y ventanas horarias",
     "description": """Ordena las entregas de un lote con OSRM + OR-Tools (o Google): varios vehículos,
@@ -12,13 +12,12 @@ capacidad de peso y volumen, ventanas horarias, hoja de ruta en PDF y por WhatsA
     "maintainers": ["aceleradora-la"],
     "license": "LGPL-3",
     "depends": [
-        "stock_picking_batch",
-        "stock_partner_delivery_window",
+        "stock",
         "base_geolocalize",
         "web",
     ],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "report/batch_delivery_route_report.xml",
         "report/batch_delivery_route_templates.xml",
         "views/res_config_settings_views.xml",

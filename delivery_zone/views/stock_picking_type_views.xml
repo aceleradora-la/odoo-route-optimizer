@@ -3,7 +3,7 @@
     <record id="stock_picking_type_form_delivery_zone" model="ir.ui.view">
         <field name="name">stock.picking.type.form.delivery_zone</field>
         <field name="model">stock.picking.type</field>
-        <field name="inherit_id" ref="stock_picking_batch.view_picking_type_form_inherit"/>
+        <field name="inherit_id" ref="stock.view_picking_type_form"/>
         <field name="arch" type="xml">
             <!-- El bloque "Batch Grouping" es un group de 2 columnas: cada criterio son
                  dos nodos (un span espaciador + un div con field y label). Se replica esa

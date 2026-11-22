@@ -15,7 +15,7 @@ Planificá, repartí y seguí tus entregas desde Odoo. Community y Enterprise.
 
 ## Instalación
 
-1. Cloná la rama de tu versión de Odoo (`17.0`, `18.0` o `19.0`) y sumá la carpeta al `addons_path`. Para Odoo 20, generá el árbol con `python tools/port_to_version.py 20.0`.
+1. Cloná la rama de tu versión de Odoo (`17.0`, `18.0` o `19.0`) y sumá la carpeta al `addons_path`. Para Esta rama (`20.0`) ya está adaptada a Odoo 20.
 2. En Odoo 18 y 19, instalá `stock_partner_delivery_window` de [OCA/stock-logistics-workflow](https://github.com/OCA/stock-logistics-workflow) y sus dependencias.
 3. Levantá OSRM y el servicio OR-Tools de [`ortools_service/`](ortools_service/): [manual de despliegue](DEPLOYMENT_MANUAL_SECURE.md).
 4. Instalá los módulos y completá **Ajustes → Inventario → Optimización de rutas**.
