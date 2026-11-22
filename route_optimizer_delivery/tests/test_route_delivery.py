@@ -67,6 +67,7 @@ class RouteDeliveryCommon(TransactionCase):
                             0,
                             {
                                 "product_id": cls.product.id,
+                                **({"name": cls.product.name} if "name" in cls.env["stock.move"]._fields else {}),
                                 "product_uom_qty": 5,
                                 "location_id": cls.warehouse.lot_stock_id.id,
                                 "location_dest_id": cls.env.ref("stock.stock_location_customers").id,
@@ -275,6 +276,7 @@ class TestRouteDelivery(RouteDeliveryCommon):
                 "move_ids": [
                     (0, 0, {
                         "product_id": self.product.id,
+                        **({"name": self.product.name} if "name" in self.env["stock.move"]._fields else {}),
                         "product_uom_qty": qty,
                         "location_id": self.warehouse.lot_stock_id.id,
                         "location_dest_id": customers.id,
