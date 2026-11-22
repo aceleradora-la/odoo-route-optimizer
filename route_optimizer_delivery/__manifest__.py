@@ -1,38 +1,14 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer — Reparto",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.0.1",
     "category": "Inventory/Delivery",
     "summary": "App del chofer con prueba de entrega, seguimiento para el cliente y tablero de despacho",
-    "description": """
-Route Optimizer — Reparto
-=========================
-
-Lleva la hoja de ruta optimizada a la calle.
-
-App del chofer (celular)
-------------------------
-* Se instala en el celular como una app propia (igual que Código de Barras)
-* Paradas en orden de visita, con navegación, llamada y WhatsApp a un toque
-* Escaneo del remito para abrir la parada y de bultos/productos para controlarla
-* Prueba de entrega: quién recibe, DNI, bultos, cobro, foto y firma
-* Entrega parcial por producto y entregas fallidas con motivo
-* Teclado numérico en cantidades, DNI, bultos e importes
-
-Seguimiento para el cliente
----------------------------
-* Link público por entrega, sin iniciar sesión
-* Estado, hora estimada y cuántas paradas faltan
-* Avisos por correo (en camino, sos el próximo, entregado) y por WhatsApp
-
-Tablero de despacho
--------------------
-* Todas las rutas del día con su avance, en columnas y en el mapa
-* Arrastrar paradas entre rutas o para cambiar el orden
-* Posición del chofer y entregas sin asignar
-    """,
-    "author": "Aceleradora LA",
-    "website": "https://github.com/aceleradora-la/odoo-route-optimizer",
+    "description": """Lleva la ruta a la calle: app del chofer para el celular con prueba de entrega,
+link de seguimiento para el cliente y tablero de despacho con mapa.""",
+    "author": "aceleradora.la",
+    "website": "https://aceleradora.la",
+    "support": "info@aceleradora.la",
     "maintainers": ["aceleradora-la"],
     "license": "LGPL-3",
     "depends": [
@@ -57,7 +33,7 @@ Tablero de despacho
             "route_optimizer_delivery/static/src/board/*",
         ],
     },
-    "images": ["static/description/icon.png"],
+    "images": ["static/description/banner.png"],
     "installable": True,
     "application": True,
 }
