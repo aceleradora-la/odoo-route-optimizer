@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_form_route_delivery" model="ir.ui.view">
+        <field name="name">stock.picking.form.route_delivery</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Entrega" name="route_delivery" invisible="picking_type_code != 'outgoing'">
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <button name="action_route_delivery_open_tracking" type="object"
+                                string="Ver seguimiento" class="btn-secondary" icon="fa-external-link"/>
+                        <button name="action_route_delivery_whatsapp" type="object"
+                                string="Enviar link por WhatsApp" class="btn-secondary" icon="fa-whatsapp"/>
+                        <button name="action_route_delivery_reset" type="object"
+                                string="Volver a pendiente" class="btn-secondary"
+                                invisible="route_delivery_state == 'pending'"
+                                groups="stock.group_stock_user"
+                                confirm="La parada vuelve a Pendiente y el chofer la ve de nuevo. La validación del traslado no se deshace."/>
+                    </div>
+                    <group>
+                        <group string="Estado">
+                            <field name="route_delivery_state" widget="badge"
+                                   decoration-success="route_delivery_state == 'delivered'"
+                                   decoration-warning="route_delivery_state == 'partial'"
+                                   decoration-danger="route_delivery_state == 'failed'"
+                                   decoration-info="route_delivery_state == 'pending'"/>
+                            <field name="route_delivery_eta" invisible="route_delivery_state != 'pending'"/>
+                            <field name="route_delivery_done_at" invisible="not route_delivery_done_at"/>
+                            <field name="route_delivery_user_id" invisible="not route_delivery_user_id"/>
+                            <field name="route_delivery_fail_reason_id"
+                                   invisible="route_delivery_state != 'failed'" options="{'no_create': True}"/>
+                            <field name="route_delivery_tracking_url" widget="CopyClipboardChar"
+                                   invisible="not route_delivery_tracking_url"/>
+                        </group>
+                        <group string="Prueba de entrega" invisible="route_delivery_state == 'pending'">
+                            <field name="route_delivery_receiver_name"/>
+                            <field name="route_delivery_receiver_doc"/>
+                            <field name="route_delivery_packages"/>
+                            <field name="route_delivery_cod_amount"/>
+                            <field name="route_delivery_partial_detail"
+                                   invisible="not route_delivery_partial_detail"/>
+                            <field name="route_delivery_note"/>
+                        </group>
+                    </group>
+                    <group invisible="route_delivery_state == 'pending'">
+                        <group string="Firma" invisible="not route_delivery_signature">
+                            <field name="route_delivery_signature" widget="image" nolabel="1" colspan="2"
+                                   options="{'size': [0, 180]}" readonly="1"/>
+                        </group>
+                        <group string="Fotos" invisible="not route_delivery_photo_ids">
+                            <field name="route_delivery_photo_ids" widget="many2many_binary" nolabel="1"
+                                   colspan="2" readonly="1"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Lista de traslados dentro del lote: estado de entrega y hora estimada -->
+    <record id="view_picking_batch_list_route_delivery" model="ir.ui.view">
+        <field name="name">stock.picking.list.batch.route_delivery</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock_picking_batch.stock_picking_view_batch_tree_ref"/>
+        <field name="arch" type="xml">
+            <field name="batch_sequence" position="after">
+                <field name="route_delivery_eta" string="Hora est." widget="datetime"
+                       options="{'show_date': false}" optional="show"/>
+                <field name="route_delivery_state" string="Entrega" widget="badge" optional="show"
+                       decoration-success="route_delivery_state == 'delivered'"
+                       decoration-warning="route_delivery_state == 'partial'"
+                       decoration-danger="route_delivery_state == 'failed'"
+                       decoration-muted="route_delivery_state == 'pending'"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_picking_search_route_delivery" model="ir.ui.view">
+        <field name="name">stock.picking.search.route_delivery</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_internal_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <separator/>
+                <filter name="route_delivery_failed" string="No entregados"
+                        domain="[('route_delivery_state', '=', 'failed')]"/>
+                <filter name="route_delivery_partial" string="Entregas parciales"
+                        domain="[('route_delivery_state', '=', 'partial')]"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

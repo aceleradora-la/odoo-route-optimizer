@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-MODULES = ["route_optimizer", "route_optimizer_fleet", "delivery_zone"]
+MODULES = ["route_optimizer", "route_optimizer_fleet", "delivery_zone", "route_optimizer_delivery"]
 
 
 def bump_manifest_versions(target):

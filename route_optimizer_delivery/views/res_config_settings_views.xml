@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_route_delivery" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.route_delivery</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="stock.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='stock']" position="inside">
+                <block title="Reparto" name="route_delivery_settings">
+                    <setting string="Validar el traslado al entregar"
+                             help="La app valida el traslado con lo entregado. Dejalo apagado si se valida al salir del depósito.">
+                        <field name="route_delivery_validate_on_delivery"/>
+                    </setting>
+                    <setting string="Avisar al cliente por correo"
+                             help="En camino, sos el próximo, entregado y no entregado, con el link de seguimiento.">
+                        <field name="route_delivery_notify_email"/>
+                    </setting>
+                    <setting string="Prueba de entrega obligatoria"
+                             help="Qué tiene que cargar el chofer para marcar una parada como entregada.">
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <field name="route_delivery_require_signature" class="col-1"/>
+                                <label for="route_delivery_require_signature" class="col"/>
+                            </div>
+                            <div class="row">
+                                <field name="route_delivery_require_photo" class="col-1"/>
+                                <label for="route_delivery_require_photo" class="col"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting string="Seguimiento y mapa"
+                             help="Margen de la franja horaria que ve el cliente y mapa base del tablero.">
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <label for="route_delivery_eta_window_minutes" class="col-lg-5"/>
+                                <field name="route_delivery_eta_window_minutes" class="col-lg-3"/>
+                            </div>
+                            <div class="row">
+                                <label for="route_delivery_tile_url" class="col-lg-5"/>
+                                <field name="route_delivery_tile_url" class="col-lg-7"
+                                       placeholder="https://tile.openstreetmap.org/{z}/{x}/{y}.png"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

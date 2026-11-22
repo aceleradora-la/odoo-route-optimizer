@@ -1,0 +1,169 @@
+// Tablero de despacho: columnas por ruta a la izquierda, mapa a la derecha.
+.o_route_dispatch_board {
+    $rdb-border: #d1d5db;
+    $rdb-muted: #4b5563;
+
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #f3f4f6;
+    color: #111827;
+    font-size: 13px;
+
+    .o_rdb_bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px 16px;
+        padding: 8px 12px;
+        background: #fff;
+        border-bottom: 1px solid $rdb-border;
+    }
+    .o_rdb_days, .o_rdb_kpis { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+    .o_rdb_date { width: 150px; }
+    .o_rdb_day_label { margin-left: 6px; font-size: 15px; }
+    .o_rdb_kpi {
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #f3f4f6;
+        white-space: nowrap;
+    }
+    .o_rdb_kpi_bad { background: #fee2e2; color: #991b1b; }
+    .o_rdb_kpi_warn { background: #ffedd5; color: #9a3412; }
+
+    .o_rdb_main { display: flex; flex: 1 1 auto; min-height: 0; }
+    .o_rdb_columns {
+        display: flex;
+        flex: 1 1 58%;
+        min-width: 0;
+        gap: 10px;
+        padding: 10px;
+        overflow-x: auto;
+    }
+    .o_rdb_map { flex: 1 1 42%; min-width: 280px; border-left: 1px solid $rdb-border; z-index: 0; }
+
+    .o_rdb_column {
+        display: flex;
+        flex-direction: column;
+        flex: 0 0 270px;
+        min-height: 0;
+        border-radius: 10px;
+        background: #e5e7eb;
+    }
+    .o_rdb_column_head {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 10px;
+        border-top: 4px solid #6b7280;
+        border-radius: 10px 10px 0 0;
+        background: #fff;
+    }
+    .o_rdb_column_title { font-size: 15px; font-weight: 700; }
+    .o_rdb_list {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        gap: 6px;
+        padding: 8px;
+        overflow-y: auto;
+        // Soltar al final de la columna.
+        &.o_rdb_drop_end::after {
+            content: "";
+            flex: 0 0 4px;
+            border-radius: 2px;
+            background: #111827;
+        }
+    }
+    .o_rdb_new {
+        margin: 0 8px 8px;
+        padding: 14px 10px;
+        border: 2px dashed #9ca3af;
+        border-radius: 8px;
+        color: $rdb-muted;
+        text-align: center;
+    }
+    .o_rdb_new_on { border-color: #111827; background: #fff; color: #111827; }
+    // La columna de sin asignar queda fija al desplazar las rutas.
+    .o_rdb_column_unassigned { position: sticky; left: 0; z-index: 1; box-shadow: 4px 0 6px -4px rgba(0, 0, 0, 0.25); }
+
+    .o_rdb_card {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 8px;
+        border: 1px solid $rdb-border;
+        border-radius: 8px;
+        background: #fff;
+        cursor: pointer;
+        &[draggable="true"] { cursor: grab; }
+    }
+    .o_rdb_card_delivered, .o_rdb_card_partial, .o_rdb_card_failed { background: #f9fafb; }
+    .o_rdb_card_selected { box-shadow: 0 0 0 2px #111827; }
+    // Línea donde va a quedar la parada arrastrada.
+    .o_rdb_drop_before { box-shadow: 0 -4px 0 0 #111827; }
+    .o_rdb_num {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 26px;
+        height: 26px;
+        border-radius: 50%;
+        color: #fff;
+        font-weight: 700;
+    }
+    .o_rdb_card_delivered .o_rdb_num, .o_rdb_card_partial .o_rdb_num { background: #16a34a !important; }
+    .o_rdb_card_failed .o_rdb_num { background: #b91c1c !important; }
+    .o_rdb_card_main { flex: 1 1 auto; min-width: 0; }
+    .o_rdb_card_name { font-weight: 700; overflow-wrap: anywhere; }
+    .o_rdb_card_side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
+    .o_rdb_eta { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .o_rdb_muted, .o_rdb_empty { color: $rdb-muted; font-size: 12px; }
+    .o_rdb_empty { padding: 12px 6px; text-align: center; }
+    .o_rdb_alert { color: #9a3412; font-size: 12px; font-weight: 600; }
+
+    .o_rdb_badge {
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .o_rdb_badge_active { background: #714B67; color: #fff; }
+    .o_rdb_badge_idle { background: #e5e7eb; color: #374151; }
+    .o_rdb_badge_delivered { background: #dcfce7; color: #166534; }
+    .o_rdb_badge_partial { background: #ffedd5; color: #9a3412; }
+    .o_rdb_badge_failed { background: #fee2e2; color: #991b1b; }
+
+    .o_rdb_progress {
+        height: 6px;
+        border-radius: 3px;
+        background: #e5e7eb;
+        overflow: hidden;
+        > div { height: 100%; }
+    }
+
+    .o_rdb_pin {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .o_rdb_pin_done { opacity: 0.45; }
+    .o_rdb_pin_truck { width: 34px; height: 34px; margin: -3px; border-radius: 8px; font-size: 15px; }
+
+    // En pantallas angostas el mapa pasa arriba.
+    @media (max-width: 991px) {
+        .o_rdb_main { flex-direction: column-reverse; }
+        .o_rdb_map { flex: 0 0 260px; border-left: 0; border-bottom: 1px solid $rdb-border; }
+        .o_rdb_columns { flex: 1 1 auto; }
+    }
+}

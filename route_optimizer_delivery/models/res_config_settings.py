@@ -1,0 +1,39 @@
+# -*- coding: utf-8 -*-
+from odoo import fields, models
+
+
+class ResConfigSettings(models.TransientModel):
+    _inherit = "res.config.settings"
+
+    route_delivery_validate_on_delivery = fields.Boolean(
+        string="Validar el traslado al entregar",
+        config_parameter="route_optimizer_delivery.validate_on_delivery",
+        help="Al marcar una parada como entregada desde la app, valida el traslado con "
+        "las cantidades entregadas (lo no entregado queda en una entrega parcial). "
+        "Dejalo apagado si el traslado se valida al salir del depósito.",
+    )
+    route_delivery_notify_email = fields.Boolean(
+        string="Avisar al cliente por correo",
+        config_parameter="route_optimizer_delivery.notify_email",
+        help="Envía un correo con el link de seguimiento cuando sale la ruta, cuando "
+        "el cliente es la próxima parada y cuando se entrega o falla la entrega.",
+    )
+    route_delivery_require_signature = fields.Boolean(
+        string="Firma obligatoria",
+        config_parameter="route_optimizer_delivery.require_signature",
+    )
+    route_delivery_require_photo = fields.Boolean(
+        string="Foto obligatoria",
+        config_parameter="route_optimizer_delivery.require_photo",
+    )
+    route_delivery_eta_window_minutes = fields.Integer(
+        string="Margen de la hora estimada (min)",
+        config_parameter="route_optimizer_delivery.eta_window_minutes",
+        default=30,
+        help="Al cliente se le muestra una franja: hora estimada ± este margen.",
+    )
+    route_delivery_tile_url = fields.Char(
+        string="Mapa base (URL de teselas)",
+        config_parameter="route_optimizer_delivery.tile_url",
+        help="Vacío usa OpenStreetMap. Formato: https://servidor/{z}/{x}/{y}.png",
+    )

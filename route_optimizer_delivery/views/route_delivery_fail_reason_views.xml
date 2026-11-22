@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_route_delivery_fail_reason_list" model="ir.ui.view">
+        <field name="name">route.delivery.fail.reason.list</field>
+        <field name="model">route.delivery.fail.reason</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="require_note"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_route_delivery_fail_reason" model="ir.actions.act_window">
+        <field name="name">Motivos de no entrega</field>
+        <field name="res_model">route.delivery.fail.reason</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+</odoo>

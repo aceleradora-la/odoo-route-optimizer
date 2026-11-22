@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-name="route_optimizer_delivery.DispatchCard">
+    <div t-attf-class="o_rdb_card o_rdb_card_{{ stop.state }} {{ state.selectedId === stop.id ? 'o_rdb_card_selected' : '' }} {{ dropBefore ? 'o_rdb_drop_before' : '' }}"
+         t-att-data-stop="stop.id"
+         t-att-draggable="stop.state === 'pending' ? 'true' : 'false'"
+         t-on-dragstart="(ev) => this.onDragStart(stop, batchId, ev)"
+         t-on-dragend="onDragEnd"
+         t-on-dragover="(ev) => this.onDragOver(batchId, dropIndex, ev)"
+         t-on-drop="(ev) => this.onDrop(batchId, dropIndex, ev)"
+         t-on-click="() => this.selectStop(stop)">
+        <div class="o_rdb_num" t-attf-style="background: {{ cardColor }}">
+            <i t-if="stop.state === 'delivered' or stop.state === 'partial'" class="fa fa-check"/>
+            <i t-elif="stop.state === 'failed'" class="fa fa-times"/>
+            <t t-else="" t-esc="number"/>
+        </div>
+        <div class="o_rdb_card_main">
+            <div class="o_rdb_card_name" t-esc="stop.partner"/>
+            <div class="o_rdb_muted" t-esc="stop.address or stop.name"/>
+            <div class="o_rdb_muted">
+                <a href="#" t-on-click.prevent.stop="() => this.openStop(stop)" t-esc="stop.name"/>
+                <t t-if="stop.window"> · recibe <t t-esc="stop.window"/></t>
+                <t t-if="stop.weight"> · <t t-esc="Math.round(stop.weight)"/> kg</t>
+            </div>
+            <div t-if="stop.state === 'failed'" class="o_rdb_alert" t-esc="stop.fail_reason"/>
+            <div t-if="!stop.lat and !stop.lon" class="o_rdb_alert">Sin geolocalizar</div>
+        </div>
+        <div class="o_rdb_card_side">
+            <t t-if="stop.state === 'pending'">
+                <span t-if="stop.eta" class="o_rdb_eta" t-esc="hour(stop.eta)"/>
+            </t>
+            <t t-else="">
+                <span t-attf-class="o_rdb_badge o_rdb_badge_{{ stop.state }}" t-esc="stateLabel(stop)"/>
+                <span class="o_rdb_muted" t-esc="hour(stop.done_at)"/>
+            </t>
+        </div>
+    </div>
+</t>
+
+<t t-name="route_optimizer_delivery.RouteDispatchBoard">
+    <div class="o_route_dispatch_board">
+        <div class="o_rdb_bar">
+            <div class="o_rdb_days">
+                <button type="button" class="btn btn-light" aria-label="Día anterior" t-on-click="() => this.shiftDay(-1)">
+                    <i class="fa fa-chevron-left"/>
+                </button>
+                <input type="date" class="form-control o_rdb_date" aria-label="Día" t-att-value="state.day"
+                       t-on-change="(ev) => this.setDay(ev.target.value)"/>
+                <button type="button" class="btn btn-light" aria-label="Día siguiente" t-on-click="() => this.shiftDay(1)">
+                    <i class="fa fa-chevron-right"/>
+                </button>
+                <button type="button" class="btn btn-light" t-on-click="today">Hoy</button>
+                <strong class="o_rdb_day_label" t-esc="dayLabel"/>
+            </div>
+            <div class="o_rdb_kpis">
+                <span class="o_rdb_kpi"><strong t-esc="totals.routes"/> rutas</span>
+                <span class="o_rdb_kpi"><strong t-esc="totals.done"/> / <t t-esc="totals.stops"/> entregadas</span>
+                <span t-if="totals.failed" class="o_rdb_kpi o_rdb_kpi_bad"><strong t-esc="totals.failed"/> no entregadas</span>
+                <span t-if="totals.unassigned" class="o_rdb_kpi o_rdb_kpi_warn"><strong t-esc="totals.unassigned"/> sin asignar</span>
+                <button type="button" class="btn btn-light" aria-label="Actualizar" t-on-click="load">
+                    <i class="fa fa-refresh"/>
+                </button>
+            </div>
+        </div>
+
+        <div class="o_rdb_main">
+            <div class="o_rdb_columns">
+                <!-- Sin asignar -->
+                <div class="o_rdb_column o_rdb_column_unassigned"
+                     t-on-dragover="(ev) => this.onDragOver(0, state.unassigned.length, ev)"
+                     t-on-drop="(ev) => this.onDrop(0, null, ev)">
+                    <div class="o_rdb_column_head">
+                        <div class="o_rdb_column_title">Sin asignar</div>
+                        <div class="o_rdb_muted"><t t-esc="state.unassigned.length"/> entregas del día</div>
+                    </div>
+                    <div t-attf-class="o_rdb_list {{ isDropEnd(0, 0) ? 'o_rdb_drop_end' : '' }}">
+                        <t t-foreach="state.unassigned" t-as="stop" t-key="stop.id">
+                            <t t-call="route_optimizer_delivery.DispatchCard">
+                                <t t-set="batchId" t-value="0"/>
+                                <t t-set="dropIndex" t-value="null"/>
+                                <t t-set="dropBefore" t-value="false"/>
+                                <t t-set="number" t-value="'?'"/>
+                                <t t-set="cardColor" t-value="'#6b7280'"/>
+                            </t>
+                        </t>
+                        <div t-if="!state.unassigned.length" class="o_rdb_empty">
+                            Nada pendiente de asignar. Soltá acá una parada para sacarla de su ruta.
+                        </div>
+                    </div>
+                    <!-- Siempre a la vista, aunque haya muchas rutas hacia la derecha -->
+                    <div t-attf-class="o_rdb_new {{ isDropEnd('new', 0) ? 'o_rdb_new_on' : '' }}"
+                         t-on-dragover="(ev) => this.onDragOver('new', 0, ev)"
+                         t-on-drop="(ev) => this.onDrop('new', null, ev)">
+                        <i class="fa fa-plus me-2" aria-hidden="true"/>Soltá una parada acá para abrir una ruta nueva
+                    </div>
+                </div>
+
+                <!-- Rutas -->
+                <t t-foreach="state.routes" t-as="route" t-key="route.id">
+                    <div class="o_rdb_column"
+                         t-on-dragover="(ev) => this.onDragOver(route.id, route.stops.length, ev)"
+                         t-on-drop="(ev) => this.onDrop(route.id, null, ev)">
+                        <div class="o_rdb_column_head" t-attf-style="border-top-color: {{ color(route) }}">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div class="o_rdb_column_title" t-esc="route.name"/>
+                                <span t-attf-class="o_rdb_badge {{ route.finished ? 'o_rdb_badge_delivered' : route.started ? 'o_rdb_badge_active' : 'o_rdb_badge_idle' }}"
+                                      t-esc="routeStatus(route)"/>
+                            </div>
+                            <div class="o_rdb_muted">
+                                <t t-esc="route.driver or 'Sin chofer'"/>
+                                <t t-if="route.vehicle"> · <t t-esc="route.vehicle"/></t>
+                                <t t-if="route.weight"> · <t t-esc="Math.round(route.weight)"/> kg</t>
+                            </div>
+                            <div class="o_rdb_progress"><div t-attf-style="width: {{ route.progress }}%; background: {{ color(route) }}"/></div>
+                            <div class="d-flex flex-wrap justify-content-between column-gap-2 o_rdb_muted">
+                                <span>
+                                    <t t-esc="route.done_count"/> de <t t-esc="route.stop_count"/>
+                                    <t t-if="route.failed_count"> · <span class="o_rdb_alert"><t t-esc="route.failed_count"/> no entregadas</span></t>
+                                </span>
+                                <span t-if="route.position" t-esc="positionAge(route)"/>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-secondary" t-on-click="() => this.optimize(route)">Optimizar</button>
+                                <button type="button" class="btn btn-sm btn-light" t-on-click="() => this.openRoute(route)">Abrir</button>
+                            </div>
+                        </div>
+                        <div t-attf-class="o_rdb_list {{ isDropEnd(route.id, route.stops.filter((s) => s.id !== (drag and drag.id)).length) ? 'o_rdb_drop_end' : '' }}">
+                            <t t-foreach="route.stops" t-as="stop" t-key="stop.id">
+                                <t t-call="route_optimizer_delivery.DispatchCard">
+                                    <t t-set="batchId" t-value="route.id"/>
+                                    <t t-set="dropIndex" t-value="cardIndex(route, stop)"/>
+                                    <t t-set="dropBefore" t-value="isDropBefore(route.id, route, stop)"/>
+                                    <t t-set="number" t-value="stop_index + 1"/>
+                                    <t t-set="cardColor" t-value="color(route)"/>
+                                </t>
+                            </t>
+                            <div t-if="!route.stops.length" class="o_rdb_empty">Ruta vacía. Soltá paradas acá.</div>
+                        </div>
+                    </div>
+                </t>
+            </div>
+            <div class="o_rdb_map" t-ref="map"/>
+        </div>
+    </div>
+</t>
+
+</templates>

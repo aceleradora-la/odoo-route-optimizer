@@ -56,6 +56,8 @@ python tools/validate_views.py 18.0
 - **`route_optimizer_fleet`** (opcional): campo `fleet.vehicle` en el asistente; requiere el módulo `fleet`.
 - **`delivery_zone`** (independiente): zonas de entrega por contacto, con autodetección desde un **Google My Maps** público (sin API key), filtro/agrupación por zona en las órdenes de entrega y **agrupación automática de lotes por zona** en el Tipo de Operación. No requiere `route_optimizer`. Ver [Zonas de entrega](#zonas-de-entrega).
 
+- **`route_optimizer_delivery`** (opcional, requiere `route_optimizer`): lleva la ruta a la calle. App del chofer para el celular con prueba de entrega, link de seguimiento para el cliente y tablero de despacho con mapa. Ver [Reparto](#reparto).
+
 ## Proveedores: self-hosted vs. Google (pago)
 
 Desde la versión 19.0.1.3.0 el módulo soporta proveedores intercambiables por configuración
@@ -156,6 +158,54 @@ Una **dirección de entrega** sin zona propia hereda la del contacto principal.
 - **Lotes automáticos por zona**: en el Tipo de Operación de entregas, dentro de
   *Traslados por lote y olas → Agrupación por lotes*, tildá **Zona de entrega** (junto a
   Contacto, País de destino, etc.). Los traslados de la misma zona caen en el mismo lote.
+
+## Reparto
+
+Módulo **`route_optimizer_delivery`**. Probado en Odoo 19.0; todavía no está portado a 17.0/18.0.
+
+### App del chofer
+
+- El chofer es el **Responsable** del lote. Alcanza con darle el grupo **Chofer de reparto**: no
+  necesita ser usuario de Inventario y solo ve sus rutas. Los usuarios de Inventario ven todas.
+- Menú **Reparto** (o `/odoo/reparto`). Desde el inicio, **Instalar en el celular** la deja como
+  app propia, igual que Código de Barras.
+- La ruta muestra las paradas en orden de visita con su hora estimada. **Salir a repartir** marca
+  la salida y empieza a informar la posición (requiere HTTPS, como la cámara).
+- Una parada se abre tocándola o con **Escanear remito** (número de traslado, pedido de origen o
+  bulto). Si no hay cámara, se escribe el número.
+- En la parada: **Ir** (Google Maps), **Llamar**, **Avisar** (WhatsApp con el link de seguimiento),
+  cantidades entregadas por producto, quién recibe, DNI, bultos, cobro, fotos y firma.
+  Cantidades en unidades, DNI y bultos abren el teclado numérico; pesos e importes, el decimal.
+- **Escanear bultos/productos** controla lo que se baja contra el remito.
+- Menos cantidad que la pedida = **entrega parcial**. **No entregado** pide un motivo
+  (Inventario → Configuración → *Motivos de no entrega*).
+
+### Seguimiento para el cliente
+
+Cada entrega en una ruta tiene un link público (`/reparto/t/<token>`) con el estado, la franja
+horaria estimada y cuántas paradas faltan. Se copia o se envía por WhatsApp desde la pestaña
+**Entrega** del traslado. Con *Avisar al cliente por correo* activo se envían cuatro avisos:
+salió a reparto, sos la próxima parada, entregado y no entregado.
+
+Las horas estimadas se recalculan al optimizar, al salir y tras cada parada. Usan OSRM si es el
+proveedor de matrices configurado; con Google o sin servidor se estiman en línea recta (Google
+cobra por elemento y este cálculo corre en cada parada).
+
+### Tablero de despacho
+
+Inventario → Operaciones → **Tablero de despacho** (`/odoo/despacho`): las rutas del día en
+columnas y en el mapa, con avance, posición del chofer y entregas sin asignar. Las paradas
+pendientes se arrastran para reordenar, pasar a otra ruta, sacar de la ruta o abrir una nueva.
+
+### Ajustes (Inventario → Reparto)
+
+| Ajuste | Default | Efecto |
+|---|---|---|
+| Validar el traslado al entregar | apagado | La app valida el traslado con lo entregado; lo que falta queda en una entrega parcial (backorder). Apagado si se valida al salir del depósito. |
+| Avisar al cliente por correo | apagado | Envía los cuatro avisos con el link de seguimiento. |
+| Firma / Foto obligatoria | apagado | No deja marcar *Entregado* sin ellas. |
+| Margen de la hora estimada | 30 min | Franja que ve el cliente: hora estimada ± margen. |
+| Mapa base | OpenStreetMap | URL de teselas del tablero. |
 
 ## Contrato del servicio OR-Tools
 
