@@ -117,6 +117,16 @@
                                 <field name="route_optimizer_service_time_seconds" class="oe_inline"/>
                             </div>
                             <div class="row mt16">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_break_duration_minutes"/>
+                                <field name="route_optimizer_break_duration_minutes" class="oe_inline"/>
+                            </div>
+                            <div class="row mt16" invisible="not route_optimizer_break_duration_minutes">
+                                <label class="col-lg-3 o_light_label" for="route_optimizer_break_earliest_hour"/>
+                                <field name="route_optimizer_break_earliest_hour" class="oe_inline" widget="float_time"/>
+                                <label class="col-lg-2 o_light_label" for="route_optimizer_break_latest_hour"/>
+                                <field name="route_optimizer_break_latest_hour" class="oe_inline" widget="float_time"/>
+                            </div>
+                            <div class="row mt16">
                                 <label class="col-lg-3 o_light_label" for="route_optimizer_block_outside_windows"/>
                                 <field name="route_optimizer_block_outside_windows"/>
                             </div>

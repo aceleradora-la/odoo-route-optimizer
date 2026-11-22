@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Página pública de seguimiento: autocontenida (sin assets de Odoo) para que
+         abra rápido en cualquier celular y con datos móviles. -->
+    <template id="tracking_styles">
+        <style>
+            *{box-sizing:border-box}
+            body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+                 background:#f3f4f6;color:#111827;font-size:16px;line-height:1.4}
+            .rd-wrap{max-width:480px;margin:0 auto;padding:16px}
+            .rd-brand{display:flex;align-items:center;gap:12px;padding:8px 0 16px}
+            .rd-brand img{max-height:44px;max-width:140px}
+            .rd-brand strong{font-size:18px}
+            .rd-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:18px;margin-bottom:12px}
+            .rd-status{font-size:24px;font-weight:700;margin:0 0 6px}
+            .rd-sub{color:#4b5563;margin:0}
+            .rd-eta{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:10px 0 2px}
+            .rd-label{font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin:0 0 4px}
+            .rd-steps{display:flex;gap:6px;margin:16px 0 0;padding:0;list-style:none}
+            .rd-steps li{flex:1;height:6px;border-radius:3px;background:#e5e7eb}
+            .rd-steps li.on{background:#714B67}
+            .rd-ok .rd-status{color:#166534}.rd-ok .rd-steps li.on{background:#16a34a}
+            .rd-bad .rd-status{color:#b91c1c}
+            .rd-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid #f3f4f6}
+            .rd-row:first-of-type{border-top:0}
+            .rd-row span:first-child{color:#6b7280}
+            .rd-row span:last-child{text-align:right;font-weight:600}
+            .rd-btn{display:block;text-align:center;padding:14px;border-radius:12px;background:#714B67;color:#fff;
+                    font-weight:700;text-decoration:none}
+            .rd-foot{text-align:center;color:#9ca3af;font-size:12px;padding:8px 0 24px}
+        </style>
+    </template>
+
+    <template id="tracking_page" name="Seguimiento de entrega">
+        <html lang="es">
+            <head>
+                <meta charset="utf-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <meta name="robots" content="noindex, nofollow"/>
+                <meta t-if="live" http-equiv="refresh" content="60"/>
+                <title>Tu entrega · <t t-out="company.name"/></title>
+                <t t-call="route_optimizer_delivery.tracking_styles"/>
+            </head>
+            <body>
+                <div class="rd-wrap">
+                    <div class="rd-brand">
+                        <img t-if="company.logo" t-att-src="image_data_uri(company.logo)" t-att-alt="company.name"/>
+                        <strong t-else="" t-out="company.name"/>
+                    </div>
+
+                    <div t-attf-class="rd-card #{'rd-ok' if step == 'delivered' else ''} #{'rd-bad' if step in ('failed', 'cancel') else ''}">
+                        <t t-if="step == 'scheduled'">
+                            <p class="rd-status">Entrega programada</p>
+                            <p class="rd-sub">Tu pedido ya tiene lugar en la ruta. Te avisamos cuando salga.</p>
+                        </t>
+                        <t t-elif="step == 'on_the_way'">
+                            <p class="rd-status">En camino</p>
+                            <p class="rd-sub">
+                                <t t-if="ahead == 1">Falta 1 parada antes de la tuya.</t>
+                                <t t-else="">Faltan <t t-out="ahead"/> paradas antes de la tuya.</t>
+                            </p>
+                        </t>
+                        <t t-elif="step == 'next'">
+                            <p class="rd-status">Sos la próxima parada</p>
+                            <p class="rd-sub">El reparto va hacia tu domicilio.</p>
+                        </t>
+                        <t t-elif="step == 'delivered'">
+                            <p class="rd-status">Entregado</p>
+                            <p class="rd-sub">
+                                <t t-out="done_at"/>
+                                <t t-if="picking.route_delivery_receiver_name"> · Recibió <t t-out="picking.route_delivery_receiver_name"/></t>
+                            </p>
+                            <p t-if="picking.route_delivery_state == 'partial'" class="rd-sub">
+                                La entrega fue parcial: lo que falta se reprograma.
+                            </p>
+                        </t>
+                        <t t-elif="step == 'failed'">
+                            <p class="rd-status">No pudimos entregar</p>
+                            <p class="rd-sub">
+                                <t t-out="picking.route_delivery_fail_reason_id.name"/>
+                                <t t-if="done_at"> · <t t-out="done_at"/></t>
+                            </p>
+                            <p class="rd-sub">Nos vamos a contactar para coordinar una nueva entrega.</p>
+                        </t>
+                        <t t-else="">
+                            <p class="rd-status">Entrega cancelada</p>
+                        </t>
+
+                        <t t-if="eta_from and step in ('scheduled', 'on_the_way', 'next')">
+                            <p class="rd-eta"><t t-out="eta_from"/> – <t t-out="eta_to"/></p>
+                            <p class="rd-label">Horario estimado · <t t-out="eta_day"/></p>
+                        </t>
+
+                        <ul t-if="step in ('scheduled', 'on_the_way', 'next', 'delivered')" class="rd-steps" aria-hidden="true">
+                            <li class="on"/>
+                            <li t-att-class="'on' if step in ('on_the_way', 'next', 'delivered') else ''"/>
+                            <li t-att-class="'on' if step in ('next', 'delivered') else ''"/>
+                            <li t-att-class="'on' if step == 'delivered' else ''"/>
+                        </ul>
+                    </div>
+
+                    <div class="rd-card">
+                        <div class="rd-row"><span>Pedido</span><span t-out="reference"/></div>
+                        <div t-if="address" class="rd-row"><span>Dirección</span><span t-out="address"/></div>
+                        <div t-if="driver" class="rd-row"><span>Reparte</span><span t-out="driver"/></div>
+                    </div>
+
+                    <a t-if="phone and step != 'delivered'" class="rd-btn" t-attf-href="tel:#{phone}">
+                        Llamar a <t t-out="company.name"/>
+                    </a>
+                    <p t-if="live" class="rd-foot">Esta página se actualiza sola.</p>
+                </div>
+            </body>
+        </html>
+    </template>
+
+    <template id="tracking_not_found" name="Seguimiento no encontrado">
+        <html lang="es">
+            <head>
+                <meta charset="utf-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <meta name="robots" content="noindex, nofollow"/>
+                <title>Seguimiento de entrega</title>
+                <t t-call="route_optimizer_delivery.tracking_styles"/>
+            </head>
+            <body>
+                <div class="rd-wrap">
+                    <div class="rd-card rd-bad">
+                        <p class="rd-status">No encontramos esta entrega</p>
+                        <p class="rd-sub">Revisá que el link esté completo o pedí uno nuevo a quien te lo envió.</p>
+                    </div>
+                </div>
+            </body>
+        </html>
+    </template>
+</odoo>

@@ -1,0 +1,486 @@
+// Despacho: sin asignar | mapa | rutas. Mismo lenguaje visual que la app del chofer.
+.o_route_dispatch_board {
+    $ink: #111827;
+    $muted: #4b5563;
+    $line: #d9dce1;
+    $ground: #f4f5f7;
+    $brand: #714b67;
+    $brand-dark: #5b3a52;
+    $ok: #166534;
+    $warn: #9a3412;
+    $bad: #b91c1c;
+
+    --rdb-tl-name: 130px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: $ground;
+    color: $ink;
+    font-size: 13px;
+
+    h2 { margin: 0; font-size: 16px; font-weight: 700; }
+    .o_rdb_muted { color: $muted; font-size: 12px; }
+    .o_rdb_alert { color: $bad; font-size: 12px; font-weight: 600; }
+    .o_rdb_empty { padding: 18px 8px; color: $muted; text-align: center; }
+    .o_rdb_note { padding: 4px 2px; }
+    .o_rdb_section {
+        font-size: 11px;
+        font-weight: 700;
+        color: $muted;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    // ---------------------------------------------------------- Botones
+    .o_rdb_btn {
+        min-height: 36px;
+        padding: 0 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+        &:disabled { opacity: 0.5; }
+    }
+    .o_rdb_btn_primary { border: 0; background: $brand; color: #fff; &:hover { background: $brand-dark; } }
+    .o_rdb_btn_outline { border: 1px solid $brand; background: #fff; color: $brand-dark; }
+    .o_rdb_btn_ghost { border: 1px solid $line; background: #fff; color: $ink; &:hover { background: #f9fafb; } }
+    .o_rdb_icon_btn {
+        width: 36px;
+        height: 36px;
+        border: 1px solid $line;
+        border-radius: 8px;
+        background: #fff;
+        color: $ink;
+    }
+    .o_rdb_badge {
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    .o_rdb_badge_ok, .o_rdb_badge_delivered { background: #dcfce7; color: $ok; }
+    .o_rdb_badge_warn, .o_rdb_badge_partial { background: #ffedd5; color: $warn; }
+    .o_rdb_badge_bad, .o_rdb_badge_failed { background: #fee2e2; color: #991b1b; }
+    .o_rdb_badge_idle { background: #eceef1; color: #374151; }
+    .o_rdb_badge_best { background: var(--rdb-route); color: #fff; }
+    .o_rdb_tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 5px; }
+    .o_rdb_tag { padding: 1px 7px; border-radius: 6px; background: #eceef1; color: #374151; font-size: 11px; }
+    .o_rdb_tag_warn { background: #ffedd5; color: $warn; }
+    .o_rdb_ref { margin-left: auto; font-size: 11px; }
+
+    // ---------------------------------------------------------- Barra superior
+    .o_rdb_top {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 16px;
+        min-height: 60px;
+        padding: 8px 16px;
+        background: #fff;
+        border-bottom: 1px solid $line;
+    }
+    .o_rdb_brand { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+    .o_rdb_days { display: flex; align-items: center; gap: 4px; }
+    .o_rdb_day {
+        position: relative;
+        display: flex;
+        align-items: center;
+        height: 36px;
+        margin: 0;
+        padding: 0 14px;
+        border: 1px solid $line;
+        border-radius: 8px;
+        background: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        // El selector nativo de fecha cubre el botón, invisible.
+        input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+    }
+    .o_rdb_segment, .o_rdb_tools {
+        display: flex;
+        gap: 2px;
+        padding: 3px;
+        border-radius: 10px;
+        background: #eceef1;
+        button {
+            min-height: 32px;
+            padding: 0 14px;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: $muted;
+            font-weight: 600;
+        }
+        .o_rdb_on { background: #fff; color: $ink; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+    }
+    .o_rdb_kpis {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 18px;
+        color: $muted;
+        strong { font-size: 16px; color: $ink; }
+        .o_rdb_kpi_warn strong { color: $warn; }
+        .o_rdb_kpi_bad strong { color: $bad; }
+        .o_rdb_kpi_ok strong { color: $ok; }
+    }
+    .o_rdb_top_actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+    // ---------------------------------------------------------- Cuerpo
+    .o_rdb_body { display: flex; flex: 1 1 auto; min-height: 0; }
+    .o_rdb_side {
+        display: flex;
+        flex-direction: column;
+        flex: 0 0 330px;
+        min-height: 0;
+        background: #fff;
+    }
+    .o_rdb_left { border-right: 1px solid $line; }
+    .o_rdb_right { flex-basis: 380px; border-left: 1px solid $line; background: $ground; }
+    .o_rdb_side_head { display: flex; flex-direction: column; gap: 8px; padding: 14px 14px 8px; }
+    .o_rdb_side_title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        > span { color: $muted; }
+    }
+    .o_rdb_list {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        gap: 8px;
+        min-height: 0;
+        padding: 4px 14px 14px;
+        overflow-y: auto;
+    }
+    .o_rdb_side_foot {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px 14px 12px;
+        border-top: 1px solid $line;
+        background: #fff;
+    }
+    .o_rdb_foot_row { flex-direction: row; > * { flex: 1 1 0; } }
+    .o_rdb_dropzone_on { box-shadow: inset 0 0 0 3px $ink; }
+    .o_rdb_search {
+        height: 38px;
+        padding: 0 12px;
+        border: 1px solid #9ca3af;
+        border-radius: 8px;
+        font-size: 13px;
+        &:focus { outline: 2px solid $brand; outline-offset: -1px; }
+    }
+    .o_rdb_chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .o_rdb_chip {
+        min-height: 28px;
+        padding: 0 10px;
+        border: 1px solid $line;
+        border-radius: 14px;
+        background: #fff;
+        color: #374151;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    .o_rdb_chip_on { border-color: $brand; background: #f3eef2; color: $brand-dark; font-weight: 700; }
+
+    // Entrega sin asignar
+    .o_rdb_order {
+        display: flex;
+        gap: 10px;
+        margin: 0;
+        padding: 10px;
+        border: 1px solid $line;
+        border-radius: 10px;
+        background: #fff;
+        cursor: grab;
+        input { flex: 0 0 18px; width: 18px; height: 18px; margin-top: 2px; accent-color: $brand; }
+    }
+    .o_rdb_order_on { border-color: $brand; background: #faf7f9; box-shadow: 0 0 0 1px $brand; }
+    .o_rdb_order_main { flex: 1 1 auto; min-width: 0; }
+    .o_rdb_order_head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        strong { font-size: 14px; overflow-wrap: anywhere; }
+        span { color: $muted; white-space: nowrap; }
+    }
+    .o_rdb_new {
+        padding: 12px 10px;
+        border: 2px dashed #9ca3af;
+        border-radius: 8px;
+        color: $muted;
+        text-align: center;
+    }
+    .o_rdb_new_on { border-color: $ink; background: #f9fafb; color: $ink; }
+
+    // ---------------------------------------------------------- Mapa
+    .o_rdb_center { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+    .o_rdb_mapbox { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+    .o_rdb_map { position: absolute; inset: 0; z-index: 0; background: #e6ebee; }
+    .o_rdb_gpins { position: absolute; left: 0; top: 0; }
+    .o_rdb_lasso {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+        cursor: crosshair;
+        touch-action: none;
+        polygon { fill: rgba(113, 75, 103, 0.14); stroke: $brand; stroke-width: 2.5; stroke-dasharray: 7 6; }
+    }
+    .o_rdb_tools {
+        position: absolute;
+        left: 12px;
+        top: 12px;
+        z-index: 3;
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+        .o_rdb_on { background: $brand; color: #fff; box-shadow: none; }
+    }
+    .o_rdb_hint {
+        position: absolute;
+        left: 12px;
+        top: 62px;
+        z-index: 3;
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: $ink;
+        color: #fff;
+        font-size: 12px;
+        // No tiene que frenar el trazo del lazo que pasa por debajo.
+        pointer-events: none;
+    }
+    .o_rdb_selbar {
+        position: absolute;
+        left: 50%;
+        bottom: 18px;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        max-width: calc(100% - 24px);
+        padding: 8px 8px 8px 16px;
+        border-radius: 14px;
+        background: $ink;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        color: #fff;
+        white-space: nowrap;
+        transform: translateX(-50%);
+        button {
+            min-height: 38px;
+            padding: 0 12px;
+            border: 1px solid #6b7280;
+            border-radius: 9px;
+            background: transparent;
+            color: #fff;
+            font-weight: 600;
+            &:disabled { opacity: 0.5; }
+        }
+        .o_rdb_selbar_best { border: 0; }
+    }
+    .o_rdb_incidents {
+        position: absolute;
+        left: 12px;
+        top: 62px;
+        z-index: 3;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: calc(100% - 24px);
+        max-height: 50%;
+        overflow-y: auto;
+    }
+    .o_rdb_incident {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border: 1px solid #fca5a5;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+        > div { flex: 1 1 200px; }
+        strong { color: #991b1b; }
+    }
+
+    // Pines (los mismos en OpenStreetMap y en Google Maps)
+    .o_rdb_pin {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .o_rdb_pin_done { opacity: 0.5; }
+    .o_rdb_pin_selected { width: 34px; height: 34px; margin: -3px; border-width: 3px; box-shadow: 0 0 0 4px rgba(113, 75, 103, 0.55), 0 2px 8px rgba(0, 0, 0, 0.5); }
+    .o_rdb_pin_depot { width: 34px; height: 34px; border-radius: 8px; background: $ink; font-size: 15px; cursor: default; }
+    .o_rdb_truck {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 32px;
+        padding: 0 10px;
+        border: 2px solid #fff;
+        border-radius: 16px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+        color: #fff;
+        font-weight: 700;
+        white-space: nowrap;
+        transform: translate(-50%, -50%);
+    }
+    .o_rdb_gpins .o_rdb_truck { transform: none; }
+
+    // ---------------------------------------------------------- Rutas
+    .o_rdb_route, .o_rdb_option {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid $line;
+        border-top: 4px solid var(--rdb-route);
+        border-radius: 12px;
+        background: #fff;
+    }
+    .o_rdb_route_head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: $ink;
+        text-align: left;
+        strong { flex: 1 1 auto; min-width: 0; font-size: 15px; overflow-wrap: anywhere; }
+        .o_rdi { color: $muted; }
+    }
+    .o_rdb_load {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: $muted;
+        white-space: nowrap;
+    }
+    .o_rdb_bar_track { flex: 1 1 auto; height: 8px; border-radius: 4px; background: #e5e7eb; overflow: hidden; }
+    .o_rdb_bar_fill { height: 100%; }
+    .o_rdb_bar_over { background: $bad; }
+    .o_rdb_route_meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 14px;
+        color: $muted;
+        strong { color: $ink; }
+    }
+    .o_rdb_route_tools {
+        display: flex;
+        align-items: end;
+        gap: 6px;
+        padding-top: 8px;
+        border-top: 1px solid #eceef1;
+    }
+    .o_rdb_driver {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-width: 0;
+        margin: 0;
+        select { height: 36px; padding: 0 8px; border: 1px solid #9ca3af; border-radius: 8px; background: #fff; font-size: 13px; }
+    }
+    .o_rdb_stops { display: flex; flex-direction: column; gap: 5px; }
+    .o_rdb_stop {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 8px;
+        border: 1px solid $line;
+        border-radius: 8px;
+        background: #fff;
+        cursor: pointer;
+        &[draggable="true"] { cursor: grab; }
+    }
+    .o_rdb_stop_delivered, .o_rdb_stop_partial, .o_rdb_stop_failed { background: #f9fafb; }
+    .o_rdb_stop_on { border-color: $brand; background: #faf7f9; box-shadow: 0 0 0 1px $brand; }
+    // Línea donde va a quedar la parada arrastrada.
+    .o_rdb_drop_before { box-shadow: 0 -4px 0 0 $ink; }
+    .o_rdb_stop_end { height: 14px; margin-top: -3px; border-radius: 4px; }
+    .o_rdb_grip { color: #6b7280; }
+    .o_rdb_num {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--rdb-route);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .o_rdb_stop_delivered .o_rdb_num, .o_rdb_stop_partial .o_rdb_num { background: #16a34a; }
+    .o_rdb_stop_failed .o_rdb_num { background: $bad; }
+    .o_rdb_stop_main { flex: 1 1 auto; min-width: 0; strong { overflow-wrap: anywhere; } }
+    .o_rdb_stop_side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
+    .o_rdb_eta { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .o_rdb_eta_late { color: $bad; }
+
+    // Opciones de asignación
+    .o_rdb_option_best { border: 2px solid var(--rdb-route); border-top-width: 4px; }
+    .o_rdb_option_head { display: flex; align-items: center; justify-content: space-between; gap: 8px; strong { font-size: 15px; } }
+    .o_rdb_option_cost { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; strong { font-size: 17px; } }
+
+    // ---------------------------------------------------------- Línea de tiempo
+    .o_rdb_timeline { flex: 0 0 auto; max-height: 40%; padding: 10px 16px 14px; border-top: 1px solid $line; background: #fff; overflow-y: auto; }
+    .o_rdb_tl_hours {
+        display: flex;
+        margin-left: var(--rdb-tl-name);
+        color: $muted;
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        span { flex: 1 1 0; border-left: 1px solid #e5e7eb; padding-left: 3px; }
+    }
+    .o_rdb_tl_lanes { position: relative; display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+    .o_rdb_tl_lane { display: flex; align-items: center; height: 30px; }
+    .o_rdb_tl_name { flex: 0 0 var(--rdb-tl-name); padding-right: 8px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .o_rdb_tl_track { position: relative; flex: 1 1 auto; height: 30px; border-radius: 6px; background: #f1f2f4; }
+    .o_rdb_tl_bar {
+        position: absolute;
+        top: 4px;
+        height: 22px;
+        min-width: 10px;
+        padding: 0 4px;
+        border: 2px solid transparent;
+        border-radius: 5px;
+        background: #fff;
+        color: $ink;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 18px;
+        text-align: left;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .o_rdb_tl_done { border: 1px solid #86efac; background: #dcfce7; color: $ok; }
+    .o_rdb_tl_fail { border: 1px solid #fca5a5; background: #fee2e2; color: #991b1b; }
+    .o_rdb_tl_late { border-color: #ea580c; background: #fff7ed; color: $warn; }
+    .o_rdb_tl_now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: $ink; pointer-events: none; }
+
+    // En pantallas angostas los paneles pasan abajo del mapa.
+    @media (max-width: 1100px) {
+        .o_rdb_body { flex-direction: column; overflow-y: auto; }
+        .o_rdb_center { order: -1; flex: 0 0 auto; }
+        .o_rdb_mapbox { flex: 0 0 360px; }
+        .o_rdb_side { flex: 0 0 auto; border: 0; border-top: 1px solid $line; }
+        .o_rdb_list { overflow: visible; }
+    }
+}

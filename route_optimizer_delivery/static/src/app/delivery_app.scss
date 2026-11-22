@@ -1,0 +1,401 @@
+// App de reparto (celular): botones grandes, una parada por tarjeta, nada que tipear de más.
+.o_route_delivery_app {
+    $rd-primary: #714B67;
+    $rd-border: #d1d5db;
+    $rd-muted: #4b5563;
+    $rd-ok: #166534;
+    $rd-bad: #b91c1c;
+
+    // El contenedor de acciones de Odoo no scrollea: lo hace esta raíz, que ocupa
+    // justo la altura disponible. Sin esto, en el celular no se llega al pie.
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #f3f4f6;
+    color: #111827;
+    font-size: 14px;
+
+    .o_rd_header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px 12px 8px;
+        background: $rd-primary;
+        color: #fff;
+    }
+    .o_rd_header_home { padding-left: 16px; }
+    .o_rd_title { font-size: 18px; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+    .o_rd_sub { font-size: 12px; opacity: 0.9; }
+    .o_rd_header_stats { text-align: right; font-size: 12px; line-height: 1.3; white-space: nowrap; }
+    .o_rd_header_stats strong { font-size: 18px; }
+    .o_rd_back {
+        flex: 0 0 44px;
+        width: 44px;
+        height: 44px;
+        border: none;
+        background: transparent;
+        color: #fff;
+        font-size: 20px;
+    }
+    .o_rd_app_icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: #fff;
+        color: $rd-primary;
+        font-size: 22px;
+    }
+
+    .o_rd_body {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px 14px 20px;
+        flex-grow: 1;
+    }
+    .o_rd_section_title {
+        margin-top: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        color: $rd-muted;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .o_rd_empty, .o_rd_muted { color: $rd-muted; font-size: 13px; }
+    .o_rd_hint { color: $rd-muted; font-size: 12px; line-height: 1.4; text-align: center; }
+    .o_rd_alert { color: #9a3412; font-size: 13px; font-weight: 600; }
+    .o_rd_pre { white-space: pre-line; }
+    .o_rd_link {
+        background: none;
+        border: none;
+        color: $rd-primary;
+        font-weight: 600;
+        min-height: 44px;
+        text-align: center;
+    }
+    .o_rd_install { display: flex; flex-direction: column; gap: 6px; margin-top: auto; padding-top: 12px; }
+
+    // Aviso de sin conexión / pendiente de enviar
+    .o_rd_sync {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        background: #1f2937;
+        color: #fff;
+        font-size: 13px;
+    }
+    .o_rd_sync_bad { background: #991b1b; }
+    .o_rd_sync_text { flex: 1 1 auto; min-width: 0; }
+    .o_rd_sync_btn {
+        flex: 0 0 auto;
+        min-height: 38px;
+        padding: 0 12px;
+        border: 1px solid #fff;
+        border-radius: 8px;
+        background: transparent;
+        color: #fff;
+        font-weight: 600;
+        &:disabled { opacity: 0.6; }
+    }
+
+    // Estado de la ubicación mientras se reparte
+    .o_rd_gps {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: #eceef1;
+        color: #374151;
+        font-size: 13px;
+    }
+    .o_rd_gps_dot { flex: 0 0 10px; height: 10px; border-radius: 50%; background: #9ca3af; }
+    .o_rd_gps_on { background: #dcfce7; color: $rd-ok; .o_rd_gps_dot { background: #16a34a; } }
+    .o_rd_gps_off { background: #fee2e2; color: #991b1b; .o_rd_gps_dot { background: $rd-bad; } }
+
+    // Tarjetas
+    .o_rd_card {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 14px;
+        background: #fff;
+        border: 1px solid $rd-border;
+        border-radius: 12px;
+        color: #111827;
+    }
+    .o_rd_card_button { width: 100%; text-align: left; }
+    .o_rd_card_active { border: 2px solid $rd-primary; }
+    .o_rd_card_done { background: #f0fdf4; border-color: #86efac; color: $rd-ok; }
+    .o_rd_card_title { font-size: 17px; font-weight: 700; }
+    .o_rd_result_delivered { border-left: 5px solid #16a34a; }
+    .o_rd_result_partial { border-left: 5px solid #d97706; }
+    .o_rd_result_failed { border-left: 5px solid $rd-bad; }
+    .o_rd_address { font-size: 16px; font-weight: 600; }
+    .o_rd_note { padding: 8px 10px; border-radius: 8px; background: #fef9c3; color: #713f12; }
+
+    .o_rd_badge {
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .o_rd_badge_active { background: $rd-primary; color: #fff; }
+    .o_rd_badge_idle { background: #e5e7eb; color: #374151; }
+    .o_rd_badge_done, .o_rd_badge_delivered { background: #dcfce7; color: $rd-ok; }
+    .o_rd_badge_partial { background: #ffedd5; color: #9a3412; }
+    .o_rd_badge_failed { background: #fee2e2; color: #991b1b; }
+
+    .o_rd_progress {
+        height: 8px;
+        border-radius: 4px;
+        background: #e5e7eb;
+        overflow: hidden;
+        > div { height: 100%; background: $rd-primary; }
+    }
+
+    // Botones: mínimo 46 px de alto para el pulgar
+    .o_rd_btn {
+        width: 100%;
+        min-height: 46px;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 600;
+        &:disabled, &.disabled { opacity: 0.45; pointer-events: none; }
+    }
+    .o_rd_btn_primary { background: $rd-primary; color: #fff; border: none; }
+    .o_rd_btn_secondary { background: #fff; color: $rd-primary; border: 2px solid $rd-primary; }
+    .o_rd_btn_danger { background: #fff; color: $rd-bad; border: 2px solid $rd-bad; }
+    .o_rd_btn_danger_solid { background: $rd-bad; color: #fff; border: none; }
+    .o_rd_btn_scan { min-height: 54px; font-size: 17px; font-weight: 700; }
+    .o_rd_btn_inline { width: auto; padding: 0 18px; }
+    .o_rd_btn_link {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        min-height: 56px;
+        font-size: 13px;
+        text-decoration: none;
+        .o_rdi { font-size: 20px; }
+    }
+    .o_rd_actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+    .o_rd_actions_2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .o_rd_grid_2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+    // Campos: 16 px para que iOS no haga zoom al enfocar
+    .o_rd_manual { display: flex; flex-direction: column; gap: 4px; }
+    .o_rd_field_label { display: block; margin: 0 0 4px; font-size: 13px; font-weight: 600; color: $rd-muted; }
+    .o_rd_input {
+        width: 100%;
+        min-width: 0;
+        height: 48px;
+        padding: 0 12px;
+        border: 1px solid #9ca3af;
+        border-radius: 10px;
+        background: #fff;
+        font-size: 16px;
+        color: #111827;
+        &:focus { outline: none; border: 2px solid $rd-primary; padding: 0 11px; }
+    }
+    .o_rd_textarea { height: auto; padding: 10px 12px; &:focus { padding: 9px 11px; } }
+
+    // Paradas de la ruta
+    .o_rd_stop {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        width: 100%;
+        padding: 12px;
+        text-align: left;
+        background: #fff;
+        border: 1px solid $rd-border;
+        border-radius: 12px;
+        color: #111827;
+    }
+    .o_rd_stop_next { border: 2px solid $rd-primary; background: #fbf8fa; }
+    .o_rd_stop_delivered, .o_rd_stop_partial, .o_rd_stop_failed { background: #f9fafb; }
+    .o_rd_stop_num {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: #f3eef2;
+        color: $rd-primary;
+        font-size: 16px;
+        font-weight: 700;
+    }
+    .o_rd_stop_delivered .o_rd_stop_num { background: #dcfce7; color: $rd-ok; }
+    .o_rd_stop_partial .o_rd_stop_num { background: #ffedd5; color: #9a3412; }
+    .o_rd_stop_failed .o_rd_stop_num { background: #fee2e2; color: #991b1b; }
+    .o_rd_stop_main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .o_rd_stop_name { font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+    .o_rd_stop_side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    .o_rd_eta { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    // Productos de la parada
+    .o_rd_line {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        background: #fff;
+        border: 1px solid $rd-border;
+        border-radius: 10px;
+        &:focus-within { border-color: $rd-primary; box-shadow: 0 0 0 2px $rd-primary; }
+    }
+    .o_rd_line_short { background: #fff7ed; border-color: #fdba74; }
+    .o_rd_line_label { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+    .o_rd_line_qty { display: flex; flex-direction: column; align-items: flex-end; flex: 0 0 auto; }
+    .o_rd_number {
+        width: 84px;
+        height: 44px;
+        padding: 0 8px;
+        border: 1px solid #9ca3af;
+        border-radius: 8px;
+        text-align: right;
+        font-size: 22px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: #111827;
+        &:focus { outline: none; }
+    }
+    .o_rd_check { color: $rd-ok; }
+    .o_rd_chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .o_rd_chip {
+        padding: 6px 10px;
+        border: 1px dashed #9ca3af;
+        border-radius: 8px;
+        background: #f9fafb;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .o_rd_chip_ok { border: 1px solid #86efac; background: #dcfce7; color: $rd-ok; }
+
+    // Fotos
+    .o_rd_photos { display: flex; flex-wrap: wrap; gap: 8px; }
+    .o_rd_photo {
+        position: relative;
+        width: 84px;
+        height: 84px;
+        img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+        button {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 50%;
+            background: #111827;
+            color: #fff;
+        }
+    }
+    .o_rd_photo_add {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        width: 84px;
+        height: 84px;
+        margin: 0;
+        border: 2px dashed $rd-primary;
+        border-radius: 10px;
+        background: #fff;
+        color: $rd-primary;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        .o_rdi { font-size: 22px; }
+    }
+
+    // Firma
+    .o_rd_signature {
+        position: relative;
+        height: 170px;
+        border: 1px solid #9ca3af;
+        border-radius: 10px;
+        background: #fff;
+        overflow: hidden;
+    }
+    .o_rd_signature_canvas { width: 100%; height: 100%; touch-action: none; }
+    .o_rd_signature_hint {
+        position: absolute;
+        inset: auto 0 14px 0;
+        margin: 0 16px;
+        padding-top: 6px;
+        border-top: 1px solid #d1d5db;
+        text-align: center;
+        color: #6b7280;
+        font-size: 13px;
+        pointer-events: none;
+    }
+    .o_rd_signature_clear {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        min-height: 36px;
+        padding: 0 12px;
+        border: 1px solid $rd-border;
+        border-radius: 8px;
+        background: #fff;
+        color: $rd-muted;
+        font-weight: 600;
+    }
+
+    // Motivos de no entrega
+    .o_rd_reason {
+        width: 100%;
+        min-height: 52px;
+        padding: 0 14px;
+        text-align: left;
+        background: #fff;
+        border: 1px solid $rd-border;
+        border-radius: 10px;
+        font-size: 16px;
+        color: #111827;
+    }
+    .o_rd_reason_on { border: 2px solid $rd-bad; background: #fef2f2; font-weight: 700; }
+
+    .o_rd_partial {
+        position: sticky;
+        bottom: 84px;
+        margin: 0 14px;
+        padding: 10px 12px;
+        border: 2px solid #d97706;
+        border-radius: 10px;
+        background: #fff7ed;
+        color: #7c2d12;
+        font-size: 13px;
+    }
+
+    .o_rd_footer {
+        position: sticky;
+        bottom: 0;
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 8px;
+        padding: 10px 14px calc(12px + env(safe-area-inset-bottom));
+        background: #fff;
+        border-top: 1px solid #e5e7eb;
+        > :only-child { grid-column: 1 / -1; }
+    }
+}

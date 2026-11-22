@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_batch_form_route_delivery" model="ir.ui.view">
+        <field name="name">stock.picking.batch.form.route_delivery</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="inherit_id" ref="stock_picking_batch.stock_picking_batch_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@id='batch_delivery_data']" position="inside">
+                <field name="route_delivery_started_at" invisible="not route_delivery_started_at"/>
+                <field name="route_delivery_finished_at" invisible="not route_delivery_finished_at"/>
+            </xpath>
+            <xpath expr="//notebook/page[1]" position="before">
+                <page string="Recorrido" name="route_delivery_route" invisible="not picking_ids">
+                    <widget name="route_delivery_route"/>
+                </page>
+            </xpath>
+            <!-- El resumen en texto de la última optimización lo reemplaza la pestaña Recorrido. -->
+            <xpath expr="//field[@name='route_optimizer_visit_summary']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <!-- Menos botones arriba: Google Maps, WhatsApp y recalcular viven en la pestaña Recorrido. -->
+            <xpath expr="//button[@name='action_open_gmaps_route']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_share_whatsapp']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>

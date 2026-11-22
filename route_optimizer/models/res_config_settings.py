@@ -127,6 +127,22 @@ class ResConfigSettings(models.TransientModel):
         default=600,
         help="Tiempo estimado en cada parada, sumado a la dimensión de tiempo de viaje.",
     )
+    route_optimizer_break_duration_minutes = fields.Integer(
+        string="Descanso del chofer (min)",
+        config_parameter="route_optimizer.break_duration_minutes",
+        help="Pausa obligatoria por ruta al optimizar por duración. 0 = sin descanso.",
+    )
+    route_optimizer_break_earliest_hour = fields.Float(
+        string="Descanso: desde",
+        config_parameter="route_optimizer.break_earliest_hour",
+        default=12.0,
+    )
+    route_optimizer_break_latest_hour = fields.Float(
+        string="Descanso: hasta",
+        config_parameter="route_optimizer.break_latest_hour",
+        default=14.0,
+        help="El descanso empieza entre estas dos horas.",
+    )
     route_optimizer_block_outside_windows = fields.Boolean(
         string="Bloquear optimización fuera de ventana",
         config_parameter="route_optimizer.block_outside_windows",

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-name="route_optimizer_delivery.PodCard">
+    <div t-attf-class="o_rdw o_rdw_pod o_rdw_tone_{{ this.tone }}">
+        <div class="o_rdw_head">
+            <div>
+                <div class="o_rdw_title" t-out="this.title"/>
+                <div class="o_rdw_muted" t-out="this.subtitle"/>
+            </div>
+            <div t-if="this.step === 'delivered' or this.step === 'failed'" class="o_rdw_when">
+                <strong t-out="this.time(this.data.route_delivery_done_at)"/>
+                <span class="o_rdw_muted" t-out="this.day(this.data.route_delivery_done_at)"/>
+            </div>
+            <div t-elif="this.data.route_delivery_eta and this.state.info and this.state.info.in_route" class="o_rdw_when">
+                <strong t-out="this.time(this.data.route_delivery_eta)"/>
+                <span t-if="this.state.info.late_minutes >= 10" class="o_rdw_alert"><t t-out="this.state.info.late_minutes"/> min tarde</span>
+                <span t-else="" class="o_rdw_muted">hora estimada</span>
+            </div>
+        </div>
+
+        <div t-if="this.step !== 'failed' and this.step !== 'cancel'" class="o_rdw_steps" aria-hidden="true">
+            <span t-foreach="this.stepMarks" t-as="mark" t-key="mark_index" t-att-class="mark ? 'o_rdw_on' : ''"/>
+        </div>
+        <div t-if="this.step !== 'failed' and this.step !== 'cancel'" class="o_rdw_step_labels">
+            <span>Programada</span><span>En camino</span><span>Próxima</span><span>Entregada</span>
+        </div>
+
+        <div t-if="this.step === 'failed'" class="o_rdw_reason">
+            <strong t-out="this.data.route_delivery_fail_reason_id ? (this.data.route_delivery_fail_reason_id.display_name or this.data.route_delivery_fail_reason_id[1]) : 'Sin motivo cargado'"/>
+            <div t-if="this.data.route_delivery_note" t-out="this.data.route_delivery_note"/>
+        </div>
+
+        <div t-if="this.step === 'delivered'" class="o_rdw_grid">
+            <div t-if="this.data.route_delivery_receiver_name">
+                <span class="o_rdw_label">Recibió</span>
+                <strong t-out="this.data.route_delivery_receiver_name"/>
+                <span t-if="this.data.route_delivery_receiver_doc" class="o_rdw_muted">DNI <t t-out="this.data.route_delivery_receiver_doc"/></span>
+            </div>
+            <div t-if="this.data.route_delivery_packages">
+                <span class="o_rdw_label">Bultos</span>
+                <strong t-out="this.data.route_delivery_packages"/>
+            </div>
+            <div t-if="this.data.route_delivery_cod_amount">
+                <span class="o_rdw_label">Cobrado</span>
+                <strong>$ <t t-out="this.data.route_delivery_cod_amount.toLocaleString('es-AR')"/></strong>
+            </div>
+            <div t-if="this.data.route_delivery_user_id">
+                <span class="o_rdw_label">Entregó</span>
+                <strong t-out="this.data.route_delivery_user_id.display_name or this.data.route_delivery_user_id[1]"/>
+            </div>
+        </div>
+        <div t-if="this.step === 'delivered' and this.data.route_delivery_partial_detail" class="o_rdw_partial">
+            <span class="o_rdw_label">No se entregó todo</span>
+            <div class="o_rdw_pre" t-out="this.data.route_delivery_partial_detail"/>
+        </div>
+        <div t-if="this.step === 'delivered' and this.data.route_delivery_note" class="o_rdw_note" t-out="this.data.route_delivery_note"/>
+
+        <div t-if="this.state.info and (this.state.info.photos.length or this.state.info.has_signature)" class="o_rdw_media">
+            <button t-foreach="this.state.info.photos" t-as="photo" t-key="photo.id" type="button" class="o_rdw_photo"
+                    t-att-aria-label="'Abrir ' + photo.name" t-on-click="() => this.openPhoto(photo)">
+                <img t-att-src="this.photoUrl(photo)" t-att-alt="photo.name" loading="lazy"/>
+            </button>
+            <div t-if="this.state.info.has_signature" class="o_rdw_signature">
+                <img t-att-src="this.signatureUrl" alt="Firma de quien recibió"/>
+                <span class="o_rdw_muted">Firma</span>
+            </div>
+        </div>
+
+        <div t-if="this.state.info and this.state.info.in_route" class="o_rdw_actions">
+            <button type="button" class="o_rdw_btn" t-on-click="this.copyLink"><i class="o_rdi o_rdi-map-o"/> Copiar link de seguimiento</button>
+            <button type="button" class="o_rdw_btn" t-on-click="this.openLink">Ver como el cliente</button>
+            <button t-if="this.state.info.has_phone" type="button" class="o_rdw_btn" t-on-click="this.whatsapp"><i class="o_rdi o_rdi-whatsapp"/> Enviar por WhatsApp</button>
+            <button type="button" class="o_rdw_btn" t-on-click="this.openRoute"><i class="o_rdi o_rdi-truck"/> Abrir ruta</button>
+            <button t-if="this.step === 'delivered' or this.step === 'failed'" type="button" class="o_rdw_btn o_rdw_btn_quiet" t-on-click="this.reset">Volver a pendiente</button>
+        </div>
+    </div>
+</t>
+
+</templates>

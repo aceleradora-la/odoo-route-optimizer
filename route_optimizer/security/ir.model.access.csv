@@ -1,2 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_route_optimizer_wizard_user,route.optimizer.wizard user,model_route_optimizer_wizard,stock.group_stock_user,1,1,1,1
+access_route_optimizer_wizard_vehicle_user,route.optimizer.wizard.vehicle user,model_route_optimizer_wizard_vehicle,stock.group_stock_user,1,1,1,1
