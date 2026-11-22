@@ -25,8 +25,23 @@ def _build_qr_data_uri(text):
         return False
 
 
+def _core_batch_has(field_name):
+    """True si el lote de Odoo ya trae ese campo (algunos llegaron recién en la 18)."""
+    try:
+        from odoo.addons.stock_picking_batch.models.stock_picking_batch import StockPickingBatch as core
+    except ImportError:  # Odoo 20: los lotes son parte de `stock`
+        return True
+    return hasattr(core, field_name)
+
+
 class StockPickingBatch(models.Model):
     _inherit = "stock.picking.batch"
+
+    if not _core_batch_has("warehouse_id"):
+        # Odoo 17: el depósito del lote sale de su tipo de operación.
+        warehouse_id = fields.Many2one(
+            "stock.warehouse", related="picking_type_id.warehouse_id", string="Depósito"
+        )
 
     route_optimizer_last_message = fields.Char(
         string="Última optimización de ruta",

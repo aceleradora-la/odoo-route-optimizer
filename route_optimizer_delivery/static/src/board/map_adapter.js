@@ -1,3 +1,4 @@
+/** @odoo-module **/
 import { loadJS, loadCSS } from "@web/core/assets";
 
 /**

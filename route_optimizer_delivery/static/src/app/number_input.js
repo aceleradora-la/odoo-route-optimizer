@@ -1,3 +1,4 @@
+/** @odoo-module **/
 /**
  * Números tipeados en el celular (app de reparto).
  *
