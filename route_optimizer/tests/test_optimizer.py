@@ -22,7 +22,17 @@ class TestOptimizerPayload(TransactionCase):
             [("company_id", "=", cls.env.company.id)], limit=1
         )
         cls.warehouse.partner_id.write({"partner_latitude": -34.60, "partner_longitude": -58.38})
-        product = cls.env["product.product"].create({"name": "Bulto", "is_storable": True, "weight": 10})
+        product = cls.env["product.product"].create(
+            {
+                "name": "Bulto",
+                "weight": 10,
+                **(
+                    {"is_storable": True}
+                    if "is_storable" in cls.env["product.template"]._fields
+                    else {"detailed_type": "product"}
+                ),
+            }
+        )
         customers = cls.env.ref("stock.stock_location_customers")
         cls.pickings = cls.env["stock.picking"]
         for index in range(1, 5):
@@ -41,6 +51,7 @@ class TestOptimizerPayload(TransactionCase):
                     "location_dest_id": customers.id,
                     "move_ids": [(0, 0, {
                         "product_id": product.id,
+                        **({"name": product.name} if "name" in cls.env["stock.move"]._fields else {}),
                         "product_uom_qty": 1,
                         "location_id": cls.warehouse.lot_stock_id.id,
                         "location_dest_id": customers.id,

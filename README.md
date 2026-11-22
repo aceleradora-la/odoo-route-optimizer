@@ -9,7 +9,7 @@ Planificá, repartí y seguí tus entregas desde Odoo. Community y Enterprise.
 | | Módulo | Qué hace | Odoo |
 |---|---|---|---|
 | <img src="route_optimizer/static/description/icon.png" width="40"> | **Route Optimizer** `route_optimizer` | Ordena las entregas de un lote: varios vehículos, capacidad, ventanas horarias, hoja de ruta en PDF y por WhatsApp. | 17 · 18 · 19 · 20 |
-| <img src="route_optimizer_delivery/static/description/icon.png" width="40"> | **Reparto** `route_optimizer_delivery` | App del chofer con prueba de entrega, seguimiento para el cliente y despacho con mapa. | 19 · 20 |
+| <img src="route_optimizer_delivery/static/description/icon.png" width="40"> | **Reparto** `route_optimizer_delivery` | App del chofer con prueba de entrega, seguimiento para el cliente y despacho con mapa. | 17 · 18 · 19 · 20 |
 | <img src="route_optimizer_fleet/static/description/icon.png" width="40"> | **Flota** `route_optimizer_fleet` | Vehículo de Flota en el optimizador, con su capacidad precargada. | 17 · 18 · 19 · 20 |
 | <img src="delivery_zone/static/description/icon.png" width="40"> | **Zonas de Entrega** `delivery_zone` | Zonas detectadas desde Google My Maps y lotes automáticos por zona. No requiere los demás. | 17 · 18 · 19 · 20 |
 

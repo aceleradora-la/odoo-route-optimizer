@@ -7,6 +7,13 @@ from odoo import fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import HttpCase, TransactionCase, new_test_user, tagged
 
+def STORABLE(env):
+    """Producto con stock: `is_storable` desde Odoo 18, `detailed_type` en 17."""
+    if "is_storable" in env["product.template"]._fields:
+        return {"is_storable": True}
+    return {"detailed_type": "product"}
+
+
 # PNG de 1x1 válido: alcanza para firma y fotos.
 PIXEL = base64.b64encode(
     base64.b64decode(
@@ -34,7 +41,7 @@ class RouteDeliveryCommon(TransactionCase):
             cls.env, login="chofer_otro", groups="route_optimizer_delivery.group_route_delivery_driver"
         )
         cls.product = cls.env["product.product"].create(
-            {"name": "Caja de prueba", "is_storable": True, "barcode": "7790001112223"}
+            {"name": "Caja de prueba", "barcode": "7790001112223", **STORABLE(cls.env)}
         )
         cls.env["stock.quant"]._update_available_quantity(
             cls.product, cls.warehouse.lot_stock_id, 100
@@ -67,6 +74,7 @@ class RouteDeliveryCommon(TransactionCase):
                             0,
                             {
                                 "product_id": cls.product.id,
+                                **({"name": cls.product.name} if "name" in cls.env["stock.move"]._fields else {}),
                                 "product_uom_qty": 5,
                                 "location_id": cls.warehouse.lot_stock_id.id,
                                 "location_dest_id": cls.env.ref("stock.stock_location_customers").id,
@@ -275,6 +283,7 @@ class TestRouteDelivery(RouteDeliveryCommon):
                 "move_ids": [
                     (0, 0, {
                         "product_id": self.product.id,
+                        **({"name": self.product.name} if "name" in self.env["stock.move"]._fields else {}),
                         "product_uom_qty": qty,
                         "location_id": self.warehouse.lot_stock_id.id,
                         "location_dest_id": customers.id,
@@ -733,6 +742,10 @@ class TestRouteDeliveryHttp(RouteDeliveryCommon, HttpCase):
         self.assertEqual(self.url_open("/reparto/t/x").status_code, 404)
 
     def test_installable_app_manifest(self):
+        from odoo.addons.web.controllers import webmanifest
+
+        if not hasattr(webmanifest.WebManifest, "_get_scoped_app_name"):
+            self.skipTest("Esta versión de Odoo no tiene apps instalables por separado")
         response = self.url_open(
             "/web/manifest.scoped_app_manifest?app_id=route_optimizer_delivery"
             "&path=/scoped_app/reparto"
