@@ -14,7 +14,7 @@ from odoo.tools import float_compare
 
 from odoo.addons.route_optimizer.models.stock_picking import _move_uom
 
-from ..services import whatsapp_client
+from ..services import sms_client, whatsapp_client
 
 _logger = logging.getLogger(__name__)
 
@@ -253,7 +253,8 @@ class StockPicking(models.Model):
     def _route_delivery_notify(self, kind):
         """Avisa al cliente del paso `kind` por los canales que estén activos."""
         self._route_delivery_notify_email(kind)
-        self._route_delivery_notify_whatsapp(kind)
+        reached = self._route_delivery_notify_whatsapp(kind)
+        self._route_delivery_notify_sms(kind, reached)
 
     def _route_delivery_notify_email(self, kind):
         icp = self.env["ir.config_parameter"].sudo()
@@ -285,11 +286,12 @@ class StockPicking(models.Model):
         def param(key, default=""):
             return (icp.get_param("route_optimizer_delivery.%s" % key) or default).strip()
 
+        reached = self.browse()
         if param("whatsapp_enabled") not in ("True", "1", "true"):
-            return
+            return reached
         template = param("whatsapp_tpl_%s" % kind)
         if not template:
-            return
+            return reached
         for picking in self:
             partner = picking._route_delivery_customer()
             number = whatsapp_client.normalize_phone(partner.phone, param("whatsapp_country_code"))
@@ -304,11 +306,57 @@ class StockPicking(models.Model):
                     template,
                     param("whatsapp_language", "es_AR"),
                     [partner.name or "", picking.origin or picking.name, picking.route_delivery_tracking_url],
-                    version=param("whatsapp_api_version", "v22.0"),
+                    version=param("whatsapp_api_version", "v26.0"),
                 )
+                reached |= picking
             except whatsapp_client.WhatsappError as error:
                 _logger.warning("WhatsApp %s de %s: %s", kind, picking.name, error)
                 picking.sudo().message_post(body=_("No se pudo avisar por WhatsApp: %s") % error)
+        return reached
+
+    def _route_delivery_notify_sms(self, kind, reached_by_whatsapp=None):
+        """Aviso por SMS con el proveedor configurado.
+
+        En modo «respaldo» solo se manda a quienes no les llegó el WhatsApp. Un envío
+        que falla deja una nota en el traslado y no frena el reparto.
+        """
+        icp = self.env["ir.config_parameter"].sudo()
+
+        def param(key, default=""):
+            return (icp.get_param("route_optimizer_delivery.%s" % key) or default).strip()
+
+        if param("sms_enabled") not in ("True", "1", "true"):
+            return self.browse()
+        template = param("sms_text_%s" % kind)
+        if not template:
+            return self.browse()
+        targets = self
+        if param("sms_mode", "fallback") == "fallback" and reached_by_whatsapp:
+            targets = self - reached_by_whatsapp
+        credentials = {key: param("sms_%s" % key) for key in ("account", "secret", "sender", "base_url")}
+        sent = self.browse()
+        for picking in targets:
+            partner = picking._route_delivery_customer()
+            number = whatsapp_client.normalize_phone(partner.phone, param("whatsapp_country_code"))
+            if not number:
+                continue
+            picking._route_delivery_ensure_token()
+            values = {
+                "empresa": picking.company_id.name or "",
+                "nombre": partner.name or "",
+                "pedido": picking.origin or picking.name,
+                "link": picking.route_delivery_tracking_url,
+            }
+            text = template
+            for key, value in values.items():
+                text = text.replace("{%s}" % key, value)
+            try:
+                sms_client.send(param("sms_provider", "twilio"), credentials, number, text)
+                sent |= picking
+            except sms_client.SmsError as error:
+                _logger.warning("SMS %s de %s: %s", kind, picking.name, error)
+                picking.sudo().message_post(body=_("No se pudo avisar por SMS: %s") % error)
+        return sent
 
     # ------------------------------------------------------------------
     # Datos para la app y el tablero

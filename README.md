@@ -42,9 +42,10 @@ Con Google como motor, las horas estimadas y el dibujo de cada ruta salen de Rou
 
 - **Sin conexión**: con la app abierta, el chofer sigue cargando entregas sin señal; quedan en el teléfono y se envían solas al volver la conexión. Abrir la app desde cero sin señal no es posible.
 - **WhatsApp automático**: *Ajustes → Inventario → Reparto*. Usa WhatsApp Business (Cloud API de Meta) y necesita una plantilla aprobada por aviso, con tres variables en el cuerpo: `{{1}}` nombre, `{{2}}` pedido, `{{3}}` link de seguimiento. Cargá los teléfonos con código de país.
+- **SMS**: mismo lugar. Proveedores: Twilio, Vonage, Plivo, Telnyx, Infobip, ClickSend y Bird. Puede salir siempre o solo como respaldo cuando el WhatsApp no llegó. Los textos se editan en Ajustes ({empresa}, {nombre}, {pedido}, {link}); sin acentos entran 160 caracteres por SMS. Hay un botón para mandar un SMS de prueba.
 - **Reportes**: *Inventario → Reportes → Reparto*: entregas (a tiempo, tarde, fallidas por motivo, por chofer) y rutas (km y tiempo planificados contra reales).
 
-Los avisos por correo y WhatsApp al cliente y la validación del traslado al entregar vienen apagados: se activan en *Ajustes → Inventario → Reparto*.
+Los avisos por correo, WhatsApp y SMS al cliente y la validación del traslado al entregar vienen apagados: se activan en *Ajustes → Inventario → Reparto*.
 
 ## Desarrollo
 
