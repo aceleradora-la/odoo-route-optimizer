@@ -1,11 +1,10 @@
+/** @odoo-module **/
 import { Component, onWillStart, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { BarcodeDialog } from "@web/core/barcode/barcode_dialog";
-import { isBarcodeScannerSupported } from "@web/core/barcode/barcode_video_scanner";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { parseNum, formatNum, normalizeNum, selectOnFocus } from "./number_input";
-import { reactive } from "./owl_compat";
+import { barcodeApi, reactive } from "./owl_compat";
 import { offlineStore } from "./offline_store";
 
 const MODEL = "stock.picking.batch";
@@ -71,7 +70,12 @@ export class RouteDeliveryApp extends Component {
         this.orm = useService("orm");
         this.dialog = useService("dialog");
         this.notification = useService("notification");
-        this.pwa = useService("pwa");
+        // La app instalable por separado existe desde Odoo 18; antes no hay servicio.
+        try {
+            this.pwa = useService("pwa");
+        } catch {
+            this.pwa = null;
+        }
         this.state = reactive({
             screen: "home", // home | route | stop | fail
             user: "",
@@ -92,7 +96,8 @@ export class RouteDeliveryApp extends Component {
             stale: false, // se está viendo una copia guardada, no datos recién traídos
             checked: {}, // códigos de bultos y productos ya controlados
         });
-        this.scannerSupported = isBarcodeScannerSupported();
+        this.barcode = barcodeApi();
+        this.scannerSupported = this.barcode.isSupported();
         this.position = null;
         this.selectOnFocus = selectOnFocus;
         onWillStart(async () => {
@@ -379,7 +384,7 @@ export class RouteDeliveryApp extends Component {
     }
 
     get canInstall() {
-        return !this.pwa.isScopedApp && !window.matchMedia("(display-mode: standalone)").matches;
+        return Boolean(this.pwa) && !this.pwa.isScopedApp && !window.matchMedia("(display-mode: standalone)").matches;
     }
 
     /** La misma página que Odoo usa para instalar Código de Barras, con nuestro nombre. */
@@ -503,7 +508,7 @@ export class RouteDeliveryApp extends Component {
         return new Promise((resolve) => {
             let code = null;
             this.dialog.add(
-                BarcodeDialog,
+                this.barcode.BarcodeDialog,
                 {
                     facingMode: "environment",
                     onResult: (result) => {

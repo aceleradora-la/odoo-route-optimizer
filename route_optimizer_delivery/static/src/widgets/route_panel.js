@@ -1,3 +1,4 @@
+/** @odoo-module **/
 import { Component, onMounted, onWillStart, onWillUnmount, onWillUpdateProps } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";

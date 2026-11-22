@@ -16,6 +16,8 @@ volver a correr el script. Verificado contra el fuente de cada versión:
   view_mode                17 usa "tree,form"; 18+ usan "list,form"
   stock_partner_delivery_window   no existe en OCA 17.0 (la integración es
                            opcional: el código ya degrada solo si falta)
+  aggregator / path        17 usa `group_operator` y no tiene URL cortas de acción
+  vistas del lote          17 no trae la lista ordenable ni el grupo del formulario
 
   ir.model.access.csv      Odoo 20 usa security/ir.access.csv (otro formato)
   stock_picking_batch      en Odoo 20 se fusionó dentro de `stock` (mismos ids)
@@ -64,6 +66,93 @@ def list_to_tree():
             )
         else:
             text = text.replace('"view_mode": "list,form"', '"view_mode": "tree,form"')
+        if text != original:
+            path.write_text(text, encoding="utf-8")
+            changed.append(str(path.relative_to(ROOT)))
+    return changed
+
+
+def odoo17_field_and_action_names():
+    """Dos nombres que en Odoo 17 son otros o no existen.
+
+    - `aggregator` (cómo se agrega un campo en los reportes) se llamaba `group_operator`.
+    - Las acciones cliente no tienen `path`: las URL cortas (/odoo/reparto) llegaron en 18.
+    """
+    changed = []
+    for path in sorted(ROOT.glob("*/*/*.py")) + sorted(ROOT.glob("*/views/*.xml")):
+        text = original = path.read_text(encoding="utf-8")
+        if path.suffix == ".py":
+            text = text.replace('aggregator="', 'group_operator="')
+        else:
+            text = re.sub(r'\n\s*(<!--[^\n]*-->\n\s*)?<field name="path">[^<]*</field>', "", text)
+        if text != original:
+            path.write_text(text, encoding="utf-8")
+            changed.append(str(path.relative_to(ROOT)))
+    return changed
+
+
+ODOO17_BATCH_VIEWS = """<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Solo Odoo 17: lo que en 18+ ya trae el lote de fábrica. -->
+
+    <!-- Lista de traslados del lote, ordenable por orden de visita. Prioridad alta para
+         que no pase a ser la lista por defecto de los traslados. -->
+    <record id="stock_picking_view_batch_tree_ref" model="ir.ui.view">
+        <field name="name">stock.picking.tree.batch.route_optimizer</field>
+        <field name="model">stock.picking</field>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <tree default_order="batch_sequence, id" decoration-muted="state == 'cancel'">
+                <field name="batch_sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="scheduled_date"/>
+                <field name="origin" optional="show"/>
+                <field name="state" widget="badge"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="stock_picking_batch_form_odoo17" model="ir.ui.view">
+        <field name="name">stock.picking.batch.form.odoo17</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="inherit_id" ref="stock_picking_batch.stock_picking_batch_form"/>
+        <field name="priority">5</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='scheduled_date']/.." position="attributes">
+                <attribute name="id">batch_delivery_data</attribute>
+            </xpath>
+            <xpath expr="//page[@name='page_transfers']//field[@name='picking_ids']" position="attributes">
+                <attribute name="context">{'form_view_ref': 'stock_picking_batch.view_picking_form_inherited', 'tree_view_ref': 'route_optimizer.stock_picking_view_batch_tree_ref'}</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>
+"""
+
+
+def odoo17_batch_views():
+    """Odoo 17 no tiene la lista propia de traslados del lote ni el grupo donde se
+    agregan los datos del reparto: se agregan en un archivo aparte y se apuntan ahí
+    las vistas que en 18+ heredan de las de fábrica."""
+    target = ROOT / "route_optimizer" / "views" / "odoo17_compat_views.xml"
+    target.write_text(ODOO17_BATCH_VIEWS, encoding="utf-8")
+    manifest = ROOT / "route_optimizer" / "__manifest__.py"
+    text = manifest.read_text(encoding="utf-8")
+    if "odoo17_compat_views.xml" not in text:
+        text = text.replace(
+            '"views/res_config_settings_views.xml",',
+            '"views/odoo17_compat_views.xml",\n        "views/res_config_settings_views.xml",',
+            1,
+        )
+        manifest.write_text(text, encoding="utf-8")
+    changed = ["route_optimizer/views/odoo17_compat_views.xml"]
+    for path in sorted(ROOT.glob("*/views/*.xml")):
+        original = path.read_text(encoding="utf-8")
+        text = original.replace(
+            'ref="stock_picking_batch.stock_picking_view_batch_tree_ref"',
+            'ref="route_optimizer.stock_picking_view_batch_tree_ref"',
+        )
         if text != original:
             path.write_text(text, encoding="utf-8")
             changed.append(str(path.relative_to(ROOT)))
@@ -161,6 +250,10 @@ def main():
     if target == "17.0":
         converted = list_to_tree()
         print(f"  <list> -> <tree> / view_mode: {', '.join(converted) or 'sin cambios'}")
+        compat = odoo17_batch_views()
+        print(f"  vistas del lote para 17: {', '.join(compat)}")
+        renamed = odoo17_field_and_action_names()
+        print(f"  group_operator / acciones sin path: {', '.join(renamed) or 'sin cambios'}")
         dropped = drop_oca_delivery_window()
         print(
             "  stock_partner_delivery_window quitado de depends"

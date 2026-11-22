@@ -340,7 +340,7 @@ class StockPickingBatch(models.Model):
         return {
             "id": self.id,
             "name": self.name,
-            "description": self.description or "",
+            "description": (self.description or "") if "description" in self._fields else "",
             "driver": self.user_id.name or "",
             "driver_id": self.user_id.id or False,
             "vehicle": vehicle,

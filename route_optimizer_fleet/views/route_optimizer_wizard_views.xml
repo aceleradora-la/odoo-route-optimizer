@@ -8,7 +8,7 @@
             <field name="num_vehicles" position="after">
                 <field name="fleet_vehicle_id" options="{'no_create': True}"/>
             </field>
-            <xpath expr="//field[@name='vehicle_line_ids']/list/field[@name='name']" position="before">
+            <xpath expr="//field[@name='vehicle_line_ids']//field[@name='name']" position="before">
                 <field name="fleet_vehicle_id" options="{'no_create': True}"/>
             </xpath>
         </field>

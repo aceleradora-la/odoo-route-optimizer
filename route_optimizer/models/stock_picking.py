@@ -60,8 +60,44 @@ def _move_effective_qty(move):
     return qty or _safe_float(move.product_uom_qty)
 
 
+def _core_has_batch_sequence():
+    """True si Odoo ya trae el orden de visita del lote (`batch_sequence`, desde la 18)."""
+    try:
+        from odoo.addons.stock_picking_batch.models.stock_picking import StockPicking as core
+    except ImportError:  # Odoo 20: los lotes son parte de `stock` y el campo existe
+        return True
+    return hasattr(core, "batch_sequence")
+
+
+def _core_has_shipping_weight():
+    """True si `stock` ya trae el peso del envío (desde la 18; en la 17 está en `stock_delivery`)."""
+    from odoo.addons.stock.models import stock_picking as core
+
+    return any(hasattr(getattr(core, name, None), "shipping_weight") for name in ("StockPicking", "Picking"))
+
+
 class StockPicking(models.Model):
     _inherit = "stock.picking"
+
+    if not _core_has_shipping_weight():
+        # Odoo 17 sin `stock_delivery`: el peso sale de los productos del traslado.
+        shipping_weight = fields.Float(string="Peso del envío", compute="_compute_shipping_weight")
+
+        @api.depends("move_ids.product_id", "move_ids.product_uom_qty", "move_ids.state")
+        def _compute_shipping_weight(self):
+            parent = getattr(super(), "_compute_shipping_weight", None)
+            if parent:  # `stock_delivery` instalado: vale su cálculo, que considera bultos
+                return parent()
+            for picking in self:
+                picking.shipping_weight = sum(
+                    move.product_id.weight * move.product_qty
+                    for move in picking.move_ids
+                    if move.state != "cancel"
+                )
+
+    if not _core_has_batch_sequence():
+        # Odoo 17 no ordena los traslados dentro del lote: el campo lo aporta este módulo.
+        batch_sequence = fields.Integer(string="Orden de visita", copy=False)
 
     route_optimizer_delivery_address = fields.Char(
         string="Dirección de entrega",

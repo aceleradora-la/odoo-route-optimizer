@@ -1,3 +1,4 @@
+/** @odoo-module **/
 /**
  * Lo que la app guarda en el teléfono para seguir sin señal:
  *  - `queue`: entregas, no entregas y salidas hechas sin conexión, en el orden en que
