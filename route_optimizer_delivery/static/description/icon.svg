@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs><clipPath id="croute_optimizer_delivery"><rect width="256" height="256" rx="56"/></clipPath></defs>
+  <g clip-path="url(#croute_optimizer_delivery)"><rect width="256" height="256" fill="#C2410C"/><circle cx="236" cy="18" r="120" fill="#EA580C" opacity=".55"/>
+    <path d="M40 92h96v84H40z" fill="#fff"/>
+    <path d="M144 116h40l32 32v28h-72z" fill="#fff"/>
+    <path d="M158 128h22l18 20h-40z" fill="#C2410C"/>
+    <circle cx="82" cy="182" r="20" fill="#fff" stroke="#C2410C" stroke-width="8"/>
+    <circle cx="178" cy="182" r="20" fill="#fff" stroke="#C2410C" stroke-width="8"/>
+    <path d="M64 132l18 18 34-36" fill="none" stroke="#C2410C" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></g></svg>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- App del chofer: URL /odoo/reparto; es también el alcance de la app instalada -->
+    <record id="action_route_delivery_app" model="ir.actions.client">
+        <field name="name">Reparto</field>
+        <field name="tag">route_delivery_app</field>
+    </record>
+
+    <record id="action_route_dispatch_board" model="ir.actions.client">
+        <field name="name">Tablero de despacho</field>
+        <field name="tag">route_dispatch_board</field>
+    </record>
+
+    <menuitem id="menu_route_delivery_root"
+              name="Reparto"
+              sequence="141"
+              action="action_route_delivery_app"
+              groups="route_optimizer_delivery.group_route_delivery_driver"
+              web_icon="route_optimizer_delivery,static/description/icon.png"/>
+
+    <menuitem id="menu_route_dispatch_board"
+              name="Tablero de despacho"
+              parent="stock.menu_stock_warehouse_mgmt"
+              action="action_route_dispatch_board"
+              groups="stock.group_stock_user"
+              sequence="6"/>
+
+    <menuitem id="menu_route_delivery_fail_reason"
+              name="Motivos de no entrega"
+              parent="stock.menu_warehouse_config"
+              action="action_route_delivery_fail_reason"
+              groups="stock.group_stock_manager"
+              sequence="60"/>
+</odoo>

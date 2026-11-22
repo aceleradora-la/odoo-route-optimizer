@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Chofer: usa la app de reparto sin ser usuario de Inventario. Solo ve las rutas
+         de las que es responsable; el acceso lo controlan los métodos de la app. -->
+    <record id="group_route_delivery_driver" model="res.groups">
+        <field name="name">Chofer de reparto</field>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <!-- Los usuarios de Inventario también ven la app (todas las rutas). -->
+    <record id="stock.group_stock_user" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('group_route_delivery_driver'))]"/>
+    </record>
+</odoo>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_picking_form_route_delivery" model="ir.ui.view">
+        <field name="name">stock.picking.form.route_delivery</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Entrega" name="route_delivery" invisible="picking_type_code != 'outgoing'">
+                    <widget name="route_delivery_pod"/>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Lista de traslados dentro del lote: estado de entrega y hora estimada -->
+    <record id="view_picking_batch_list_route_delivery" model="ir.ui.view">
+        <field name="name">stock.picking.list.batch.route_delivery</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="route_optimizer.stock_picking_view_batch_tree_ref"/>
+        <field name="arch" type="xml">
+            <field name="batch_sequence" position="after">
+                <field name="route_delivery_eta" string="Hora est." widget="datetime"
+                       options="{'show_date': false}" optional="show"/>
+                <field name="route_delivery_state" string="Entrega" widget="badge" optional="show"
+                       decoration-success="route_delivery_state == 'delivered'"
+                       decoration-warning="route_delivery_state == 'partial'"
+                       decoration-danger="route_delivery_state == 'failed'"
+                       decoration-muted="route_delivery_state == 'pending'"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_picking_search_route_delivery" model="ir.ui.view">
+        <field name="name">stock.picking.search.route_delivery</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_internal_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <separator/>
+                <filter name="route_delivery_failed" string="No entregados"
+                        domain="[('route_delivery_state', '=', 'failed')]"/>
+                <filter name="route_delivery_partial" string="Entregas parciales"
+                        domain="[('route_delivery_state', '=', 'partial')]"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Solo Odoo 17: lo que en 18+ ya trae el lote de fábrica. -->
+
+    <!-- Lista de traslados del lote, ordenable por orden de visita. Prioridad alta para
+         que no pase a ser la lista por defecto de los traslados. -->
+    <record id="stock_picking_view_batch_tree_ref" model="ir.ui.view">
+        <field name="name">stock.picking.tree.batch.route_optimizer</field>
+        <field name="model">stock.picking</field>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <tree default_order="batch_sequence, id" decoration-muted="state == 'cancel'">
+                <field name="batch_sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="scheduled_date"/>
+                <field name="origin" optional="show"/>
+                <field name="state" widget="badge"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="stock_picking_batch_form_odoo17" model="ir.ui.view">
+        <field name="name">stock.picking.batch.form.odoo17</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="inherit_id" ref="stock_picking_batch.stock_picking_batch_form"/>
+        <field name="priority">5</field>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='scheduled_date']/.." position="attributes">
+                <attribute name="id">batch_delivery_data</attribute>
+            </xpath>
+            <xpath expr="//page[@name='page_transfers']//field[@name='picking_ids']" position="attributes">
+                <attribute name="context">{'form_view_ref': 'stock_picking_batch.view_picking_form_inherited', 'tree_view_ref': 'route_optimizer.stock_picking_view_batch_tree_ref'}</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>

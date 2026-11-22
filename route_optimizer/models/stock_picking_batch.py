@@ -25,8 +25,23 @@ def _build_qr_data_uri(text):
         return False
 
 
+def _core_batch_has(field_name):
+    """True si el lote de Odoo ya trae ese campo (algunos llegaron recién en la 18)."""
+    try:
+        from odoo.addons.stock_picking_batch.models.stock_picking_batch import StockPickingBatch as core
+    except ImportError:  # Odoo 20: los lotes son parte de `stock`
+        return True
+    return hasattr(core, field_name)
+
+
 class StockPickingBatch(models.Model):
     _inherit = "stock.picking.batch"
+
+    if not _core_batch_has("warehouse_id"):
+        # Odoo 17: el depósito del lote sale de su tipo de operación.
+        warehouse_id = fields.Many2one(
+            "stock.warehouse", related="picking_type_id.warehouse_id", string="Depósito"
+        )
 
     route_optimizer_last_message = fields.Char(
         string="Última optimización de ruta",
@@ -168,6 +183,14 @@ class StockPickingBatch(models.Model):
                 domain.append(("picking_type_id", "=", batch.picking_type_id.id))
             done_pickings = self.env["stock.picking"].search(domain)
             batch.allowed_picking_ids |= done_pickings
+
+    def _route_optimizer_set_vehicle(self, vehicle_ref):
+        """Deja asignado en el lote el vehículo que le tocó al optimizar.
+
+        Acá no hace nada: el vehículo existe recién con el puente de Flota, que
+        sobrescribe este método.
+        """
+        return False
 
     def action_route_optimizer_wizard(self):
         self.ensure_one()

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-name="route_optimizer_delivery.RoutePanel">
+    <div class="o_rdw o_rdw_route o_route_dispatch_board">
+        <t t-if="this.state.route">
+            <div class="o_rdw_route_head">
+                <div class="o_rdw_kpis">
+                    <div><strong t-out="this.state.route.stop_count"/><span>paradas</span></div>
+                    <div><strong t-out="this.state.route.done_count"/><span>entregadas</span></div>
+                    <div t-if="this.state.route.failed_count" class="o_rdw_kpi_bad"><strong t-out="this.state.route.failed_count"/><span>no entregadas</span></div>
+                    <div t-if="this.state.route.remaining_km"><strong t-out="this.state.route.remaining_km.toLocaleString('es-AR')"/><span>km por hacer</span></div>
+                    <div t-if="this.state.route.remaining_minutes"><strong t-out="this.duration(this.state.route.remaining_minutes)"/><span>restantes</span></div>
+                    <div t-if="this.state.route.weight"><strong t-out="Math.round(this.state.route.weight).toLocaleString('es-AR')"/><span>kg</span></div>
+                </div>
+                <div class="o_rdw_route_status">
+                    <span t-out="this.statusLabel"/>
+                    <button t-if="this.state.route.gmaps_url" type="button" class="o_rdw_btn" t-on-click="this.openMaps"><i class="o_rdi o_rdi-map-o"/> Google Maps</button>
+                    <button t-if="this.state.route.gmaps_url" type="button" class="o_rdw_btn" t-on-click="this.shareWhatsapp"><i class="o_rdi o_rdi-whatsapp"/> WhatsApp</button>
+                    <button type="button" class="o_rdw_btn" aria-label="Recalcular horas estimadas" title="Recalcular horas estimadas" t-on-click="this.refreshEtas"><i class="o_rdi o_rdi-refresh"/></button>
+                    <button type="button" class="o_rdw_btn" t-on-click="this.openBoard">Abrir en despacho</button>
+                </div>
+            </div>
+            <div class="o_rdw_bar"><div t-attf-style="width: {{ this.state.route.progress }}%"/></div>
+            <div class="o_rdw_route_body">
+                <div class="o_rdw_map"/>
+                <div class="o_rdw_stops">
+                    <div t-if="!this.state.route.stops.length" class="o_rdw_muted">La ruta todavía no tiene paradas.</div>
+                    <button t-foreach="this.state.route.stops" t-as="stop" t-key="stop.id" type="button"
+                            t-attf-class="o_rdw_stop o_rdw_stop_{{ stop.state }}"
+                            t-on-mouseenter="() => this.focus(stop.id)" t-on-click="() => this.openStop(stop)">
+                        <span class="o_rdw_num">
+                            <i t-if="stop.state === 'delivered' or stop.state === 'partial'" class="o_rdi o_rdi-check"/>
+                            <i t-elif="stop.state === 'failed'" class="o_rdi o_rdi-times"/>
+                            <t t-else="" t-out="stop_index + 1"/>
+                        </span>
+                        <span class="o_rdw_stop_main">
+                            <strong t-out="stop.partner"/>
+                            <span class="o_rdw_muted">
+                                <t t-out="stop.address or stop.name"/><t t-if="stop.window"> · recibe <t t-out="stop.window"/></t>
+                            </span>
+                            <span t-if="stop.state === 'failed'" class="o_rdw_alert" t-out="stop.fail_reason"/>
+                            <span t-if="!stop.lat and !stop.lon" class="o_rdw_alert">Sin geolocalizar</span>
+                        </span>
+                        <span class="o_rdw_stop_side">
+                            <t t-if="stop.state === 'pending'">
+                                <strong t-if="stop.eta" t-attf-class="{{ stop.late_minutes >= 10 ? 'o_rdw_alert' : '' }}" t-out="this.hour(stop.eta)"/>
+                            </t>
+                            <t t-else="">
+                                <span t-attf-class="o_rdb_badge o_rdb_badge_{{ stop.state }}" t-out="this.stateLabel(stop)"/>
+                                <span class="o_rdw_muted" t-out="this.hour(stop.done_at)"/>
+                            </t>
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </t>
+        <div t-else="" class="o_rdw_muted">Guardá el lote para ver el recorrido.</div>
+    </div>
+</t>
+
+</templates>

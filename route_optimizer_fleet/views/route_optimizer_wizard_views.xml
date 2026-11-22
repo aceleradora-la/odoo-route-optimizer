@@ -5,9 +5,12 @@
         <field name="model">route.optimizer.wizard</field>
         <field name="inherit_id" ref="route_optimizer.view_route_optimizer_wizard_form"/>
         <field name="arch" type="xml">
-            <field name="depot_partner_id" position="after">
-                <field name="fleet_vehicle_id"/>
+            <field name="num_vehicles" position="after">
+                <field name="fleet_vehicle_id" options="{'no_create': True}"/>
             </field>
+            <xpath expr="//field[@name='vehicle_line_ids']//field[@name='name']" position="before">
+                <field name="fleet_vehicle_id" options="{'no_create': True}"/>
+            </xpath>
         </field>
     </record>
 </odoo>

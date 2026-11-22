@@ -4,7 +4,7 @@
     <record id="stock_picking_view_batch_tree_route_optimizer" model="ir.ui.view">
         <field name="name">stock.picking.list.batch.route_optimizer</field>
         <field name="model">stock.picking</field>
-        <field name="inherit_id" ref="stock_picking_batch.stock_picking_view_batch_tree_ref"/>
+        <field name="inherit_id" ref="route_optimizer.stock_picking_view_batch_tree_ref"/>
         <field name="arch" type="xml">
             <field name="batch_sequence" position="attributes">
                 <attribute name="string">Orden de visita</attribute>

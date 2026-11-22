@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+<t t-name="route_optimizer_delivery.RouteDispatchBoard">
+    <div t-attf-class="o_route_dispatch_board o_rdb_mode_{{ this.state.mode }}">
+
+        <!-- Barra superior -->
+        <div class="o_rdb_top">
+            <div class="o_rdb_brand">Despacho</div>
+            <div class="o_rdb_days">
+                <button type="button" class="o_rdb_icon_btn" aria-label="Día anterior" t-on-click="() => this.shiftDay(-1)"><i class="o_rdi o_rdi-chevron-left"/></button>
+                <label class="o_rdb_day">
+                    <span t-out="this.dayLabel"/>
+                    <input type="date" aria-label="Elegir día" t-att-value="this.state.day" t-on-change="(ev) => this.setDay(ev.target.value)"/>
+                </label>
+                <button type="button" class="o_rdb_icon_btn" aria-label="Día siguiente" t-on-click="() => this.shiftDay(1)"><i class="o_rdi o_rdi-chevron-right"/></button>
+            </div>
+            <div class="o_rdb_segment" role="group" aria-label="Vista">
+                <button type="button" t-att-class="this.state.mode === 'plan' ? 'o_rdb_on' : ''" t-att-aria-pressed="this.state.mode === 'plan' ? 'true' : 'false'" t-on-click="() => this.setMode('plan')">Planificar</button>
+                <button type="button" t-att-class="this.state.mode === 'live' ? 'o_rdb_on' : ''" t-att-aria-pressed="this.state.mode === 'live' ? 'true' : 'false'" t-on-click="() => this.setMode('live')">En vivo</button>
+            </div>
+            <div class="o_rdb_kpis">
+                <t t-if="this.state.mode === 'plan'">
+                    <span><strong t-out="this.totals.deliveries"/> entregas</span>
+                    <span t-att-class="this.totals.unassigned ? 'o_rdb_kpi_warn' : ''"><strong t-out="this.totals.unassigned"/> sin asignar</span>
+                    <span><strong t-out="this.totals.routes"/> rutas</span>
+                    <span><strong t-out="this.kg(this.totals.weight)"/> kg</span>
+                </t>
+                <t t-else="">
+                    <span class="o_rdb_kpi_ok"><strong t-out="this.totals.done"/> / <t t-out="this.totals.deliveries - this.totals.unassigned"/> entregadas</span>
+                    <span t-att-class="this.totals.failed ? 'o_rdb_kpi_bad' : ''"><strong t-out="this.totals.failed"/> no entregadas</span>
+                    <span t-att-class="this.totals.late ? 'o_rdb_kpi_warn' : ''"><strong t-out="this.totals.late"/> con atraso</span>
+                </t>
+            </div>
+            <div class="o_rdb_top_actions">
+                <t t-if="this.state.mode === 'plan'">
+                    <button type="button" class="o_rdb_btn o_rdb_btn_ghost" t-on-click="this.optimizeAll" t-att-disabled="this.state.busy">Optimizar todo</button>
+                    <button type="button" class="o_rdb_btn o_rdb_btn_primary" t-on-click="this.publish" t-att-disabled="this.state.busy">
+                        Publicar a choferes<t t-if="this.totals.drafts"> (<t t-out="this.totals.drafts"/>)</t>
+                    </button>
+                </t>
+                <button type="button" class="o_rdb_icon_btn" aria-label="Actualizar" t-on-click="this.load"><i class="o_rdi o_rdi-refresh"/></button>
+            </div>
+        </div>
+
+        <div class="o_rdb_body">
+
+            <!-- Sin asignar -->
+            <div t-if="this.state.mode === 'plan'" t-attf-class="o_rdb_side o_rdb_left {{ this.isDrop(0) ? 'o_rdb_dropzone_on' : '' }}"
+                 t-on-dragover="(ev) => this.onDragOver(0, null, ev)" t-on-drop="(ev) => this.onDrop(0, null, ev)">
+                <div class="o_rdb_side_head">
+                    <div class="o_rdb_side_title">
+                        <h2>Sin asignar</h2>
+                        <span><t t-out="this.state.unassigned.length"/> entregas</span>
+                    </div>
+                    <input type="search" class="o_rdb_search" aria-label="Buscar entrega" placeholder="Buscar cliente, remito o dirección" t-att-value="this.state.search" t-on-input="(ev) => this.setValue(this.state, 'search', ev)"/>
+                    <div t-if="this.zones.length" class="o_rdb_chips">
+                        <button t-foreach="this.zones" t-as="zone" t-key="zone" type="button"
+                                t-attf-class="o_rdb_chip {{ this.state.zone === zone ? 'o_rdb_chip_on' : '' }}"
+                                t-att-aria-pressed="this.state.zone === zone ? 'true' : 'false'"
+                                t-on-click="() => this.setZone(zone)" t-out="zone"/>
+                    </div>
+                </div>
+                <div class="o_rdb_list">
+                    <div t-if="!this.state.unassigned.length" class="o_rdb_empty">
+                        Todo asignado. Para sacar una parada de su ruta, arrastrala acá.
+                    </div>
+                    <div t-elif="!this.visibleUnassigned.length" class="o_rdb_empty">Ninguna entrega coincide con la búsqueda.</div>
+                    <label t-foreach="this.visibleUnassigned" t-as="stop" t-key="stop.id"
+                           t-attf-class="o_rdb_order {{ this.isSelected(stop.id) ? 'o_rdb_order_on' : '' }}"
+                           draggable="true"
+                           t-on-dragstart="(ev) => this.onDragStart(stop, ev)" t-on-dragend="this.onDragEnd"
+                           t-on-mouseenter="() => this.focusStop(stop)">
+                        <input type="checkbox" t-att-checked="this.isSelected(stop.id)" t-on-change="() => this.toggle(stop.id)"/>
+                        <div class="o_rdb_order_main">
+                            <div class="o_rdb_order_head">
+                                <strong t-out="stop.partner"/>
+                                <span t-if="stop.weight"><t t-out="this.kg(stop.weight)"/> kg</span>
+                            </div>
+                            <div class="o_rdb_muted" t-out="stop.address or stop.name"/>
+                            <div class="o_rdb_tags">
+                                <span t-if="stop.zone" class="o_rdb_tag" t-out="stop.zone"/>
+                                <span t-if="stop.window" class="o_rdb_tag">Recibe <t t-out="stop.window"/></span>
+                                <span t-if="!stop.lat and !stop.lon" class="o_rdb_tag o_rdb_tag_warn">Sin geolocalizar</span>
+                                <a href="#" class="o_rdb_ref" t-on-click.prevent.stop="() => this.openStop(stop)" t-out="stop.origin or stop.name"/>
+                            </div>
+                        </div>
+                    </label>
+                </div>
+                <div class="o_rdb_side_foot">
+                    <button t-if="this.visibleUnassigned.length" type="button" class="o_rdb_btn o_rdb_btn_ghost" t-on-click="this.selectAllVisible">
+                        Elegir <t t-if="this.state.search or this.state.zone">las <t t-out="this.visibleUnassigned.length"/></t><t t-else="">todas</t>
+                    </button>
+                    <div t-attf-class="o_rdb_new {{ this.isDrop('new') ? 'o_rdb_new_on' : '' }}"
+                         t-on-dragover="(ev) => this.onDragOver('new', null, ev)" t-on-drop="(ev) => this.onDrop('new', null, ev)">
+                        <i class="o_rdi o_rdi-plus me-1" aria-hidden="true"/>Soltá acá para abrir una ruta
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mapa -->
+            <div class="o_rdb_center">
+                <div class="o_rdb_mapbox">
+                    <div class="o_rdb_map"/>
+                    <svg t-if="this.state.tool === 'lasso'" xmlns="http://www.w3.org/2000/svg" class="o_rdb_lasso" aria-hidden="true"
+                         t-on-pointerdown="this.onLassoDown" t-on-pointermove="this.onLassoMove"
+                         t-on-pointerup="this.onLassoUp" t-on-pointercancel="this.onLassoUp">
+                        <polygon t-if="this.state.lasso" t-att-points="this.state.lasso"/>
+                    </svg>
+
+                    <div class="o_rdb_tools" role="group" aria-label="Herramientas del mapa">
+                        <t t-if="this.state.mode === 'plan'">
+                            <button type="button" t-att-class="this.state.tool === 'move' ? 'o_rdb_on' : ''" t-att-aria-pressed="this.state.tool === 'move' ? 'true' : 'false'" t-on-click="() => this.setTool('move')">
+                                <i class="o_rdi o_rdi-hand-paper-o me-1"/>Mover
+                            </button>
+                            <button type="button" t-att-class="this.state.tool === 'lasso' ? 'o_rdb_on' : ''" t-att-aria-pressed="this.state.tool === 'lasso' ? 'true' : 'false'" t-on-click="() => this.setTool('lasso')">
+                                <i class="o_rdi o_rdi-pencil me-1"/>Lazo
+                            </button>
+                        </t>
+                        <button t-if="this.state.mapProvider === 'google'" type="button" t-att-class="this.state.traffic ? 'o_rdb_on' : ''" t-att-aria-pressed="this.state.traffic ? 'true' : 'false'" t-on-click="this.toggleTraffic">
+                            <i class="o_rdi o_rdi-car me-1"/>Tráfico
+                        </button>
+                    </div>
+                    <div t-if="this.state.tool === 'lasso'" class="o_rdb_hint">Dibujá alrededor de las entregas que querés elegir</div>
+
+                    <!-- Incidencias (en vivo) -->
+                    <div t-if="this.state.mode === 'live' and this.incidents.length" class="o_rdb_incidents">
+                        <div t-foreach="this.incidents" t-as="incident" t-key="incident.stop.id" class="o_rdb_incident">
+                            <div>
+                                <strong>No entregado · <t t-out="incident.stop.partner"/></strong>
+                                <div class="o_rdb_muted">
+                                    <t t-out="incident.route.name"/> · <t t-out="incident.stop.fail_reason"/> · <t t-out="this.hour(incident.stop.done_at)"/>
+                                </div>
+                            </div>
+                            <button type="button" class="o_rdb_btn o_rdb_btn_primary" t-on-click="() => this.retry(incident.stop)" t-att-disabled="this.state.busy">Reintentar hoy</button>
+                            <button type="button" class="o_rdb_btn o_rdb_btn_ghost" t-on-click="() => this.postpone(incident.stop)" t-att-disabled="this.state.busy">Pasar a mañana</button>
+                        </div>
+                    </div>
+
+                    <!-- Barra de lo elegido -->
+                    <div t-if="this.selectedIds.length" class="o_rdb_selbar">
+                        <div>
+                            <strong><t t-out="this.selectedIds.length"/> <t t-if="this.selectedIds.length === 1">entrega</t><t t-else="">entregas</t></strong>
+                            · <t t-out="this.kg(this.selectedWeight)"/> kg
+                        </div>
+                        <button t-if="this.state.options.length" type="button" class="o_rdb_selbar_best"
+                                t-attf-style="background: {{ this.optionColor(this.state.options[0]) }}"
+                                t-on-click="() => this.assign(this.state.options[0].batch_id)" t-att-disabled="this.state.busy">
+                            <t t-out="this.state.options[0].name"/> · +<t t-out="this.state.options[0].extra_minutes"/> min
+                        </button>
+                        <button type="button" t-on-click="() => this.newRoute()" t-att-disabled="this.state.busy">Ruta nueva</button>
+                        <button type="button" aria-label="Soltar lo elegido" t-on-click="this.clearSelection"><i class="o_rdi o_rdi-times"/></button>
+                    </div>
+                </div>
+
+                <!-- Línea de tiempo (en vivo) -->
+                <div t-if="this.state.mode === 'live'" class="o_rdb_timeline">
+                    <t t-set="tl" t-value="this.timeline"/>
+                    <div t-if="!tl.lanes.length" class="o_rdb_empty">No hay rutas este día.</div>
+                    <t t-else="">
+                        <div class="o_rdb_tl_hours">
+                            <span t-foreach="tl.hours" t-as="h" t-key="h" t-out="h"/>
+                        </div>
+                        <div class="o_rdb_tl_lanes">
+                            <div t-foreach="tl.lanes" t-as="lane" t-key="lane.route.id" class="o_rdb_tl_lane">
+                                <div class="o_rdb_tl_name" t-out="lane.route.driver or lane.route.name"/>
+                                <div class="o_rdb_tl_track">
+                                    <button t-foreach="lane.bars" t-as="bar" t-key="bar.stop.id" type="button"
+                                            t-attf-class="o_rdb_tl_bar o_rdb_tl_{{ bar.tone }}"
+                                            t-attf-style="left: {{ bar.left }}%; width: {{ bar.width }}%; border-color: {{ bar.tone === 'plan' ? this.color(lane.route) : '' }}"
+                                            t-att-title="bar.stop.partner + ' · ' + this.hour(bar.stop.done_at or bar.stop.eta)"
+                                            t-on-click="() => this.focusStop(bar.stop)" t-out="bar.stop.partner"/>
+                                </div>
+                            </div>
+                            <div t-if="tl.now !== null" class="o_rdb_tl_now" t-attf-style="left: calc(var(--rdb-tl-name) + (100% - var(--rdb-tl-name)) * {{ tl.now / 100 }})"/>
+                        </div>
+                    </t>
+                </div>
+            </div>
+
+            <!-- Panel derecho: dónde conviene / rutas -->
+            <div class="o_rdb_side o_rdb_right">
+
+                <t t-if="this.state.mode === 'plan' and this.selectedIds.length">
+                    <div class="o_rdb_side_head">
+                        <div class="o_rdb_side_title">
+                            <h2 t-if="this.selectedIds.length === 1" t-out="this.selectedStops[0].partner"/>
+                            <h2 t-else=""><t t-out="this.selectedIds.length"/> entregas elegidas</h2>
+                            <button type="button" class="o_rdb_icon_btn" aria-label="Cerrar" t-on-click="this.clearSelection"><i class="o_rdi o_rdi-times"/></button>
+                        </div>
+                        <div t-if="this.selectedIds.length === 1" class="o_rdb_muted">
+                            <t t-out="this.selectedStops[0].address"/> · <t t-out="this.selectedStops[0].name"/>
+                        </div>
+                        <div class="o_rdb_tags">
+                            <span class="o_rdb_tag"><t t-out="this.kg(this.selectedWeight)"/> kg</span>
+                            <t t-if="this.selectedIds.length === 1">
+                                <span t-if="this.selectedStops[0].window" class="o_rdb_tag">Recibe <t t-out="this.selectedStops[0].window"/></span>
+                                <span t-if="this.selectedStops[0].zone" class="o_rdb_tag" t-out="this.selectedStops[0].zone"/>
+                            </t>
+                        </div>
+                    </div>
+                    <div class="o_rdb_list">
+                        <div class="o_rdb_section">Dónde conviene</div>
+                        <div t-if="this.state.optionsLoading and !this.state.options.length" class="o_rdb_empty">Calculando…</div>
+                        <div t-elif="!this.state.options.length" class="o_rdb_empty">No hay rutas abiertas este día. Abrí una nueva con lo elegido.</div>
+                        <div t-foreach="this.state.options" t-as="option" t-key="option.batch_id"
+                             t-attf-class="o_rdb_option {{ option_index === 0 and !option.over_capacity and !option.outside_window ? 'o_rdb_option_best' : '' }} {{ this.isDrop(option.batch_id) ? 'o_rdb_dropzone_on' : '' }}"
+                             t-attf-style="--rdb-route: {{ this.optionColor(option) }}"
+                             t-on-dragover="(ev) => this.onDragOver(option.batch_id, null, ev)" t-on-drop="(ev) => this.onDrop(option.batch_id, null, ev)">
+                            <div class="o_rdb_option_head">
+                                <strong><t t-out="option.name"/><t t-if="option.driver"> · <t t-out="option.driver"/></t></strong>
+                                <span t-if="option_index === 0 and !option.over_capacity and !option.outside_window" class="o_rdb_badge o_rdb_badge_best">Mejor opción</span>
+                                <span t-elif="option.started" class="o_rdb_badge o_rdb_badge_idle">En la calle</span>
+                            </div>
+                            <div class="o_rdb_option_cost">
+                                <strong>+<t t-out="option.extra_minutes"/> min</strong>
+                                <strong>+<t t-out="option.extra_km.toLocaleString('es-AR')"/> km</strong>
+                                <span class="o_rdb_muted">queda <t t-out="option.position"/>.ª de <t t-out="option.stop_count"/></span>
+                            </div>
+                            <div class="o_rdb_muted"><t t-out="this.optionPlace(option)"/> <t t-out="this.optionLoad(option)"/></div>
+                            <div t-if="option.over_capacity" class="o_rdb_alert">No entra: excede la carga del vehículo.</div>
+                            <div t-if="option.outside_window" class="o_rdb_alert" t-out="option.window_note"/>
+                            <button type="button" t-attf-class="o_rdb_btn {{ option_index === 0 and !option.over_capacity and !option.outside_window ? 'o_rdb_btn_primary' : 'o_rdb_btn_ghost' }}"
+                                    t-on-click="() => this.assign(option.batch_id)" t-att-disabled="this.state.busy">
+                                Agregar a <t t-out="option.name"/>
+                            </button>
+                        </div>
+                        <div class="o_rdb_muted o_rdb_note">
+                            Los minutos y km son una estimación en línea recta para comparar rutas; al agregar se recalcula el recorrido<t t-if="this.state.routing === 'google'"> con Google y tráfico</t><t t-elif="this.state.routing === 'osrm'"> por calles</t>.
+                        </div>
+                    </div>
+                    <div class="o_rdb_side_foot o_rdb_foot_row">
+                        <button type="button" class="o_rdb_btn o_rdb_btn_outline" t-on-click="() => this.newRoute()" t-att-disabled="this.state.busy">Abrir ruta nueva</button>
+                        <button t-if="this.selectionHasAssigned" type="button" class="o_rdb_btn o_rdb_btn_ghost" t-on-click="() => this.unassign()" t-att-disabled="this.state.busy">Sacar de su ruta</button>
+                    </div>
+                </t>
+
+                <t t-else="">
+                    <div class="o_rdb_side_head">
+                        <div class="o_rdb_side_title">
+                            <h2><t t-if="this.state.mode === 'live'">Rutas en curso</t><t t-else="">Rutas</t></h2>
+                            <span><t t-out="this.state.routes.length"/></span>
+                        </div>
+                    </div>
+                    <div class="o_rdb_list">
+                        <div t-if="!this.state.routes.length" class="o_rdb_empty">
+                            No hay rutas este día. Elegí entregas y abrí la primera.
+                        </div>
+                        <div t-foreach="this.state.routes" t-as="route" t-key="route.id"
+                             t-attf-class="o_rdb_route {{ this.state.expanded === route.id ? 'o_rdb_route_open' : '' }} {{ this.isDrop(route.id) ? 'o_rdb_dropzone_on' : '' }}"
+                             t-attf-style="--rdb-route: {{ this.color(route) }}"
+                             t-on-dragover="(ev) => this.onDragOver(route.id, null, ev)" t-on-drop="(ev) => this.onDrop(route.id, null, ev)">
+                            <t t-set="tag" t-value="this.routeTag(route)"/>
+                            <button type="button" class="o_rdb_route_head" t-att-aria-expanded="this.state.expanded === route.id ? 'true' : 'false'" t-on-click="() => this.toggleRoute(route)">
+                                <strong t-out="this.routeTitle(route)"/>
+                                <span t-attf-class="o_rdb_badge o_rdb_badge_{{ tag.tone }}" t-out="tag.text"/>
+                                <i t-attf-class="o_rdi {{ this.state.expanded === route.id ? 'o_rdi-chevron-up' : 'o_rdi-chevron-down' }}" aria-hidden="true"/>
+                            </button>
+
+                            <t t-if="this.state.mode === 'live'">
+                                <div class="o_rdb_load">
+                                    <div class="o_rdb_bar_track"><div class="o_rdb_bar_fill" t-attf-style="width: {{ route.progress }}%; background: {{ this.color(route) }}"/></div>
+                                    <span><t t-out="route.done_count + route.failed_count"/> de <t t-out="route.stop_count"/></span>
+                                </div>
+                                <div t-if="this.nextStop(route)">
+                                    <span class="o_rdb_muted">Próxima:</span> <strong t-out="this.nextStop(route).partner"/>
+                                    <t t-if="this.nextStop(route).eta"> · llega <t t-out="this.hour(this.nextStop(route).eta)"/></t>
+                                </div>
+                                <div t-if="route.position" class="o_rdb_muted" t-out="this.positionAge(route)"/>
+                            </t>
+                            <t t-else="">
+                                <div class="o_rdb_load">
+                                    <div class="o_rdb_bar_track">
+                                        <div t-attf-class="o_rdb_bar_fill {{ route.capacity and route.weight > route.capacity ? 'o_rdb_bar_over' : '' }}"
+                                             t-attf-style="width: {{ route.capacity ? this.loadPct(route) : 100 }}%; background: {{ route.capacity and route.weight > route.capacity ? '' : this.color(route) }}; opacity: {{ route.capacity ? 1 : 0.25 }}"/>
+                                    </div>
+                                    <span>
+                                        <t t-out="this.kg(route.weight)"/><t t-if="route.capacity"> / <t t-out="this.kg(route.capacity)"/></t> kg
+                                    </span>
+                                </div>
+                                <div class="o_rdb_route_meta">
+                                    <span><strong t-out="route.stop_count"/> paradas</span>
+                                    <span t-if="route.remaining_km"><strong t-out="route.remaining_km.toLocaleString('es-AR')"/> km</span>
+                                    <span t-if="route.remaining_minutes"><strong t-out="this.duration(route.remaining_minutes)"/></span>
+                                    <span t-if="route.vehicle" t-out="route.vehicle"/>
+                                </div>
+                            </t>
+
+                            <t t-if="this.state.expanded === route.id">
+                                <div class="o_rdb_route_tools">
+                                    <label class="o_rdb_driver">
+                                        <span class="o_rdb_muted">Chofer</span>
+                                        <select t-on-change="(ev) => this.setDriver(route, ev)" t-att-disabled="this.state.busy">
+                                            <option value="">Sin chofer</option>
+                                            <option t-foreach="this.state.drivers" t-as="driver" t-key="driver.id" t-att-value="driver.id" t-att-selected="driver.id === route.driver_id" t-out="driver.name"/>
+                                        </select>
+                                    </label>
+                                    <button t-if="!route.started" type="button" class="o_rdb_btn o_rdb_btn_ghost" t-on-click="() => this.optimize(route)">Optimizar</button>
+                                    <button type="button" class="o_rdb_btn o_rdb_btn_ghost" t-on-click="() => this.openRoute(route)">Abrir</button>
+                                </div>
+                                <div class="o_rdb_stops">
+                                    <div t-foreach="route.stops" t-as="stop" t-key="stop.id"
+                                         t-attf-class="o_rdb_stop o_rdb_stop_{{ stop.state }} {{ this.isSelected(stop.id) ? 'o_rdb_stop_on' : '' }} {{ this.drag and this.isDrop(route.id, this.stopIndex(route, stop)) ? 'o_rdb_drop_before' : '' }}"
+                                         t-att-draggable="stop.state === 'pending' ? 'true' : 'false'"
+                                         t-on-dragstart="(ev) => this.onDragStart(stop, ev)" t-on-dragend="this.onDragEnd"
+                                         t-on-dragover="(ev) => this.onDragOver(route.id, this.stopIndex(route, stop), ev)"
+                                         t-on-drop="(ev) => this.onDrop(route.id, this.stopIndex(route, stop), ev)"
+                                         t-on-mouseenter="() => this.focusStop(stop)"
+                                         t-on-click="() => this.toggle(stop.id)">
+                                        <i t-if="stop.state === 'pending'" class="o_rdi o_rdi-ellipsis-v o_rdb_grip" aria-hidden="true"/>
+                                        <span class="o_rdb_num">
+                                            <i t-if="stop.state === 'delivered' or stop.state === 'partial'" class="o_rdi o_rdi-check"/>
+                                            <i t-elif="stop.state === 'failed'" class="o_rdi o_rdi-times"/>
+                                            <t t-else="" t-out="stop_index + 1"/>
+                                        </span>
+                                        <div class="o_rdb_stop_main">
+                                            <strong t-out="stop.partner"/>
+                                            <div class="o_rdb_muted">
+                                                <t t-out="stop.address or stop.name"/>
+                                                <t t-if="stop.window"> · recibe <t t-out="stop.window"/></t>
+                                            </div>
+                                            <div t-if="stop.state === 'failed'" class="o_rdb_alert" t-out="stop.fail_reason"/>
+                                        </div>
+                                        <div class="o_rdb_stop_side">
+                                            <t t-if="stop.state === 'pending'">
+                                                <span t-if="stop.eta" t-attf-class="o_rdb_eta {{ stop.late_minutes >= 10 ? 'o_rdb_eta_late' : '' }}" t-out="this.hour(stop.eta)"/>
+                                            </t>
+                                            <t t-else="">
+                                                <span t-attf-class="o_rdb_badge o_rdb_badge_{{ stop.state }}" t-out="this.stateLabel(stop)"/>
+                                                <span class="o_rdb_muted" t-out="this.hour(stop.done_at)"/>
+                                            </t>
+                                        </div>
+                                    </div>
+                                    <div t-if="!route.stops.length" class="o_rdb_empty">Ruta vacía. Soltá entregas acá.</div>
+                                    <div t-attf-class="o_rdb_stop_end {{ this.drag and this.isDrop(route.id, route.stops.length) ? 'o_rdb_drop_before' : '' }}"
+                                         t-on-dragover="(ev) => this.onDragOver(route.id, route.stops.length, ev)"
+                                         t-on-drop="(ev) => this.onDrop(route.id, route.stops.length, ev)"/>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </t>
+            </div>
+        </div>
+    </div>
+</t>
+
+</templates>
