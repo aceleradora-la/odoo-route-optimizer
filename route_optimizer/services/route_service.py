@@ -397,7 +397,11 @@ def _fetch_matrix(icp, coordinates_lonlat, timeout, osrm_base_url, osrm_profile)
             raise UserError(_("Error de Google Routes API: %s") % str(e)) from e
     try:
         return osrm_client.fetch_table(
-            osrm_base_url, osrm_profile, coordinates_lonlat, timeout=timeout
+            osrm_base_url,
+            osrm_profile,
+            coordinates_lonlat,
+            timeout=timeout,
+            api_key=(icp.get_param("route_optimizer.osrm_api_key") or "").strip() or None,
         )
     except osrm_client.OsrmError as e:
         raise UserError(_("Error de OSRM: %s") % str(e)) from e
