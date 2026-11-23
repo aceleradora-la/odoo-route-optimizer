@@ -68,6 +68,28 @@ docker run -d --name osrm-argentina \
   osrm/osrm-backend osrm-routed --algorithm mld /data/argentina-latest.osrm
 ```
 
+### C) Publicarlo con clave (recomendado)
+
+OSRM no trae autenticación. Si Odoo no corre en el mismo servidor, dejá el contenedor
+escuchando solo en local (`-p 127.0.0.1:5000:5000`) y publicalo por nginx con HTTPS,
+exigiendo una clave en el header `X-API-KEY`:
+
+```nginx
+server {
+    server_name osrm.midominio.com;
+    listen 80;
+
+    location / {
+        if ($http_x_api_key != "PEGAR_CLAVE_GENERADA") { return 403; }
+        proxy_pass http://127.0.0.1:5000;
+        proxy_read_timeout 120s;
+    }
+}
+```
+
+Después `certbot --nginx -d osrm.midominio.com`. En Odoo: **URL base de OSRM**
+`https://osrm.midominio.com` y la misma clave en **API key de OSRM**.
+
 ---
 
 ## 3) Contenedor 2: OR-Tools (FastAPI) con API Key

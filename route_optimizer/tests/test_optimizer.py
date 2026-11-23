@@ -164,6 +164,34 @@ class TestOptimizerPayload(TransactionCase):
         self.assertEqual(sent["pickups"][node], 1)
         self.assertEqual(self.batch.picking_ids.sorted("batch_sequence")[2], pickup)
 
+    def test_osrm_api_key_header(self):
+        """La clave de OSRM viaja como encabezado, no en la URL."""
+        from odoo.addons.route_optimizer.services import osrm_client
+
+        seen = {}
+
+        class Reply:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return b'{"code": "Ok", "durations": [[0, 1], [1, 0]], "distances": [[0, 2], [2, 0]]}'
+
+        def fake_open(request, timeout=None):
+            seen["url"] = request.full_url
+            seen["key"] = request.get_header("X-api-key")
+            return Reply()
+
+        with patch("urllib.request.urlopen", side_effect=fake_open):
+            osrm_client.fetch_table("https://osrm.test/", "driving", [(-58.4, -34.6), (-58.5, -34.7)], api_key="clave")
+            self.assertEqual(seen["key"], "clave")
+            self.assertNotIn("clave", seen["url"])
+            osrm_client.fetch_table("https://osrm.test/", "driving", [(-58.4, -34.6), (-58.5, -34.7)])
+            self.assertIsNone(seen["key"])
+
     def test_priority_and_break(self):
         self.icp.set_param("route_optimizer.break_duration_minutes", "45")
         self.icp.set_param("route_optimizer.break_earliest_hour", "12.5")
