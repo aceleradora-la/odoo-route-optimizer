@@ -52,6 +52,7 @@ class RouteDeliveryTracking(http.Controller):
             "driver": (batch.user_id.name or "").split(" ")[0] if batch and started else "",
             "address": picking.route_optimizer_delivery_address or "",
             "phone": company.phone or "",
+            "pickup": picking._route_optimizer_is_pickup(),
             "live": step in ("scheduled", "on_the_way", "next"),
         }
 

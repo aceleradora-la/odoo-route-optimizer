@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Route Optimizer — Reparto",
-    "version": "17.0.3.1.0",
+    "version": "17.0.3.3.0",
     "category": "Inventory/Delivery",
     "summary": "App del chofer con prueba de entrega, seguimiento para el cliente y tablero de despacho",
     "description": """Lleva la ruta a la calle: app del chofer para el celular con prueba de entrega,
