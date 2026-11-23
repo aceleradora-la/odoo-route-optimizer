@@ -110,7 +110,9 @@
 
     // ------------------------------------------------ Recorrido (lote)
     // Reusa los pines del despacho, pero no su caja a pantalla completa.
-    &.o_rdw_route { height: auto; background: transparent; }
+    // Con fondo propio: los colores del panel son fijos y sobre el tema oscuro de Odoo
+    // los números y el estado quedaban oscuro sobre oscuro.
+    &.o_rdw_route { height: auto; padding: 14px; border-radius: 12px; background: #f3f4f6; }
     .o_rdw_route_head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
     .o_rdw_kpis {
         display: flex;
