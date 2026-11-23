@@ -12,7 +12,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import float_compare
 
-from odoo.addons.route_optimizer.models.stock_picking import _move_uom
+from odoo.addons.route_optimizer.models.stock_picking import _move_uom, _move_uom_field
 
 from ..services import sms_client, whatsapp_client
 
@@ -109,6 +109,21 @@ class StockPicking(models.Model):
         string="Link de seguimiento", compute="_compute_route_delivery_tracking_url"
     )
     route_delivery_next_notified = fields.Boolean(copy=False)
+    route_delivery_return_picking_id = fields.Many2one(
+        "stock.picking",
+        string="Devolución recibida en la entrega",
+        copy=False,
+        readonly=True,
+        help="Recepción creada con lo que el cliente devolvió al chofer en esta parada.",
+    )
+    route_delivery_return_detail = fields.Text(
+        string="Devuelto en la entrega", copy=False, readonly=True
+    )
+    route_delivery_load_data = fields.Json(
+        copy=False,
+        readonly=True,
+        help="Control de carga: qué bultos de este traslado ya se subieron al vehículo.",
+    )
     route_delivery_client_id = fields.Char(
         copy=False,
         readonly=True,
@@ -246,12 +261,24 @@ class StockPicking(models.Model):
                 "route_delivery_next_notified": False,
             }
         )
+        # La devolución cargada por error se anula, salvo que el depósito ya la haya recibido.
+        for picking in self.filtered("route_delivery_return_picking_id"):
+            returned = picking.route_delivery_return_picking_id
+            if returned.state not in ("done", "cancel"):
+                returned.action_cancel()
+            picking.write({"route_delivery_return_picking_id": False, "route_delivery_return_detail": False})
         self.batch_id.write({"route_delivery_finished_at": False})
         self.batch_id._route_delivery_update_etas()
         return True
 
     def _route_delivery_notify(self, kind):
-        """Avisa al cliente del paso `kind` por los canales que estén activos."""
+        """Avisa al cliente del paso `kind` por los canales que estén activos.
+
+        Los retiros no se avisan: los textos y plantillas hablan de una entrega.
+        """
+        self = self.filtered(lambda p: not p._route_optimizer_is_pickup())
+        if not self:
+            return
         self._route_delivery_notify_email(kind)
         reached = self._route_delivery_notify_whatsapp(kind)
         self._route_delivery_notify_sms(kind, reached)
@@ -362,6 +389,169 @@ class StockPicking(models.Model):
     # Datos para la app y el tablero
     # ------------------------------------------------------------------
 
+    def _route_delivery_kind(self):
+        """delivery (se entrega), pickup (se retira) o return (se retira una devolución)."""
+        self.ensure_one()
+        if not self._route_optimizer_is_pickup():
+            return "delivery"
+        returned = ("return_id" in self._fields and self.return_id) or any(
+            self.move_ids.mapped("origin_returned_move_id")
+        )
+        return "return" if returned else "pickup"
+
+    def _route_delivery_packages(self):
+        """Paquetes de Odoo del traslado, con lo que la app necesita de cada uno."""
+        self.ensure_one()
+        lines = self.move_line_ids
+        if "result_package_id" not in lines._fields:
+            return []
+        packages = lines.mapped("result_package_id")
+        result = []
+        for package in packages.sorted("name"):
+            weight = 0.0
+            for field in ("shipping_weight", "weight"):
+                if field in package._fields and package[field]:
+                    weight = package[field]
+                    break
+            kind = package.package_type_id.name if "package_type_id" in package._fields else ""
+            result.append(
+                {
+                    "key": "p%d" % package.id,
+                    "code": package.name or "",
+                    "label": package.name or "",
+                    "type": kind or "",
+                    "weight": round(weight, 2),
+                }
+            )
+        return result
+
+    def _route_delivery_load_items(self, mode):
+        """Qué hay que subir al vehículo por este traslado, según el modo de control.
+
+        `package`: cada paquete de Odoo es un bulto a escanear; un traslado sin
+        paquetes se controla entero, por su remito. `picking`: siempre por remito.
+        Los retiros no cargan nada al salir.
+        """
+        self.ensure_one()
+        if mode not in ("picking", "package") or self._route_optimizer_is_pickup():
+            return []
+        items = self._route_delivery_packages() if mode == "package" else []
+        if not items:
+            items = [
+                {
+                    "key": "k%d" % self.id,
+                    "code": self.name or "",
+                    "alt_code": self.origin or "",
+                    "label": self.name or "",
+                    "type": "",
+                    "weight": round(self.shipping_weight or 0.0, 2),
+                }
+            ]
+        loaded = (self.route_delivery_load_data or {}).get("loaded") or {}
+        for item in items:
+            item["loaded"] = item["key"] in loaded
+        return items
+
+    def _route_delivery_returnable(self):
+        """Productos que el cliente puede devolverle al chofer: los de esta entrega y
+        los que recibió en los últimos meses. Vacío si la función está apagada."""
+        self.ensure_one()
+        icp = self.env["ir.config_parameter"].sudo()
+        if icp.get_param("route_optimizer_delivery.door_returns") not in ("True", "1", "true"):
+            return []
+        if self._route_optimizer_is_pickup():
+            return []
+        products = self._route_delivery_moves().mapped("product_id")
+        partner = self.partner_id.commercial_partner_id
+        if partner:
+            past = self.env["stock.move"].sudo().search(
+                [
+                    ("picking_id.partner_id", "child_of", partner.id),
+                    ("picking_id.picking_type_code", "=", "outgoing"),
+                    ("state", "=", "done"),
+                    ("date", ">=", fields.Datetime.now() - timedelta(days=180)),
+                ],
+                order="date desc",
+                limit=200,
+            )
+            for product in past.mapped("product_id"):
+                if len(products) >= 40:
+                    break
+                products |= product
+        return [
+            {
+                "id": product.id,
+                "product": product.display_name,
+                "barcode": product.barcode or "",
+                "uom": product.uom_id.name or "",
+                "integer": self._route_delivery_uom_is_integer(product.uom_id),
+            }
+            for product in products
+        ]
+
+    def _route_delivery_register_return(self, vals):
+        """Crea la recepción de lo que el cliente devolvió en la puerta.
+
+        Queda pendiente a nombre del cliente y ligada a esta entrega: el depósito la
+        valida cuando el vehículo vuelve y cuenta lo que llegó. Devuelve el detalle.
+        """
+        self.ensure_one()
+        allowed = {item["id"] for item in self._route_delivery_returnable()}
+        wanted = {}
+        for line in vals.get("returns") or []:
+            try:
+                product_id, qty = int(line.get("product_id") or 0), float(line.get("qty") or 0.0)
+            except (TypeError, ValueError, AttributeError):
+                raise UserError(_("Hay una cantidad devuelta que no es un número."))
+            if product_id in allowed and qty > 0:
+                wanted[product_id] = wanted.get(product_id, 0.0) + qty
+        if not wanted:
+            return []
+        out_type = self.picking_type_id
+        return_type = out_type.return_picking_type_id or out_type.warehouse_id.in_type_id
+        if not return_type:
+            raise UserError(_("No hay un tipo de operación de recepción para registrar la devolución."))
+        destination = return_type.default_location_dest_id or self.location_id
+        products = self.env["product.product"].browse(list(wanted))
+        uom_field = _move_uom_field(self.env["stock.move"])
+        moves, detail = [], []
+        for product in products:
+            move = {
+                "product_id": product.id,
+                "product_uom_qty": wanted[product.id],
+                uom_field: product.uom_id.id,
+                "location_id": self.location_dest_id.id,
+                "location_dest_id": destination.id,
+            }
+            if "name" in self.env["stock.move"]._fields:
+                move["name"] = product.display_name
+            moves.append((0, 0, move))
+            detail.append("%s: %g %s" % (product.display_name, wanted[product.id], product.uom_id.name or ""))
+        values = {
+            "partner_id": self.partner_id.id,
+            "picking_type_id": return_type.id,
+            "location_id": self.location_dest_id.id,
+            "location_dest_id": destination.id,
+            "origin": _("Devolución de %s") % self.name,
+            "company_id": self.company_id.id,
+            "move_ids": moves,
+        }
+        if "return_id" in self._fields:
+            values["return_id"] = self.id
+        note = (vals.get("return_note") or "").strip()
+        if note:
+            values["note"] = note
+            detail.append(note)
+        returned = self.env["stock.picking"].create(values)
+        returned.action_confirm()
+        self.write(
+            {
+                "route_delivery_return_picking_id": returned.id,
+                "route_delivery_return_detail": "\n".join(detail),
+            }
+        )
+        return detail
+
     def _route_delivery_moves(self):
         self.ensure_one()
         return self.move_ids.filtered(lambda m: m.state != "cancel")
@@ -416,6 +606,7 @@ class StockPicking(models.Model):
             "lon": lon or False,
             "maps_url": ("https://www.google.com/maps/dir/?api=1&destination=%s" % point) if point else False,
             "weight": self.shipping_weight or 0.0,
+            "kind": self._route_delivery_kind(),
             "zone": self.geo_delivery_zone_id.name or "" if "geo_delivery_zone_id" in self._fields else "",
             "late_minutes": round(
                 (self.route_delivery_eta - self.route_delivery_planned_eta).total_seconds() / 60.0
@@ -439,14 +630,16 @@ class StockPicking(models.Model):
                     "integer": self._route_delivery_uom_is_integer(uom),
                 }
             )
-        packages = []
-        if "result_package_id" in self.env["stock.move.line"]._fields:
-            packages = sorted(set(self.move_line_ids.mapped("result_package_id.name")))
+        packages = self._route_delivery_packages()
+        load_mode = self.env["stock.picking.batch"]._route_delivery_load_config()["mode"]
         self._route_delivery_ensure_token()
         data.update(
             {
                 "lines": lines,
                 "packages": packages,
+                "load_items": self._route_delivery_load_items(load_mode),
+                "returnable": self._route_delivery_returnable() if self.route_delivery_state == "pending" else [],
+                "return_detail": self.route_delivery_return_detail or "",
                 "tracking_url": self.route_delivery_tracking_url,
                 "whatsapp_url": self._route_delivery_whatsapp_url() if customer.phone else False,
                 "receiver_name": self.route_delivery_receiver_name or "",
@@ -559,8 +752,13 @@ class StockPicking(models.Model):
                     "%s: %g / %g %s"
                     % (move.product_id.display_name, qty, planned, _move_uom(move).name or "")
                 )
+        pickup = self._route_optimizer_is_pickup()
         if moves and not total:
-            raise UserError(_("No se entregó nada: usá «No entregado» y elegí el motivo."))
+            raise UserError(
+                _("No se retiró nada: usá «No retirado» y elegí el motivo.")
+                if pickup
+                else _("No se entregó nada: usá «No entregado» y elegí el motivo.")
+            )
 
         try:
             packages = int(float(vals.get("packages") or 0))
@@ -585,16 +783,21 @@ class StockPicking(models.Model):
         values.update(self._route_delivery_position_vals(vals))
         self.write(values)
         attachments = self._route_delivery_attach_photos(photos)
+        returned = self._route_delivery_register_return(vals)
 
         if flag("validate_on_delivery") and self.state not in ("done", "cancel"):
             self._route_delivery_validate_picking(delivered)
 
-        body = Markup("<b>%s</b>") % (
-            _("Entrega parcial") if partial_lines else _("Entregado")
-        )
+        if pickup:
+            title = _("Retiro parcial") if partial_lines else _("Retirado")
+        else:
+            title = _("Entrega parcial") if partial_lines else _("Entregado")
+        body = Markup("<b>%s</b>") % title
         details = []
         if values["route_delivery_receiver_name"]:
-            details.append(_("Recibió: %s") % values["route_delivery_receiver_name"])
+            details.append(
+                (_("Entregó: %s") if pickup else _("Recibió: %s")) % values["route_delivery_receiver_name"]
+            )
         if values["route_delivery_receiver_doc"]:
             details.append(_("DNI: %s") % values["route_delivery_receiver_doc"])
         if packages:
@@ -602,6 +805,14 @@ class StockPicking(models.Model):
         if cod:
             details.append(_("Cobrado: %s") % cod)
         details.extend(partial_lines)
+        if returned:
+            details.append(
+                _("El cliente devolvió (%(ref)s): %(list)s")
+                % {"ref": self.route_delivery_return_picking_id.name, "list": "; ".join(returned)}
+            )
+        unscanned = [str(label) for label in (vals.get("unscanned") or [])][:50]
+        if unscanned:
+            details.append(_("Bultos sin escanear al entregar: %s") % ", ".join(unscanned))
         if values["route_delivery_note"]:
             details.append(values["route_delivery_note"])
         for detail in details:
@@ -628,7 +839,10 @@ class StockPicking(models.Model):
         values.update(self._route_delivery_position_vals(vals))
         self.write(values)
         attachments = self._route_delivery_attach_photos(vals.get("photos"))
-        body = Markup("<b>%s</b>: %s") % (_("No entregado"), reason.name)
+        body = Markup("<b>%s</b>: %s") % (
+            _("No retirado") if self._route_optimizer_is_pickup() else _("No entregado"),
+            reason.name,
+        )
         if note:
             body += Markup("<br/>") + escape(note)
         self.message_post(body=body, attachment_ids=attachments.ids)

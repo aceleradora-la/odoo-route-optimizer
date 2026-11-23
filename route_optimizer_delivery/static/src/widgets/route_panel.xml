@@ -35,7 +35,7 @@
                             <t t-else="" t-out="stop_index + 1"/>
                         </span>
                         <span class="o_rdw_stop_main">
-                            <strong t-out="stop.partner"/>
+                            <strong><t t-if="stop.kind === 'return'">Devolución · </t><t t-elif="stop.kind === 'pickup'">Retiro · </t><t t-out="stop.partner"/></strong>
                             <span class="o_rdw_muted">
                                 <t t-out="stop.address or stop.name"/><t t-if="stop.window"> · recibe <t t-out="stop.window"/></t>
                             </span>
