@@ -8,6 +8,10 @@
             <xpath expr="//notebook" position="inside">
                 <page string="Entrega" name="route_delivery" invisible="picking_type_code not in ('outgoing', 'incoming')">
                     <widget name="route_delivery_pod"/>
+                    <group invisible="not route_delivery_return_picking_id" string="Devuelto por el cliente">
+                        <field name="route_delivery_return_picking_id"/>
+                        <field name="route_delivery_return_detail" nolabel="1" colspan="2"/>
+                    </group>
                 </page>
             </xpath>
         </field>

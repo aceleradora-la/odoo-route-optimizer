@@ -328,6 +328,51 @@ class TestRouteDelivery(RouteDeliveryCommon):
         self.assertEqual(len(self.pickings[2]._route_delivery_load_items("picking")), 1)
         self.assertEqual(len(first._route_delivery_load_items("picking")), 1)
 
+    def test_door_return(self):
+        """El cliente devuelve mercadería en la entrega: queda una recepción pendiente."""
+        first = self.pickings[0]
+        route = self.app().route_delivery_app_route(self.batch.id)
+        self.assertEqual(route["stops"][0]["returnable"], [])  # apagado por defecto
+        self.icp.set_param("route_optimizer_delivery.door_returns", "True")
+        route = self.app().route_delivery_app_route(self.batch.id)
+        stop = next(stop for stop in route["stops"] if stop["id"] == first.id)
+        self.assertEqual([item["id"] for item in stop["returnable"]], [self.product.id])
+
+        other = self.env["product.product"].create({"name": "Ajeno", **STORABLE(self.env)})
+        vals = {
+            "lines": self.line_vals(first, 5),
+            "returns": [
+                {"product_id": self.product.id, "qty": 2},
+                {"product_id": other.id, "qty": 9},  # nunca se le entregó: se ignora
+                {"product_id": self.product.id, "qty": 0},
+            ],
+            "return_note": "Envases vacíos",
+            "client_id": "dev-1",
+        }
+        route = self.app().route_delivery_app_deliver(first.id, vals)
+        returned = first.route_delivery_return_picking_id
+        self.assertTrue(returned)
+        self.assertEqual(returned.picking_type_code, "incoming")
+        self.assertEqual(returned.partner_id, first.partner_id)
+        self.assertEqual(returned.return_id, first)
+        self.assertNotIn(returned.state, ("draft", "cancel", "done"))
+        self.assertEqual(returned.move_ids.product_id, self.product)
+        self.assertEqual(returned.move_ids.product_uom_qty, 2)
+        self.assertFalse(returned.batch_id)
+        self.assertIn("Envases vacíos", first.route_delivery_return_detail)
+        self.assertIn(returned.name, first.message_ids[0].body)
+        stop = next(stop for stop in route["stops"] if stop["id"] == first.id)
+        self.assertIn("Caja de prueba", stop["return_detail"])
+        # El reintento del mismo envío no crea otra devolución.
+        self.app().route_delivery_app_deliver(first.id, vals)
+        self.assertEqual(
+            self.env["stock.picking"].search_count([("return_id", "=", first.id)]), 1
+        )
+        # Corregir la parada anula la devolución que seguía pendiente.
+        self.app().route_delivery_app_reopen(first.id)
+        self.assertEqual(returned.state, "cancel")
+        self.assertFalse(first.route_delivery_return_picking_id)
+
     def test_load_warning_when_not_required(self):
         """Sin bloqueo, la ruta sale con carga incompleta y queda anotado."""
         self.icp.set_param("route_optimizer_delivery.load_control", "picking")

@@ -125,7 +125,7 @@ export class RouteDeliveryApp extends Component {
     }
 
     emptyForm() {
-        return { qty: {}, receiverName: "", receiverDoc: "", packages: "", cod: "", note: "", photos: [], signature: null };
+        return { returns: {}, showReturns: false, returnNote: "", qty: {}, receiverName: "", receiverDoc: "", packages: "", cod: "", note: "", photos: [], signature: null };
     }
 
     // ------------------------------------------------------------------
@@ -832,6 +832,27 @@ export class RouteDeliveryApp extends Component {
         this.notification.add(left ? `Bien. Faltan ${left}.` : "Todo controlado.", { type: "success" });
     }
 
+    // Devolución en la puerta: lo que el cliente le entrega al chofer en esta parada.
+    toggleReturns() {
+        this.state.form.showReturns = !this.state.form.showReturns;
+    }
+
+    onReturnBlur(item, ev) {
+        const text = formatNum(parseNum(ev.target.value)) || "";
+        this.state.form.returns[item.id] = text;
+        ev.target.value = text;
+    }
+
+    get returnLines() {
+        return (this.currentStop.returnable || [])
+            .map((item) => ({ item, qty: parseNum(this.state.form.returns[item.id]) }))
+            .filter((line) => line.qty > 0);
+    }
+
+    get returnSummary() {
+        return this.returnLines.map((line) => `${line.item.product}: ${formatNum(line.qty)} ${line.item.uom}`).join("\n");
+    }
+
     /** Tildar un bulto a mano, si el depósito lo permite. */
     togglePackage(pack) {
         if (!this.loadCfg.manual) {
@@ -964,6 +985,8 @@ export class RouteDeliveryApp extends Component {
             photos: [...form.photos],
             signature: form.signature,
             unscanned: this.unscannedPackages,
+            returns: this.returnLines.map((line) => ({ product_id: line.item.id, qty: line.qty })),
+            return_note: this.returnLines.length ? form.returnNote : "",
             ...this.positionArgs,
         };
         vals.client_id = newClientId();
@@ -978,6 +1001,7 @@ export class RouteDeliveryApp extends Component {
             driver_note: vals.note,
             photo_count: vals.photos.length,
             has_signature: Boolean(vals.signature),
+            return_detail: this.returnSummary,
         };
         const send = async () => {
             const sent = await this.act(

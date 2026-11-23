@@ -310,6 +310,7 @@
                         <div t-if="stop.delivered_packages"><t t-out="stop.delivered_packages"/> bultos</div>
                         <div t-if="stop.cod_amount">Cobrado $ <t t-out="this.num(stop.cod_amount)"/></div>
                         <div t-if="stop.partial_detail" class="o_rd_pre" t-out="stop.partial_detail"/>
+                        <div t-if="stop.return_detail" class="o_rd_returned"><strong>El cliente devolvió</strong><div class="o_rd_pre" t-out="stop.return_detail"/></div>
                         <div t-if="stop.driver_note" class="o_rd_muted" t-out="stop.driver_note"/>
                         <div class="o_rd_muted">
                             <t t-if="stop.photo_count"><t t-out="stop.photo_count"/> fotos</t>
@@ -358,6 +359,36 @@
                         </div>
                     </div>
                     <div t-if="!stop.lines.length" class="o_rd_empty">Este remito no tiene productos cargados.</div>
+
+                    <t t-if="stop.returnable and stop.returnable.length">
+                        <button data-available-offline="" type="button" class="o_rd_btn o_rd_btn_secondary" t-on-click="this.toggleReturns"
+                                t-att-aria-expanded="this.state.form.showReturns ? 'true' : 'false'">
+                            <i class="o_rdi o_rdi-undo me-2"/>
+                            <t t-if="this.returnLines.length">Devuelve <t t-out="this.returnLines.length"/> producto(s)</t>
+                            <t t-else="">El cliente devuelve mercadería</t>
+                        </button>
+                        <div t-if="this.state.form.showReturns" class="o_rd_card o_rd_returns">
+                            <div class="o_rd_hint">Cargá solo lo que te llevás. El depósito lo controla cuando volvés.</div>
+                            <div t-foreach="stop.returnable" t-as="item" t-key="item.id" class="o_rd_line">
+                                <label class="o_rd_line_label" t-attf-for="rd_ret_{{ item.id }}" t-out="item.product"/>
+                                <div class="o_rd_line_qty">
+                                    <input type="text" class="o_rd_number" autocomplete="off" enterkeyhint="next" placeholder="0"
+                                           t-attf-id="rd_ret_{{ item.id }}"
+                                           t-att-inputmode="item.integer ? 'numeric' : 'decimal'"
+                                           t-att-value="this.state.form.returns[item.id] or ''"
+                                           t-on-input="(ev) => this.setValue(this.state.form.returns, item.id, ev)"
+                                           t-on-focus="this.selectOnFocus"
+                                           t-on-blur="(ev) => this.onReturnBlur(item, ev)"/>
+                                    <span class="o_rd_muted" t-out="item.uom"/>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="o_rd_field_label" for="rd_ret_note">Motivo de la devolución (opcional)</label>
+                                <input id="rd_ret_note" type="text" class="o_rd_input" autocomplete="off" enterkeyhint="done"
+                                       t-att-value="this.state.form.returnNote" t-on-input="(ev) => this.setValue(this.state.form, 'returnNote', ev)"/>
+                            </div>
+                        </div>
+                    </t>
 
                     <div class="o_rd_section_title" t-out="w.who"/>
                     <div class="o_rd_card">

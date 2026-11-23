@@ -50,6 +50,13 @@ class ResConfigSettings(models.TransientModel):
         help="En cada parada la app pide escanear los bultos que se bajan. Si falta alguno "
         "avisa antes de confirmar y lo deja anotado en el traslado.",
     )
+    route_delivery_door_returns = fields.Boolean(
+        string="Devoluciones en la entrega",
+        config_parameter="route_optimizer_delivery.door_returns",
+        help="El chofer puede cargar lo que el cliente le devuelve en la parada (envases, "
+        "mercadería de una entrega anterior). Se crea una recepción pendiente a nombre del "
+        "cliente, que el depósito valida cuando vuelve el vehículo.",
+    )
     route_delivery_require_signature = fields.Boolean(
         string="Firma obligatoria",
         config_parameter="route_optimizer_delivery.require_signature",

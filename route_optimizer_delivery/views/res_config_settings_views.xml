@@ -117,6 +117,10 @@
                             </div>
                         </div>
                     </setting>
+                    <setting string="Devoluciones en la entrega"
+                             help="El chofer registra lo que el cliente le devuelve en la parada. Queda una recepción pendiente para que el depósito la controle al volver el vehículo.">
+                        <field name="route_delivery_door_returns"/>
+                    </setting>
                     <setting string="Carga del vehículo"
                              help="Control de lo que sube al vehículo antes de salir. La app muestra los bultos en orden de carga: lo último que se entrega, al fondo.">
                         <div class="content-group">

@@ -291,6 +291,9 @@
     button.o_rd_chip { min-height: 40px; color: inherit; }
     .o_rd_chip_warn { border: 1px solid #fdba74; background: #fff7ed; color: #9a3412; }
 
+    .o_rd_returns .o_rd_line:first-of-type { margin-top: 4px; }
+    .o_rd_returned { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #d1d5db; }
+
     // Retiros y devoluciones
     .o_rd_kind {
         display: inline-block;
