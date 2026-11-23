@@ -288,6 +288,70 @@
         font-weight: 600;
     }
     .o_rd_chip_ok { border: 1px solid #86efac; background: #dcfce7; color: $rd-ok; }
+    button.o_rd_chip { min-height: 40px; color: inherit; }
+    .o_rd_chip_warn { border: 1px solid #fdba74; background: #fff7ed; color: #9a3412; }
+
+    .o_rd_returns .o_rd_line:first-of-type { margin-top: 4px; }
+    .o_rd_returned { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #d1d5db; }
+
+    // Retiros y devoluciones
+    .o_rd_kind {
+        display: inline-block;
+        margin-right: 6px;
+        padding: 1px 7px;
+        border-radius: 6px;
+        background: #ede9fe;
+        color: #5b21b6;
+        font-size: 12px;
+        font-weight: 700;
+        vertical-align: 1px;
+    }
+
+    // Carga del vehículo
+    .o_rd_loadcard { border-left: 5px solid #d97706; }
+    .o_rd_loadcard_ok { border-left-color: $rd-ok; }
+    .o_rd_partial_inline { position: static; margin: 0; }
+    .o_rd_loadgroup {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        background: #fff;
+        overflow: hidden;
+    }
+    .o_rd_loadgroup_ok { border-color: #86efac; }
+    .o_rd_loadgroup_head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        background: #f9fafb;
+    }
+    .o_rd_loadgroup_ok .o_rd_loadgroup_head { background: #f0fdf4; }
+    .o_rd_loadgroup_num {
+        flex: 0 0 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #e5e7eb;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .o_rd_loaditem {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        min-height: 52px;
+        padding: 8px 12px;
+        border: none;
+        border-top: 1px solid #e5e7eb;
+        background: #fff;
+        color: inherit;
+        font-size: 16px;
+        text-align: left;
+        gap: 4px;
+    }
+    .o_rd_loaditem_code { flex: 1 1 auto; font-weight: 600; word-break: break-all; }
+    .o_rd_loaditem_ok { background: #f0fdf4; color: $rd-ok; }
 
     // Fotos
     .o_rd_photos { display: flex; flex-wrap: wrap; gap: 8px; }

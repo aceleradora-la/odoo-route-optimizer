@@ -212,6 +212,174 @@ class TestRouteDelivery(RouteDeliveryCommon):
         self.assertEqual(full.state, "done")
         self.assertEqual(full.route_delivery_state, "delivered")
 
+    def _pickup(self, customer):
+        suppliers = self.env.ref("stock.stock_location_suppliers")
+        picking = self.env["stock.picking"].create(
+            {
+                "partner_id": customer.id,
+                "picking_type_id": self.warehouse.in_type_id.id,
+                "location_id": suppliers.id,
+                "location_dest_id": self.warehouse.lot_stock_id.id,
+                "move_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "product_id": self.product.id,
+                            **({"name": self.product.name} if "name" in self.env["stock.move"]._fields else {}),
+                            "product_uom_qty": 4,
+                            "location_id": suppliers.id,
+                            "location_dest_id": self.warehouse.lot_stock_id.id,
+                        },
+                    )
+                ],
+            }
+        )
+        picking.action_confirm()
+        return picking
+
+    def test_pickup_stop(self):
+        """Un retiro va en la misma ruta que las entregas, con sus propios textos y sin avisos."""
+        self.icp.set_param("route_optimizer.allow_pickups_in_batch", "True")
+        self.icp.set_param("route_optimizer_delivery.notify_email", "True")
+        pickup = self._pickup(self.customers[0])
+        day = fields.Date.to_string(fields.Date.context_today(self.batch))
+        pickup.scheduled_date = fields.Datetime.now()
+        board = self.Batch.route_dispatch_data(day)
+        self.assertIn(pickup.id, [stop["id"] for stop in board["unassigned"]])
+        self.assertEqual(
+            next(stop for stop in board["unassigned"] if stop["id"] == pickup.id)["kind"], "pickup"
+        )
+
+        self.batch.invalidate_recordset(["allowed_picking_ids"])
+        self.Batch.route_dispatch_move(pickup.id, self.batch.id, 0)
+        self.assertEqual(pickup.batch_id, self.batch)
+        out, peak, picked = self.batch._route_delivery_load_profile()
+        self.assertEqual(peak, out + picked)  # el retiro va primero: se suma a todo lo que sale
+
+        route = self.app().route_delivery_app_route(self.batch.id)
+        stop = next(stop for stop in route["stops"] if stop["id"] == pickup.id)
+        self.assertEqual(stop["kind"], "pickup")
+        self.assertEqual(stop["load_items"], [])
+        self.assertEqual(route["pickup_count"], 1)
+        self.assertEqual(route["stops"][1]["kind"], "delivery")
+
+        self.app().route_delivery_app_deliver(
+            pickup.id, {"lines": self.line_vals(pickup, 4), "receiver_name": "Depósito del cliente"}
+        )
+        self.assertEqual(pickup.route_delivery_state, "delivered")
+        self.assertIn("Retirado", pickup.message_ids[0].body)
+        # El retiro no recibe avisos de «entrega»; la parada siguiente sí recibe el suyo.
+        self.assertFalse(
+            self.env["mail.mail"].sudo().search([("model", "=", "stock.picking"), ("res_id", "=", pickup.id)])
+        )
+
+    def test_load_control_by_package(self):
+        """Carga por bulto con paquetes de Odoo: cuenta, bloqueo de salida e idempotencia."""
+        self.icp.set_param("route_optimizer_delivery.load_control", "package")
+        self.icp.set_param("route_optimizer_delivery.load_required", "True")
+        first = self.pickings[0]
+        Package = self.env[self.env["stock.move.line"]._fields["result_package_id"].comodel_name]
+        packs = Package.create([{"name": "BULTO-A"}, {"name": "BULTO-B"}])
+        line = first.move_line_ids[0]
+        line.write({"quantity": 2, "result_package_id": packs[0].id})
+        line.copy({"quantity": 3, "result_package_id": packs[1].id})
+
+        route = self.app().route_delivery_app_route(self.batch.id)
+        self.assertEqual(route["load"]["mode"], "package")
+        stop = next(stop for stop in route["stops"] if stop["id"] == first.id)
+        self.assertEqual([item["code"] for item in stop["load_items"]], ["BULTO-A", "BULTO-B"])
+        self.assertEqual([pack["label"] for pack in stop["packages"]], ["BULTO-A", "BULTO-B"])
+        # Un traslado sin paquetes se controla entero, por su remito.
+        other = next(stop for stop in route["stops"] if stop["id"] == self.pickings[1].id)
+        self.assertEqual([item["code"] for item in other["load_items"]], [self.pickings[1].name])
+        self.assertEqual((route["load_total"], route["load_done"]), (4, 0))
+
+        with self.assertRaises(UserError):
+            self.app().route_delivery_app_start(self.batch.id)
+        with self.assertRaises(AccessError):
+            self.app(self.other_driver).route_delivery_app_load(self.batch.id, {"items": {}})
+
+        keys = [item["key"] for stop in route["stops"] for item in stop["load_items"]]
+        route = self.app().route_delivery_app_load(self.batch.id, {"items": {keys[0]: True}})
+        route = self.app().route_delivery_app_load(self.batch.id, {"items": {keys[0]: True}})  # reintento
+        self.assertEqual(route["load_done"], 1)
+        self.assertFalse(self.batch.route_delivery_loaded_at)
+        route = self.app().route_delivery_app_load(self.batch.id, {"items": {key: True for key in keys}})
+        self.assertEqual(route["load_done"], 4)
+        self.assertTrue(self.batch.route_delivery_loaded_at)
+        route = self.app().route_delivery_app_load(self.batch.id, {"items": {keys[1]: False}})
+        self.assertEqual(route["load_done"], 3)
+        self.assertFalse(self.batch.route_delivery_loaded_at)
+        self.app().route_delivery_app_load(self.batch.id, {"items": {keys[1]: True}})
+
+        route = self.app().route_delivery_app_start(self.batch.id)
+        self.assertTrue(route["started"])
+        # El bulto escaneado abre su parada, y lo no escaneado al entregar queda anotado.
+        found = self.app().route_delivery_app_scan("bulto-b", self.batch.id)
+        self.assertEqual(found["picking_id"], first.id)
+        self.app().route_delivery_app_deliver(
+            first.id, {"lines": self.line_vals(first, 5), "unscanned": ["BULTO-B"]}
+        )
+        self.assertIn("BULTO-B", first.message_ids[0].body)
+
+        # Por remito: un solo renglón por traslado aunque tenga paquetes.
+        self.icp.set_param("route_optimizer_delivery.load_control", "picking")
+        self.assertEqual(len(self.pickings[2]._route_delivery_load_items("picking")), 1)
+        self.assertEqual(len(first._route_delivery_load_items("picking")), 1)
+
+    def test_door_return(self):
+        """El cliente devuelve mercadería en la entrega: queda una recepción pendiente."""
+        first = self.pickings[0]
+        route = self.app().route_delivery_app_route(self.batch.id)
+        self.assertEqual(route["stops"][0]["returnable"], [])  # apagado por defecto
+        self.icp.set_param("route_optimizer_delivery.door_returns", "True")
+        route = self.app().route_delivery_app_route(self.batch.id)
+        stop = next(stop for stop in route["stops"] if stop["id"] == first.id)
+        self.assertEqual([item["id"] for item in stop["returnable"]], [self.product.id])
+
+        other = self.env["product.product"].create({"name": "Ajeno", **STORABLE(self.env)})
+        vals = {
+            "lines": self.line_vals(first, 5),
+            "returns": [
+                {"product_id": self.product.id, "qty": 2},
+                {"product_id": other.id, "qty": 9},  # nunca se le entregó: se ignora
+                {"product_id": self.product.id, "qty": 0},
+            ],
+            "return_note": "Envases vacíos",
+            "client_id": "dev-1",
+        }
+        route = self.app().route_delivery_app_deliver(first.id, vals)
+        returned = first.route_delivery_return_picking_id
+        self.assertTrue(returned)
+        self.assertEqual(returned.picking_type_code, "incoming")
+        self.assertEqual(returned.partner_id, first.partner_id)
+        self.assertEqual(returned.return_id, first)
+        self.assertNotIn(returned.state, ("draft", "cancel", "done"))
+        self.assertEqual(returned.move_ids.product_id, self.product)
+        self.assertEqual(returned.move_ids.product_uom_qty, 2)
+        self.assertFalse(returned.batch_id)
+        self.assertIn("Envases vacíos", first.route_delivery_return_detail)
+        self.assertIn(returned.name, first.message_ids[0].body)
+        stop = next(stop for stop in route["stops"] if stop["id"] == first.id)
+        self.assertIn("Caja de prueba", stop["return_detail"])
+        # El reintento del mismo envío no crea otra devolución.
+        self.app().route_delivery_app_deliver(first.id, vals)
+        self.assertEqual(
+            self.env["stock.picking"].search_count([("return_id", "=", first.id)]), 1
+        )
+        # Corregir la parada anula la devolución que seguía pendiente.
+        self.app().route_delivery_app_reopen(first.id)
+        self.assertEqual(returned.state, "cancel")
+        self.assertFalse(first.route_delivery_return_picking_id)
+
+    def test_load_warning_when_not_required(self):
+        """Sin bloqueo, la ruta sale con carga incompleta y queda anotado."""
+        self.icp.set_param("route_optimizer_delivery.load_control", "picking")
+        route = self.app().route_delivery_app_start(self.batch.id)
+        self.assertTrue(route["started"])
+        self.assertIn("sin controlar", self.batch.message_ids[0].body)
+
     def test_scan(self):
         picking = self.pickings[1]
         found = self.app().route_delivery_app_scan(picking.name.lower(), self.batch.id)

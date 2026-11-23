@@ -74,7 +74,7 @@
                         <input type="checkbox" t-att-checked="this.isSelected(stop.id)" t-on-change="() => this.toggle(stop.id)"/>
                         <div class="o_rdb_order_main">
                             <div class="o_rdb_order_head">
-                                <strong t-out="stop.partner"/>
+                                <strong><span t-if="stop.kind and stop.kind !== 'delivery'" class="o_rdb_tag o_rdb_tag_pickup"><t t-if="stop.kind === 'return'">Devolución</t><t t-else="">Retiro</t></span> <t t-out="stop.partner"/></strong>
                                 <span t-if="stop.weight"><t t-out="this.kg(stop.weight)"/> kg</span>
                             </div>
                             <div class="o_rdb_muted" t-out="stop.address or stop.name"/>
@@ -283,6 +283,10 @@
                                     <span t-if="route.remaining_km"><strong t-out="route.remaining_km.toLocaleString('es-AR')"/> km</span>
                                     <span t-if="route.remaining_minutes"><strong t-out="this.duration(route.remaining_minutes)"/></span>
                                     <span t-if="route.vehicle" t-out="route.vehicle"/>
+                                    <span t-if="route.pickup_count"><strong t-out="route.pickup_count"/> retiros</span>
+                                    <span t-if="route.load_total" t-attf-class="{{ route.load_done === route.load_total ? 'o_rdb_ok' : '' }}">
+                                        Carga <strong><t t-out="route.load_done"/>/<t t-out="route.load_total"/></strong>
+                                    </span>
                                 </div>
                             </t>
 
@@ -314,7 +318,7 @@
                                             <t t-else="" t-out="stop_index + 1"/>
                                         </span>
                                         <div class="o_rdb_stop_main">
-                                            <strong t-out="stop.partner"/>
+                                            <strong><span t-if="stop.kind and stop.kind !== 'delivery'" class="o_rdb_tag o_rdb_tag_pickup"><t t-if="stop.kind === 'return'">Devolución</t><t t-else="">Retiro</t></span> <t t-out="stop.partner"/></strong>
                                             <div class="o_rdb_muted">
                                                 <t t-out="stop.address or stop.name"/>
                                                 <t t-if="stop.window"> · recibe <t t-out="stop.window"/></t>

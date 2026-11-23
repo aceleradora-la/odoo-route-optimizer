@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from unittest.mock import patch
 
+from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
 SERVICE = "odoo.addons.route_optimizer.services.route_service"
@@ -122,6 +123,46 @@ class TestOptimizerPayload(TransactionCase):
         self.assertEqual(p1.batch_id, p2.batch_id)
         self.assertNotEqual(p1.batch_id, self.batch)
         self.assertEqual(p1.batch_id.picking_ids.sorted("batch_sequence"), p2 | p1)
+
+    def test_pickup_in_delivery_route(self):
+        """Un retiro entra al lote de entregas solo con el ajuste, y el solver sabe que suma carga."""
+        suppliers = self.env.ref("stock.stock_location_suppliers")
+        partner = self.env["res.partner"].create(
+            {"name": "Proveedor", "partner_latitude": -34.65, "partner_longitude": -58.45}
+        )
+        product = self.pickings[0].move_ids.product_id
+        pickup = self.env["stock.picking"].create(
+            {
+                "partner_id": partner.id,
+                "picking_type_id": self.warehouse.in_type_id.id,
+                "location_id": suppliers.id,
+                "location_dest_id": self.warehouse.lot_stock_id.id,
+                "move_ids": [(0, 0, {
+                    "product_id": product.id,
+                    **({"name": product.name} if "name" in self.env["stock.move"]._fields else {}),
+                    "product_uom_qty": 2,
+                    "location_id": suppliers.id,
+                    "location_dest_id": self.warehouse.lot_stock_id.id,
+                })],
+            }
+        )
+        pickup.action_confirm()
+        self.assertTrue(pickup._route_optimizer_is_pickup())
+        self.assertFalse(self.pickings[0]._route_optimizer_is_pickup())
+        with self.assertRaises(UserError):
+            self.batch.write({"picking_ids": [(4, pickup.id)]})
+        self.icp.set_param("route_optimizer.allow_pickups_in_batch", "True")
+        self.batch.invalidate_recordset(["allowed_picking_ids"])
+        self.batch.write({"picking_ids": [(4, pickup.id)]})
+        self.assertIn(pickup, self.batch.picking_ids)
+
+        p1, p2, p3, p4 = self.pickings
+        self.pickings = self.pickings | pickup  # la matriz simulada se arma con esto
+        sent = self._optimize({"num_vehicles": 1}, [[p1, p2, pickup, p3, p4]])
+        node = sent["picking_ids"].index(pickup.id) + 1
+        self.assertEqual(sum(sent["pickups"]), 1)
+        self.assertEqual(sent["pickups"][node], 1)
+        self.assertEqual(self.batch.picking_ids.sorted("batch_sequence")[2], pickup)
 
     def test_priority_and_break(self):
         self.icp.set_param("route_optimizer.break_duration_minutes", "45")
