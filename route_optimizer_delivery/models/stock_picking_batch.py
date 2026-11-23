@@ -215,6 +215,7 @@ class StockPickingBatch(models.Model):
                         icp.get_param("route_optimizer.osrm_profile") or "driving",
                         coords,
                         timeout=ROUTING_TIMEOUT,
+                        api_key=(icp.get_param("route_optimizer.osrm_api_key") or "").strip() or None,
                     )
             except Exception as error:  # noqa: BLE001 - cualquier falla cae a la estimación
                 _logger.info("El ruteo (%s) no respondió, se estima en línea recta: %s", provider, error)

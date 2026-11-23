@@ -31,7 +31,16 @@ def normalize_osrm_base_url(base_url):
     return u
 
 
-def fetch_table(base_url, profile, coordinates_lonlat, timeout=60):
+def _headers(api_key=None):
+    """Encabezados del pedido. Si el OSRM está detrás de un proxy que pide clave
+    (OSRM no trae autenticación propia), va en X-API-KEY, igual que con OR-Tools."""
+    headers = {"User-Agent": "Odoo-route-optimizer"}
+    if api_key:
+        headers["X-API-KEY"] = api_key
+    return headers
+
+
+def fetch_table(base_url, profile, coordinates_lonlat, timeout=60, api_key=None):
     """
     Call OSRM Table API.
 
@@ -50,7 +59,7 @@ def fetch_table(base_url, profile, coordinates_lonlat, timeout=60):
     path = f"/table/v1/{profile}/{coord_str}"
     url = f"{base}{path}?annotations=duration,distance"
 
-    req = urllib.request.Request(url, method="GET", headers={"User-Agent": "Odoo-route-optimizer"})
+    req = urllib.request.Request(url, method="GET", headers=_headers(api_key))
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8")
@@ -61,6 +70,8 @@ def fetch_table(base_url, profile, coordinates_lonlat, timeout=60):
         except Exception:
             pass
         hint = ""
+        if e.code in (401, 403):
+            hint = " Revisá la API key de OSRM en Ajustes."
         if e.code == 400:
             hint = (
                 " If you set the base URL with /table/v1/, remove it: use only the server root "
@@ -98,7 +109,7 @@ def fetch_table(base_url, profile, coordinates_lonlat, timeout=60):
     }
 
 
-def fetch_route(base_url, profile, coordinates_lonlat, timeout=20):
+def fetch_route(base_url, profile, coordinates_lonlat, timeout=20, api_key=None):
     """
     Recorrido por calles que pasa por los puntos EN EL ORDEN DADO (servicio Route).
 
@@ -113,7 +124,7 @@ def fetch_route(base_url, profile, coordinates_lonlat, timeout=20):
         raise OsrmError("At least two coordinates are required.")
     coord_str = ";".join(f"{lon:.7f},{lat:.7f}" for lon, lat in coordinates_lonlat)
     url = f"{base}/route/v1/{profile}/{coord_str}?overview=full&geometries=polyline&steps=false"
-    req = urllib.request.Request(url, method="GET", headers={"User-Agent": "Odoo-route-optimizer"})
+    req = urllib.request.Request(url, method="GET", headers=_headers(api_key))
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
