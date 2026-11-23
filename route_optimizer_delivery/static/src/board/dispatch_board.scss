@@ -67,6 +67,8 @@
     .o_rdb_tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 5px; }
     .o_rdb_tag { padding: 1px 7px; border-radius: 6px; background: #eceef1; color: #374151; font-size: 11px; }
     .o_rdb_tag_warn { background: #ffedd5; color: $warn; }
+    .o_rdb_tag_pickup { background: #ede9fe; color: #5b21b6; font-weight: 700; }
+    .o_rdb_ok { color: #15803d; }
     .o_rdb_ref { margin-left: auto; font-size: 11px; }
 
     // ---------------------------------------------------------- Barra superior

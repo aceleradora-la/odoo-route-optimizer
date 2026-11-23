@@ -99,6 +99,12 @@ class StockPicking(models.Model):
         # Odoo 17 no ordena los traslados dentro del lote: el campo lo aporta este módulo.
         batch_sequence = fields.Integer(string="Orden de visita", copy=False)
 
+    def _route_optimizer_is_pickup(self):
+        """True si en esta parada se retira mercadería (recepción o devolución de un
+        cliente) en vez de entregarla: el vehículo sale vacío de ella y vuelve cargado."""
+        self.ensure_one()
+        return self.picking_type_code == "incoming"
+
     route_optimizer_delivery_address = fields.Char(
         string="Dirección de entrega",
         compute="_compute_route_optimizer_delivery_address",

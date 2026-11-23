@@ -38,7 +38,7 @@
                 <meta name="viewport" content="width=device-width, initial-scale=1"/>
                 <meta name="robots" content="noindex, nofollow"/>
                 <meta t-if="live" http-equiv="refresh" content="60"/>
-                <title>Tu entrega · <t t-out="company.name"/></title>
+                <title><t t-if="pickup">Tu retiro</t><t t-else="">Tu entrega</t> · <t t-out="company.name"/></title>
                 <t t-call="route_optimizer_delivery.tracking_styles"/>
             </head>
             <body>
@@ -50,8 +50,9 @@
 
                     <div t-attf-class="rd-card #{'rd-ok' if step == 'delivered' else ''} #{'rd-bad' if step in ('failed', 'cancel') else ''}">
                         <t t-if="step == 'scheduled'">
-                            <p class="rd-status">Entrega programada</p>
-                            <p class="rd-sub">Tu pedido ya tiene lugar en la ruta. Te avisamos cuando salga.</p>
+                            <p class="rd-status"><t t-if="pickup">Retiro programado</t><t t-else="">Entrega programada</t></p>
+                            <p class="rd-sub" t-if="pickup">Ya tenés lugar en la ruta: pasamos a retirar por tu domicilio.</p>
+                            <p class="rd-sub" t-else="">Tu pedido ya tiene lugar en la ruta. Te avisamos cuando salga.</p>
                         </t>
                         <t t-elif="step == 'on_the_way'">
                             <p class="rd-status">En camino</p>
@@ -65,25 +66,25 @@
                             <p class="rd-sub">El reparto va hacia tu domicilio.</p>
                         </t>
                         <t t-elif="step == 'delivered'">
-                            <p class="rd-status">Entregado</p>
+                            <p class="rd-status"><t t-if="pickup">Retirado</t><t t-else="">Entregado</t></p>
                             <p class="rd-sub">
                                 <t t-out="done_at"/>
-                                <t t-if="picking.route_delivery_receiver_name"> · Recibió <t t-out="picking.route_delivery_receiver_name"/></t>
+                                <t t-if="picking.route_delivery_receiver_name"> · <t t-if="pickup">Entregó</t><t t-else="">Recibió</t> <t t-out="picking.route_delivery_receiver_name"/></t>
                             </p>
                             <p t-if="picking.route_delivery_state == 'partial'" class="rd-sub">
-                                La entrega fue parcial: lo que falta se reprograma.
+                                <t t-if="pickup">El retiro fue parcial: lo que falta se reprograma.</t><t t-else="">La entrega fue parcial: lo que falta se reprograma.</t>
                             </p>
                         </t>
                         <t t-elif="step == 'failed'">
-                            <p class="rd-status">No pudimos entregar</p>
+                            <p class="rd-status"><t t-if="pickup">No pudimos retirar</t><t t-else="">No pudimos entregar</t></p>
                             <p class="rd-sub">
                                 <t t-out="picking.route_delivery_fail_reason_id.name"/>
                                 <t t-if="done_at"> · <t t-out="done_at"/></t>
                             </p>
-                            <p class="rd-sub">Nos vamos a contactar para coordinar una nueva entrega.</p>
+                            <p class="rd-sub">Nos vamos a contactar para coordinar una nueva visita.</p>
                         </t>
                         <t t-else="">
-                            <p class="rd-status">Entrega cancelada</p>
+                            <p class="rd-status"><t t-if="pickup">Retiro cancelado</t><t t-else="">Entrega cancelada</t></p>
                         </t>
 
                         <t t-if="eta_from and step in ('scheduled', 'on_the_way', 'next')">

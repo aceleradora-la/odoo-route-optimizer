@@ -66,6 +66,12 @@ class StockPickingBatch(models.Model):
         help="Suma de los tramos entre las posiciones que informó la app.",
     )
     route_delivery_eta_refreshed_at = fields.Datetime(copy=False, readonly=True)
+    route_delivery_loaded_at = fields.Datetime(
+        string="Carga completa",
+        copy=False,
+        readonly=True,
+        help="Cuándo se terminó de controlar la carga del vehículo desde la app.",
+    )
     route_delivery_stop_count = fields.Integer(
         string="Paradas", compute="_compute_route_delivery_progress"
     )
@@ -330,9 +336,105 @@ class StockPickingBatch(models.Model):
         self._route_delivery_app_batch(picking.batch_id.id)
         return picking
 
+    # ------------------------------------------------------------------
+    # Carga del vehículo
+    # ------------------------------------------------------------------
+
+    @api.model
+    def _route_delivery_load_config(self):
+        """Cómo se controla la carga: modo y qué tan estricto es."""
+        icp = self.env["ir.config_parameter"].sudo()
+
+        def flag(key):
+            return icp.get_param("route_optimizer_delivery.%s" % key) in ("True", "1", "true")
+
+        mode = (icp.get_param("route_optimizer_delivery.load_control") or "none").strip()
+        return {
+            "mode": mode if mode in ("picking", "package") else "none",
+            "required": flag("load_required"),
+            "manual": not flag("load_scan_only"),
+            "unload": flag("unload_control"),
+        }
+
+    def _route_delivery_load_stops(self):
+        """Paradas que cargan mercadería al salir: las entregas todavía pendientes."""
+        self.ensure_one()
+        return self._route_delivery_stops().filtered(
+            lambda p: p.route_delivery_state == "pending" and not p._route_optimizer_is_pickup()
+        )
+
+    def _route_delivery_load_missing(self, mode=None):
+        """(total de bultos, [etiquetas de los que faltan subir])."""
+        self.ensure_one()
+        mode = mode or self._route_delivery_load_config()["mode"]
+        total, missing = 0, []
+        for picking in self._route_delivery_load_stops():
+            for item in picking._route_delivery_load_items(mode):
+                total += 1
+                if not item["loaded"]:
+                    missing.append(item["label"])
+        return total, missing
+
+    def _route_delivery_load_profile(self, stops=None):
+        """(kg al salir, pico de kg en el recorrido, kg retirados).
+
+        Con retiros el vehículo vuelve cargado: lo que tiene que entrar es el pico,
+        no la suma de las entregas.
+        """
+        self.ensure_one()
+        stops = self._route_delivery_stops() if stops is None else stops
+        out = sum(p.shipping_weight or 0.0 for p in stops if not p._route_optimizer_is_pickup())
+        load = peak = out
+        picked = 0.0
+        for picking in stops:
+            weight = picking.shipping_weight or 0.0
+            if picking._route_optimizer_is_pickup():
+                load += weight
+                picked += weight
+            else:
+                load -= weight
+            peak = max(peak, load)
+        return out, peak, picked
+
+    @api.model
+    def route_delivery_app_load(self, batch_id, vals):
+        """Marca bultos como cargados (o los desmarca). `vals["items"]` es {clave: bool};
+        repetir el mismo envío no cambia nada, así que sirve tal cual para la cola sin señal."""
+        batch = self._route_delivery_app_batch(batch_id)
+        config = batch._route_delivery_load_config()
+        wanted = {str(key): bool(value) for key, value in ((vals or {}).get("items") or {}).items()}
+        if config["mode"] == "none" or not wanted:
+            return batch._route_delivery_app_payload()
+        now = fields.Datetime.to_string(fields.Datetime.now())
+        for picking in batch._route_delivery_load_stops():
+            keys = {item["key"] for item in picking._route_delivery_load_items(config["mode"])} & set(wanted)
+            if not keys:
+                continue
+            data = dict(picking.route_delivery_load_data or {})
+            loaded = dict(data.get("loaded") or {})
+            for key in keys:
+                if wanted[key]:
+                    loaded.setdefault(key, now)
+                else:
+                    loaded.pop(key, None)
+            data["loaded"] = loaded
+            picking.route_delivery_load_data = data
+        total, missing = batch._route_delivery_load_missing(config["mode"])
+        if total and not missing and not batch.route_delivery_loaded_at:
+            batch.route_delivery_loaded_at = fields.Datetime.now()
+            batch.message_post(body=_("Carga completa: %s bultos controlados.") % total)
+        elif missing and batch.route_delivery_loaded_at:
+            batch.route_delivery_loaded_at = False
+        return batch._route_delivery_app_payload()
+
     def _route_delivery_summary(self):
         self.ensure_one()
         stops = self._route_delivery_stops()
+        out_weight, peak_weight, pickup_weight = self._route_delivery_load_profile(stops)
+        load_mode = self._route_delivery_load_config()["mode"]
+        load_total, load_missing = (
+            self._route_delivery_load_missing(load_mode) if load_mode != "none" else (0, [])
+        )
         pending = stops.filtered(lambda p: p.route_delivery_state == "pending")
         vehicle = ""
         if "vehicle_id" in self._fields and self.vehicle_id:
@@ -356,7 +458,12 @@ class StockPickingBatch(models.Model):
             "done_count": self.route_delivery_done_count,
             "failed_count": self.route_delivery_failed_count,
             "progress": self.route_delivery_progress,
-            "weight": sum(stops.mapped("shipping_weight")),
+            "weight": peak_weight,
+            "out_weight": out_weight,
+            "pickup_weight": pickup_weight,
+            "pickup_count": len(stops.filtered(lambda p: p._route_optimizer_is_pickup())),
+            "load_total": load_total,
+            "load_done": load_total - len(load_missing),
             "next_stop": (pending[0]._route_optimizer_delivery_partner().display_name or pending[0].name)
             if pending
             else "",
@@ -389,6 +496,7 @@ class StockPickingBatch(models.Model):
                 .search_read([], ["name", "require_note"]),
                 "require_signature": flag("require_signature"),
                 "require_photo": flag("require_photo"),
+                "load": self._route_delivery_load_config(),
             }
         )
         return data
@@ -454,6 +562,19 @@ class StockPickingBatch(models.Model):
     def route_delivery_app_start(self, batch_id, lat=None, lon=None):
         batch = self._route_delivery_app_batch(batch_id)
         if not batch.route_delivery_started_at:
+            config = batch._route_delivery_load_config()
+            if config["mode"] != "none":
+                _total, missing = batch._route_delivery_load_missing(config["mode"])
+                if missing and config["required"]:
+                    raise UserError(
+                        _("Falta cargar %(n)s bulto(s) antes de salir: %(list)s")
+                        % {"n": len(missing), "list": ", ".join(missing[:8])}
+                    )
+                if missing:
+                    batch.message_post(
+                        body=_("La ruta salió con %(n)s bulto(s) sin controlar en la carga: %(list)s")
+                        % {"n": len(missing), "list": ", ".join(missing[:30])}
+                    )
             batch.write(
                 {"route_delivery_started_at": fields.Datetime.now(), "route_delivery_finished_at": False}
             )
@@ -679,9 +800,12 @@ class StockPickingBatch(models.Model):
         states = ["confirmed", "assigned", "waiting"]
         if route_service._param_bool(icp.get_param("route_optimizer.allow_done_in_batch", "False")):
             states.append("done")
+        codes = ["outgoing"]
+        if route_service._param_bool(icp.get_param("route_optimizer.allow_pickups_in_batch", "False")):
+            codes.append("incoming")
         unassigned = self.env["stock.picking"].search(
             [
-                ("picking_type_code", "=", "outgoing"),
+                ("picking_type_code", "in", codes),
                 ("batch_id", "=", False),
                 ("state", "in", states),
                 ("route_delivery_state", "=", "pending"),
@@ -839,7 +963,8 @@ class StockPickingBatch(models.Model):
                 continue
             placements, extra_m, order = batch._route_dispatch_plan(moving)
             extra_min = extra_m / (URBAN_SPEED_KMH / 3.6) / 60.0 + len(moving) * service / 60.0
-            load = sum(batch._route_delivery_stops().mapped("shipping_weight")) + sum(moving.mapped("shipping_weight"))
+            visited = batch._route_delivery_stops().filtered(lambda p: p.route_delivery_state != "pending")
+            load = batch._route_delivery_load_profile(list(visited) + list(order))[1]
             capacity = batch._route_dispatch_capacity()
             issues = [batch._route_dispatch_window_issue(p, order, service) for p in moving]
             issues = [issue for issue in issues if issue]
@@ -940,9 +1065,9 @@ class StockPickingBatch(models.Model):
         if not pickings:
             raise UserError(_("Elegí al menos una entrega pendiente."))
         sources = pickings.batch_id
-        batch = self.create(
-            {"picking_type_id": pickings[0].picking_type_id.id, "company_id": pickings[0].company_id.id}
-        )
+        # El lote toma el tipo de operación de una entrega; los retiros se suman a ese lote.
+        lead = pickings.filtered(lambda p: not p._route_optimizer_is_pickup())[:1] or pickings[0]
+        batch = self.create({"picking_type_id": lead.picking_type_id.id, "company_id": lead.company_id.id})
         # Vecino más cercano desde el depósito: un orden razonable hasta que se optimice.
         _placements, _extra, order = batch._route_dispatch_plan(pickings)
         pickings.write({"batch_id": batch.id})

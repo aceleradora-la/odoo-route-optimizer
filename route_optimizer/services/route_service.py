@@ -492,7 +492,8 @@ def _run_google_solver(
                     for iv in intervals
                 ]
 
-        shipment = {"deliveries": [delivery]}
+        # Un retiro viaja hasta el final de la ruta; una entrega sale cargada del depósito.
+        shipment = {"pickups" if s["picking"]._route_optimizer_is_pickup() else "deliveries": [delivery]}
         w = s["picking"].shipping_weight or 0.0
         if vehicle_capacity and vehicle_capacity > 0 and w > 0:
             shipment["loadDemands"] = {"weight": {"amount": str(int(round(float(w))))}}
@@ -721,6 +722,11 @@ def _run_vrp_api(
     priorities = [0] + [1 if s["picking"].priority == "1" else 0 for s in stops]
     if any(priorities):
         payload["priorities"] = priorities
+
+    # Retiros y devoluciones: la carga sube en esa parada en vez de bajar.
+    pickups = [0] + [1 if s["picking"]._route_optimizer_is_pickup() else 0 for s in stops]
+    if any(pickups):
+        payload["pickups"] = pickups
 
     # OCA stock_partner_delivery_window: time windows per stop (requires duration matrix).
     if use_duration:
