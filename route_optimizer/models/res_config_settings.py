@@ -63,6 +63,12 @@ class ResConfigSettings(models.TransientModel):
         config_parameter="route_optimizer.osrm_url",
         help="URL base sin barra final, ej. https://router.project-osrm.org",
     )
+    route_optimizer_osrm_api_key = fields.Char(
+        string="API key de OSRM",
+        config_parameter="route_optimizer.osrm_api_key",
+        help="Opcional. OSRM no trae autenticación propia: si lo publicás detrás de un "
+        "proxy (nginx) que exige una clave, cargala acá y se envía como header X-API-KEY.",
+    )
     route_optimizer_osrm_profile = fields.Char(
         string="Perfil OSRM",
         config_parameter="route_optimizer.osrm_profile",
@@ -241,6 +247,7 @@ class ResConfigSettings(models.TransientModel):
                 (self.route_optimizer_osrm_profile or "driving").strip(),
                 _TEST_COORDS,
                 timeout=15,
+                api_key=(self.route_optimizer_osrm_api_key or "").strip() or None,
             )
         except osrm_client.OsrmError as e:
             raise UserError(_("OSRM: falló la conexión.\n\n%s") % str(e)) from e
