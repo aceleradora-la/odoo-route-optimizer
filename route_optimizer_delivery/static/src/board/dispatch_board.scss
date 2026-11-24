@@ -17,6 +17,10 @@
     background: $ground;
     color: $ink;
     font-size: 13px;
+    // Colores fijos: los controles nativos (casillas, buscador, listas) no deben tomar
+    // el tema oscuro de Odoo.
+    color-scheme: light;
+    input, select, textarea { background-color: #fff; color: $ink; }
 
     h2 { margin: 0; font-size: 16px; font-weight: 700; }
     .o_rdb_muted { color: $muted; font-size: 12px; }
@@ -74,6 +78,7 @@
     // ---------------------------------------------------------- Barra superior
     .o_rdb_top {
         display: flex;
+        flex: 0 0 auto; // en pantallas angostas ocupa varias filas: no se recorta
         flex-wrap: wrap;
         align-items: center;
         gap: 8px 16px;
@@ -479,10 +484,23 @@
 
     // En pantallas angostas los paneles pasan abajo del mapa.
     @media (max-width: 1100px) {
-        .o_rdb_body { flex-direction: column; overflow-y: auto; }
+        // Tablet y celular: se desplaza todo el tablero, no solo las listas.
+        overflow-y: auto;
+        .o_rdb_body { flex: 0 0 auto; flex-direction: column; }
+        .o_rdb_timeline { max-height: none; }
         .o_rdb_center { order: -1; flex: 0 0 auto; }
         .o_rdb_mapbox { flex: 0 0 360px; }
         .o_rdb_side { flex: 0 0 auto; border: 0; border-top: 1px solid $line; }
         .o_rdb_list { overflow: visible; }
+    }
+    @media (max-width: 640px) {
+        .o_rdb_top { gap: 8px; padding: 8px 12px; }
+        .o_rdb_brand { font-size: 17px; }
+        .o_rdb_days { flex: 1 1 100%; }
+        .o_rdb_day { flex: 1 1 auto; justify-content: center; }
+        .o_rdb_segment { flex: 1 1 100%; button { flex: 1 1 0; } }
+        .o_rdb_kpis { flex: 1 1 100%; gap: 2px 14px; }
+        .o_rdb_top_actions { flex: 1 1 100%; margin-left: 0; .o_rdb_btn { flex: 1 1 0; padding: 0 8px; } }
+        .o_rdb_mapbox { flex-basis: 300px; }
     }
 }

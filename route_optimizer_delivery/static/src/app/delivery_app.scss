@@ -16,6 +16,9 @@
     background: #f3f4f6;
     color: #111827;
     font-size: 14px;
+    // Colores fijos: los campos no deben tomar el tema oscuro de Odoo.
+    color-scheme: light;
+    input, select, textarea { background-color: #fff; color: #111827; }
 
     .o_rd_header {
         position: sticky;
