@@ -6,6 +6,7 @@ import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_d
 import { hourLabel, parseServerDate } from "../app/delivery_app";
 import { reactive } from "../app/owl_compat";
 import { createMap, decodePolyline } from "./map_adapter";
+import { lateLabel, recallBoardView, rememberBoardView } from "./board_view";
 
 const MODEL = "stock.picking.batch";
 const REFRESH_MS = 30000;
@@ -48,9 +49,11 @@ export class RouteDispatchBoard extends Component {
         this.action = useService("action");
         this.dialog = useService("dialog");
         this.notification = useService("notification");
+        // Si se vuelve de abrir una ruta o un traslado, se retoma donde se estaba.
+        const last = recallBoardView() || {};
         this.state = reactive({
-            day: isoDay(new Date()),
-            mode: "plan", // plan | live
+            day: last.day || isoDay(new Date()),
+            mode: last.mode === "live" ? "live" : "plan", // plan | live
             tool: "move", // move | lasso
             routes: [],
             unassigned: [],
@@ -60,9 +63,9 @@ export class RouteDispatchBoard extends Component {
             loading: true,
             busy: false,
             selection: {},
-            expanded: null,
-            search: "",
-            zone: "",
+            expanded: last.expanded || null,
+            search: last.search || "",
+            zone: last.zone || "",
             options: [],
             optionsLoading: false,
             drop: null,
@@ -80,7 +83,13 @@ export class RouteDispatchBoard extends Component {
         onWillStart(() => this.load());
         onMounted(async () => {
             this.mapEl = document.querySelector(".o_route_dispatch_board .o_rdb_map");
-            this.map = await createMap(this.mapEl, this.mapConfig);
+            const map = await createMap(this.mapEl, this.mapConfig);
+            if (this.gone) {
+                // Se salió del tablero mientras cargaba el mapa.
+                map.destroy();
+                return;
+            }
+            this.map = map;
             this.state.mapProvider = this.map.supportsTraffic ? "google" : "osm";
             this.map.onPinClick((id) => this.toggle(id));
             this.drawMap();
@@ -97,6 +106,8 @@ export class RouteDispatchBoard extends Component {
             }
         });
         onWillUnmount(() => {
+            this.gone = true;
+            this.remember();
             clearInterval(this.timer);
             if (this.map) {
                 this.map.destroy();
@@ -107,7 +118,14 @@ export class RouteDispatchBoard extends Component {
     // ------------------------------------------------------------------
     // Datos
     // ------------------------------------------------------------------
+    /** Guarda dónde está parado el despachante (ver board_view.js). */
+    remember() {
+        const { day, mode, expanded, search, zone } = this.state;
+        rememberBoardView({ day, mode, expanded, search, zone });
+    }
+
     async load() {
+        this.remember();
         const data = await this.orm.call(MODEL, "route_dispatch_data", [this.state.day]);
         this.mapConfig = data.map;
         this.mapDirty = true;
@@ -228,7 +246,7 @@ export class RouteDispatchBoard extends Component {
         }
         if (route.started) {
             return route.delay_minutes >= 10
-                ? { text: `${route.delay_minutes} min tarde`, tone: "warn" }
+                ? { text: `${lateLabel(route.delay_minutes)} tarde`, tone: "warn" }
                 : { text: "En horario", tone: "ok" };
         }
         if (route.capacity && route.weight > route.capacity) {
@@ -439,10 +457,12 @@ export class RouteDispatchBoard extends Component {
     }
 
     openRoute(route) {
+        this.remember();
         this.action.doAction({ type: "ir.actions.act_window", res_model: MODEL, res_id: route.id, views: [[false, "form"]] });
     }
 
     openStop(stop) {
+        this.remember();
         this.action.doAction({ type: "ir.actions.act_window", res_model: "stock.picking", res_id: stop.id, views: [[false, "form"]] });
     }
 
