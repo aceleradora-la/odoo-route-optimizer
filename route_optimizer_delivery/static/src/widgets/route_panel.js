@@ -5,6 +5,7 @@ import { useService } from "@web/core/utils/hooks";
 import { hourLabel } from "../app/delivery_app";
 import { reactive, widgetProps } from "../app/owl_compat";
 import { createMap, decodePolyline } from "../board/map_adapter";
+import { lateLabel, localDay, rememberBoardView } from "../board/board_view";
 
 const COLOR = "#1d4ed8";
 
@@ -32,11 +33,22 @@ export class RouteDeliveryRoutePanel extends Component {
             if (!el || !this.state.route) {
                 return;
             }
-            this.map = await createMap(el, this.state.route.map);
+            const map = await createMap(el, this.state.route.map);
+            if (this.gone) {
+                // Se salió de la pantalla mientras cargaba el mapa.
+                map.destroy();
+                return;
+            }
+            this.map = map;
             this.map.onPinClick((id) => this.focus(id));
             this.draw(true);
         });
-        onWillUnmount(() => this.map && this.map.destroy());
+        onWillUnmount(() => {
+            this.gone = true;
+            if (this.map) {
+                this.map.destroy();
+            }
+        });
     }
 
     async load() {
@@ -58,7 +70,7 @@ export class RouteDeliveryRoutePanel extends Component {
             return "Terminada";
         }
         if (route.started) {
-            return route.delay_minutes >= 10 ? `En la calle · ${route.delay_minutes} min tarde` : "En la calle · en horario";
+            return route.delay_minutes >= 10 ? `En la calle · ${lateLabel(route.delay_minutes)} tarde` : "En la calle · en horario";
         }
         return route.state === "draft" ? "Borrador: el chofer todavía no la ve" : "Publicada";
     }
@@ -94,7 +106,14 @@ export class RouteDeliveryRoutePanel extends Component {
         this.draw();
     }
 
+    /** Abre el tablero en el día de esta ruta, con la ruta desplegada. */
     openBoard() {
+        const route = this.state.route;
+        rememberBoardView({
+            day: localDay(route.scheduled),
+            mode: route.started && !route.finished ? "live" : "plan",
+            expanded: route.id,
+        });
         this.action.doAction("route_optimizer_delivery.action_route_dispatch_board");
     }
 
