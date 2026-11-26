@@ -14,7 +14,7 @@
             </div>
             <div t-elif="this.data.route_delivery_eta and this.state.info and this.state.info.in_route" class="o_rdw_when">
                 <strong t-out="this.time(this.data.route_delivery_eta)"/>
-                <span t-if="this.state.info.late_minutes >= 10" class="o_rdw_alert"><t t-out="this.state.info.late_minutes"/> min tarde</span>
+                <span t-if="this.state.info.late_minutes >= 10" class="o_rdw_alert"><t t-out="this.late(this.state.info.late_minutes)"/> tarde</span>
                 <span t-else="" class="o_rdw_muted">hora estimada</span>
             </div>
         </div>
