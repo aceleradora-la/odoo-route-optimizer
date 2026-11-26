@@ -163,6 +163,11 @@ class LeafletMap {
     }
 
     destroy() {
+        // Si se sale de la pantalla en medio de un zoom animado, Leaflet termina la
+        // animación sobre un mapa que ya no existe y tira un error: se corta antes.
+        this.map._animatingZoom = false;
+        this.map.stop();
+        this.map.off();
         this.map.remove();
     }
 }

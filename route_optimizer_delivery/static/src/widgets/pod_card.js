@@ -4,6 +4,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { hourLabel, parseServerDate } from "../app/delivery_app";
 import { reactive, widgetProps } from "../app/owl_compat";
+import { lateLabel } from "../board/board_view";
 
 const STEPS = ["scheduled", "on_the_way", "next", "delivered"];
 
@@ -13,6 +14,10 @@ const STEPS = ["scheduled", "on_the_way", "next", "delivered"];
  */
 export class RouteDeliveryPodCard extends Component {
     static template = "route_optimizer_delivery.PodCard";
+
+    late(minutes) {
+        return lateLabel(minutes);
+    }
 
     setup() {
         this.orm = useService("orm");
