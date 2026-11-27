@@ -483,6 +483,69 @@
     .o_rdb_tl_now { position: absolute; top: -4px; bottom: -4px; width: 2px; background: $ink; pointer-events: none; }
 
     // En pantallas angostas los paneles pasan abajo del mapa.
+    // ---------------------------------------------------------- Arrastre con el dedo
+    // Mantener apretado levanta la entrega: sin menú del sistema ni selección de texto.
+    [data-rdb-drag] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    .o_rdb_ghost {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 1100;
+        max-width: 240px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        background: $ink;
+        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+        color: #fff;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        pointer-events: none;
+    }
+    .o_rdb_dock {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1090;
+        max-height: 40vh;
+        padding: 8px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+        border-top: 1px solid $line;
+        border-radius: 16px 16px 0 0;
+        background: #fff;
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.22);
+        overflow: hidden;
+    }
+    // Lugar para desplazar el contenido por encima de la barra mientras se arrastra.
+    &.o_rdb_touching { padding-bottom: 40vh; }
+    .o_rdb_dock_title { margin-bottom: 6px; color: $muted; font-size: 12px; font-weight: 700; text-align: center; }
+    .o_rdb_dock_targets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+    .o_rdb_dock_target {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 46px;
+        padding: 4px 10px;
+        border: 2px solid $line;
+        border-left: 6px solid var(--rdb-route, #{$line});
+        border-radius: 12px;
+        background: #fff;
+        font-size: 13px;
+    }
+    .o_rdb_dock_name {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-width: 0;
+        line-height: 1.2;
+        strong, span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        span { color: $muted; font-size: 11px; }
+    }
+    .o_rdb_dock_count { padding: 2px 8px; border-radius: 10px; background: #eceef1; font-weight: 700; }
+    .o_rdb_dock_new { justify-content: center; border-style: dashed; border-left-width: 2px; color: $brand-dark; font-weight: 700; }
+    .o_rdb_dock_on { border-color: $brand; background: #f3eef2; box-shadow: 0 0 0 3px rgba(113, 75, 103, 0.25); }
+
     @media (max-width: 1100px) {
         // Tablet y celular: se desplaza todo el tablero, no solo las listas.
         overflow-y: auto;
