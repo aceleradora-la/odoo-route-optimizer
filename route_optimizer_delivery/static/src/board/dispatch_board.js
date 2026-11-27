@@ -9,6 +9,7 @@ import { createMap, decodePolyline } from "./map_adapter";
 import { lateLabel, recallBoardView, rememberBoardView } from "./board_view";
 
 const MODEL = "stock.picking.batch";
+const TOUCH_HOLD_MS = 350;
 const REFRESH_MS = 30000;
 // Colores separados también en claridad, para distinguir rutas sin depender del tono.
 const ROUTE_COLORS = ["#1d4ed8", "#ea580c", "#0f766e", "#7c3aed", "#be185d", "#4d7c0f", "#0369a1", "#b45309"];
@@ -73,6 +74,7 @@ export class RouteDispatchBoard extends Component {
             lasso: "",
             mapProvider: "osm",
             now: Date.now(),
+            touchDrag: false, // arrastre con el dedo en curso: { count, fromRoute }
         });
         this.drag = null;
         this.mapConfig = null;
@@ -105,8 +107,27 @@ export class RouteDispatchBoard extends Component {
                 this.drawMap();
             }
         });
+        onMounted(() => {
+            // Arrastre con el dedo. Va con eventos táctiles propios: el arrastre nativo del
+            // navegador en el celular no desplaza la página ni deja elegir dónde soltar.
+            this.rootEl = document.querySelector(".o_route_dispatch_board");
+            this.touchHandlers = {
+                touchstart: (ev) => this.onTouchStart(ev),
+                touchmove: (ev) => this.onTouchMove(ev),
+                touchend: (ev) => this.onTouchEnd(ev),
+                touchcancel: () => this.endTouch(),
+                contextmenu: (ev) => this.touch && ev.preventDefault(),
+            };
+            for (const [name, handler] of Object.entries(this.touchHandlers)) {
+                this.rootEl.addEventListener(name, handler, { passive: name === "touchstart" });
+            }
+        });
         onWillUnmount(() => {
             this.gone = true;
+            this.endTouch();
+            for (const [name, handler] of Object.entries(this.touchHandlers || {})) {
+                this.rootEl.removeEventListener(name, handler);
+            }
             this.remember();
             clearInterval(this.timer);
             if (this.map) {
@@ -476,7 +497,7 @@ export class RouteDispatchBoard extends Component {
     // Arrastrar y soltar
     // ------------------------------------------------------------------
     onDragStart(stop, ev) {
-        if (stop.state !== "pending") {
+        if (stop.state !== "pending" || this.touch) {
             ev.preventDefault();
             return;
         }
@@ -521,6 +542,11 @@ export class RouteDispatchBoard extends Component {
         ev.stopPropagation();
         const drag = this.drag;
         this.onDragEnd();
+        await this.dropOn(drag, target, index);
+    }
+
+    /** Suelta lo arrastrado sobre `target` (ruta, 0 = sin asignar, "new"), con mouse o con el dedo. */
+    async dropOn(drag, target, index) {
         if (!drag) {
             return;
         }
@@ -532,6 +558,140 @@ export class RouteDispatchBoard extends Component {
             await this.run("route_dispatch_move", [drag.single, target, index]);
         } else {
             await this.assign(target, drag.ids);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Arrastre con el dedo
+    // ------------------------------------------------------------------
+    get dockRoutes() {
+        return this.state.routes.filter((route) => !route.finished);
+    }
+
+    /** Mantener apretada una entrega la levanta; un toque corto o un desplazamiento, no. */
+    onTouchStart(ev) {
+        this.endTouch();
+        const item = ev.touches.length === 1 && ev.target.closest && ev.target.closest("[data-rdb-drag]");
+        if (!item || ev.target.closest("select, button, a")) {
+            return;
+        }
+        const touch = ev.touches[0];
+        this.touch = {
+            id: Number(item.dataset.rdbDrag),
+            x: touch.clientX,
+            y: touch.clientY,
+            active: false,
+            timer: setTimeout(() => this.beginTouchDrag(), TOUCH_HOLD_MS),
+        };
+    }
+
+    beginTouchDrag() {
+        const touch = this.touch;
+        const stop = touch && this.allStops.find((item) => item.id === touch.id);
+        if (!stop || stop.state !== "pending") {
+            this.endTouch();
+            return;
+        }
+        // Igual que con el mouse: arrastrar una entrega elegida lleva todo lo elegido.
+        const ids = this.isSelected(stop.id) ? this.selectedIds : [stop.id];
+        this.drag = { ids, single: ids.length === 1 ? stop.id : null };
+        touch.active = true;
+        touch.ghost = document.createElement("div");
+        touch.ghost.className = "o_rdb_ghost";
+        touch.ghost.textContent = ids.length === 1 ? stop.partner : `${ids.length} entregas`;
+        this.rootEl.appendChild(touch.ghost);
+        this.moveGhost();
+        navigator.vibrate?.(25);
+        this.state.touchDrag = { count: ids.length, fromRoute: Boolean(stop.batch_id) };
+    }
+
+    moveGhost() {
+        const { ghost, x, y } = this.touch;
+        ghost.style.transform = `translate(${Math.round(x + 12)}px, ${Math.round(y - 52)}px)`;
+    }
+
+    onTouchMove(ev) {
+        const touch = this.touch;
+        if (!touch) {
+            return;
+        }
+        const point = ev.touches[0];
+        if (!touch.active) {
+            // Se movió antes de tiempo: es un desplazamiento de la página, no un arrastre.
+            if (Math.hypot(point.clientX - touch.x, point.clientY - touch.y) > 10) {
+                this.endTouch();
+            }
+            return;
+        }
+        ev.preventDefault();
+        touch.x = point.clientX;
+        touch.y = point.clientY;
+        this.moveGhost();
+        const under = document.elementFromPoint(touch.x, touch.y);
+        const zone = under && under.closest("[data-rdb-drop]");
+        let drop = null;
+        if (zone && this.rootEl.contains(zone)) {
+            const raw = zone.dataset.rdbDrop;
+            const index = zone.dataset.rdbIndex;
+            drop = { target: raw === "new" ? "new" : Number(raw), index: index === undefined ? null : Number(index) };
+        }
+        const current = this.state.drop;
+        if (!drop ? current : !current || current.target !== drop.target || current.index !== drop.index) {
+            this.state.drop = drop;
+        }
+        this.touchScroll(under);
+    }
+
+    /** Con el dedo cerca del borde, la lista se desplaza sola para llegar a lo que no se ve. */
+    touchScroll(under) {
+        const touch = this.touch;
+        const dock = this.rootEl.querySelector(".o_rdb_dock");
+        const bottom = dock ? dock.getBoundingClientRect().top : window.innerHeight;
+        const top = this.rootEl.getBoundingClientRect().top;
+        touch.scrollBy = touch.y < top + 70 ? -14 : touch.y > bottom - 70 && touch.y < bottom ? 14 : 0;
+        const list = under && under.closest(".o_rdb_list");
+        touch.scrollEl = list && list.scrollHeight > list.clientHeight + 1 ? list : this.rootEl;
+        if (touch.scrollBy && !touch.scrolling) {
+            const step = () => {
+                if (this.touch !== touch || !touch.scrollBy) {
+                    touch.scrolling = false;
+                    return;
+                }
+                touch.scrollEl.scrollBy(0, touch.scrollBy);
+                requestAnimationFrame(step);
+            };
+            touch.scrolling = true;
+            requestAnimationFrame(step);
+        }
+    }
+
+    async onTouchEnd(ev) {
+        const touch = this.touch;
+        if (!touch || !touch.active) {
+            this.endTouch();
+            return;
+        }
+        // Sin esto, al soltar el navegador dispara un clic sobre lo que quedó debajo.
+        ev.preventDefault();
+        const drag = this.drag;
+        const drop = this.state.drop;
+        this.endTouch();
+        if (drop) {
+            await this.dropOn(drag, drop.target, drop.index);
+        }
+    }
+
+    endTouch() {
+        const touch = this.touch;
+        if (!touch) {
+            return;
+        }
+        clearTimeout(touch.timer);
+        touch.ghost?.remove();
+        this.touch = null;
+        if (touch.active) {
+            this.onDragEnd();
+            this.state.touchDrag = false;
         }
     }
 
