@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
 <t t-name="route_optimizer_delivery.RouteDispatchBoard">
-    <div t-attf-class="o_route_dispatch_board o_rdb_mode_{{ this.state.mode }}">
+    <div t-attf-class="o_route_dispatch_board o_rdb_mode_{{ this.state.mode }} {{ this.state.touchDrag ? 'o_rdb_touching' : '' }}">
 
         <!-- Barra superior -->
         <div class="o_rdb_top">
@@ -47,6 +47,7 @@
 
             <!-- Sin asignar -->
             <div t-if="this.state.mode === 'plan'" t-attf-class="o_rdb_side o_rdb_left {{ this.isDrop(0) ? 'o_rdb_dropzone_on' : '' }}"
+                 data-rdb-drop="0"
                  t-on-dragover="(ev) => this.onDragOver(0, null, ev)" t-on-drop="(ev) => this.onDrop(0, null, ev)">
                 <div class="o_rdb_side_head">
                     <div class="o_rdb_side_title">
@@ -68,7 +69,7 @@
                     <div t-elif="!this.visibleUnassigned.length" class="o_rdb_empty">Ninguna entrega coincide con la búsqueda.</div>
                     <label t-foreach="this.visibleUnassigned" t-as="stop" t-key="stop.id"
                            t-attf-class="o_rdb_order {{ this.isSelected(stop.id) ? 'o_rdb_order_on' : '' }}"
-                           draggable="true"
+                           draggable="true" t-att-data-rdb-drag="stop.id"
                            t-on-dragstart="(ev) => this.onDragStart(stop, ev)" t-on-dragend="this.onDragEnd"
                            t-on-mouseenter="() => this.focusStop(stop)">
                         <input type="checkbox" t-att-checked="this.isSelected(stop.id)" t-on-change="() => this.toggle(stop.id)"/>
@@ -92,6 +93,7 @@
                         Elegir <t t-if="this.state.search or this.state.zone">las <t t-out="this.visibleUnassigned.length"/></t><t t-else="">todas</t>
                     </button>
                     <div t-attf-class="o_rdb_new {{ this.isDrop('new') ? 'o_rdb_new_on' : '' }}"
+                         data-rdb-drop="new"
                          t-on-dragover="(ev) => this.onDragOver('new', null, ev)" t-on-drop="(ev) => this.onDrop('new', null, ev)">
                         <i class="o_rdi o_rdi-plus me-1" aria-hidden="true"/>Soltá acá para abrir una ruta
                     </div>
@@ -206,6 +208,7 @@
                         <div t-foreach="this.state.options" t-as="option" t-key="option.batch_id"
                              t-attf-class="o_rdb_option {{ option_index === 0 and !option.over_capacity and !option.outside_window ? 'o_rdb_option_best' : '' }} {{ this.isDrop(option.batch_id) ? 'o_rdb_dropzone_on' : '' }}"
                              t-attf-style="--rdb-route: {{ this.optionColor(option) }}"
+                             t-att-data-rdb-drop="option.batch_id"
                              t-on-dragover="(ev) => this.onDragOver(option.batch_id, null, ev)" t-on-drop="(ev) => this.onDrop(option.batch_id, null, ev)">
                             <div class="o_rdb_option_head">
                                 <strong><t t-out="option.name"/><t t-if="option.driver"> · <t t-out="option.driver"/></t></strong>
@@ -249,6 +252,7 @@
                         <div t-foreach="this.state.routes" t-as="route" t-key="route.id"
                              t-attf-class="o_rdb_route {{ this.state.expanded === route.id ? 'o_rdb_route_open' : '' }} {{ this.isDrop(route.id) ? 'o_rdb_dropzone_on' : '' }}"
                              t-attf-style="--rdb-route: {{ this.color(route) }}"
+                             t-att-data-rdb-drop="route.id"
                              t-on-dragover="(ev) => this.onDragOver(route.id, null, ev)" t-on-drop="(ev) => this.onDrop(route.id, null, ev)">
                             <t t-set="tag" t-value="this.routeTag(route)"/>
                             <button type="button" class="o_rdb_route_head" t-att-aria-expanded="this.state.expanded === route.id ? 'true' : 'false'" t-on-click="() => this.toggleRoute(route)">
@@ -306,6 +310,8 @@
                                     <div t-foreach="route.stops" t-as="stop" t-key="stop.id"
                                          t-attf-class="o_rdb_stop o_rdb_stop_{{ stop.state }} {{ this.isSelected(stop.id) ? 'o_rdb_stop_on' : '' }} {{ this.drag and this.isDrop(route.id, this.stopIndex(route, stop)) ? 'o_rdb_drop_before' : '' }}"
                                          t-att-draggable="stop.state === 'pending' ? 'true' : 'false'"
+                                         t-att-data-rdb-drag="stop.state === 'pending' ? stop.id : undefined"
+                                         t-att-data-rdb-drop="route.id" t-att-data-rdb-index="this.stopIndex(route, stop)"
                                          t-on-dragstart="(ev) => this.onDragStart(stop, ev)" t-on-dragend="this.onDragEnd"
                                          t-on-dragover="(ev) => this.onDragOver(route.id, this.stopIndex(route, stop), ev)"
                                          t-on-drop="(ev) => this.onDrop(route.id, this.stopIndex(route, stop), ev)"
@@ -337,6 +343,7 @@
                                     </div>
                                     <div t-if="!route.stops.length" class="o_rdb_empty">Ruta vacía. Soltá entregas acá.</div>
                                     <div t-attf-class="o_rdb_stop_end {{ this.drag and this.isDrop(route.id, route.stops.length) ? 'o_rdb_drop_before' : '' }}"
+                                         t-att-data-rdb-drop="route.id" t-att-data-rdb-index="route.stops.length"
                                          t-on-dragover="(ev) => this.onDragOver(route.id, route.stops.length, ev)"
                                          t-on-drop="(ev) => this.onDrop(route.id, route.stops.length, ev)"/>
                                 </div>
@@ -344,6 +351,27 @@
                         </div>
                     </div>
                 </t>
+            </div>
+        </div>
+
+        <!-- Arrastre con el dedo: los destinos quedan a mano, sin tener que llegar hasta la lista de rutas -->
+        <div t-if="this.state.touchDrag" class="o_rdb_dock">
+            <div class="o_rdb_dock_title">
+                Soltá <t t-if="this.state.touchDrag.count === 1">la entrega</t><t t-else="">las <t t-out="this.state.touchDrag.count"/> entregas</t> sobre una ruta
+            </div>
+            <div class="o_rdb_dock_targets">
+                <div t-foreach="this.dockRoutes" t-as="route" t-key="route.id" t-att-data-rdb-drop="route.id"
+                     t-attf-class="o_rdb_dock_target {{ this.isDrop(route.id) ? 'o_rdb_dock_on' : '' }}"
+                     t-attf-style="--rdb-route: {{ this.color(route) }}">
+                    <span class="o_rdb_dock_name" t-att-title="route.name"><strong t-out="route.driver or route.name"/><span t-if="route.driver" t-out="route.name"/></span>
+                    <span class="o_rdb_dock_count" t-out="route.stop_count"/>
+                </div>
+                <div data-rdb-drop="new" t-attf-class="o_rdb_dock_target o_rdb_dock_new {{ this.isDrop('new') ? 'o_rdb_dock_on' : '' }}">
+                    <i class="o_rdi o_rdi-plus"/> Ruta nueva
+                </div>
+                <div t-if="this.state.touchDrag.fromRoute" data-rdb-drop="0" t-attf-class="o_rdb_dock_target o_rdb_dock_new {{ this.isDrop(0) ? 'o_rdb_dock_on' : '' }}">
+                    Sacar de su ruta
+                </div>
             </div>
         </div>
     </div>
